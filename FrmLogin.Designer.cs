@@ -32,13 +32,14 @@
             label1 = new Label();
             panel1 = new Panel();
             panel2 = new Panel();
-            textContraseña = new TextBox();
-            textCorreo = new TextBox();
-            textNombre = new TextBox();
+            button1 = new Button();
+            txtContraseña = new TextBox();
+            txtCorreo = new TextBox();
+            txtNombre = new TextBox();
             label3 = new Label();
             label2 = new Label();
             LNombre = new Label();
-            button1 = new Button();
+            button2 = new Button();
             panel2.SuspendLayout();
             SuspendLayout();
             // 
@@ -63,10 +64,11 @@
             // 
             // panel2
             // 
+            panel2.Controls.Add(button2);
             panel2.Controls.Add(button1);
-            panel2.Controls.Add(textContraseña);
-            panel2.Controls.Add(textCorreo);
-            panel2.Controls.Add(textNombre);
+            panel2.Controls.Add(txtContraseña);
+            panel2.Controls.Add(txtCorreo);
+            panel2.Controls.Add(txtNombre);
             panel2.Controls.Add(label3);
             panel2.Controls.Add(label2);
             panel2.Controls.Add(LNombre);
@@ -75,27 +77,39 @@
             panel2.Size = new Size(587, 327);
             panel2.TabIndex = 2;
             // 
-            // textContraseña
+            // button1
             // 
-            textContraseña.Location = new Point(62, 235);
-            textContraseña.Name = "textContraseña";
-            textContraseña.Size = new Size(411, 23);
-            textContraseña.TabIndex = 5;
-            textContraseña.UseSystemPasswordChar = true;
+            button1.BackColor = Color.LightGreen;
+            button1.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            button1.Location = new Point(308, 264);
+            button1.Name = "button1";
+            button1.Size = new Size(165, 46);
+            button1.TabIndex = 6;
+            button1.Text = "Iniciar Sesión";
+            button1.UseVisualStyleBackColor = false;
+            button1.Click += button1_Click;
             // 
-            // textCorreo
+            // txtContraseña
             // 
-            textCorreo.Location = new Point(62, 156);
-            textCorreo.Name = "textCorreo";
-            textCorreo.Size = new Size(411, 23);
-            textCorreo.TabIndex = 4;
+            txtContraseña.Location = new Point(62, 235);
+            txtContraseña.Name = "txtContraseña";
+            txtContraseña.Size = new Size(411, 23);
+            txtContraseña.TabIndex = 5;
+            txtContraseña.UseSystemPasswordChar = true;
             // 
-            // textNombre
+            // txtCorreo
             // 
-            textNombre.Location = new Point(62, 76);
-            textNombre.Name = "textNombre";
-            textNombre.Size = new Size(411, 23);
-            textNombre.TabIndex = 3;
+            txtCorreo.Location = new Point(62, 156);
+            txtCorreo.Name = "txtCorreo";
+            txtCorreo.Size = new Size(411, 23);
+            txtCorreo.TabIndex = 4;
+            // 
+            // txtNombre
+            // 
+            txtNombre.Location = new Point(62, 76);
+            txtNombre.Name = "txtNombre";
+            txtNombre.Size = new Size(411, 23);
+            txtNombre.TabIndex = 3;
             // 
             // label3
             // 
@@ -125,21 +139,23 @@
             LNombre.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             LNombre.Location = new Point(55, 40);
             LNombre.Name = "LNombre";
-            LNombre.Size = new Size(123, 31);
+            LNombre.Size = new Size(262, 31);
             LNombre.TabIndex = 0;
-            LNombre.Text = "Nombre";
+            LNombre.Text = "Nombre Completo";
             LNombre.UseWaitCursor = true;
             // 
-            // button1
+            // button2
             // 
-            button1.BackColor = Color.LightGreen;
-            button1.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            button1.Location = new Point(202, 269);
-            button1.Name = "button1";
-            button1.Size = new Size(165, 46);
-            button1.TabIndex = 6;
-            button1.Text = "Iniciar Sesión";
-            button1.UseVisualStyleBackColor = false;
+            button2.BackColor = Color.Red;
+            button2.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            button2.ForeColor = SystemColors.ButtonHighlight;
+            button2.Location = new Point(62, 264);
+            button2.Name = "button2";
+            button2.Size = new Size(171, 46);
+            button2.TabIndex = 7;
+            button2.Text = "Salir";
+            button2.UseVisualStyleBackColor = false;
+            button2.Click += button2_Click;
             // 
             // FrmLogin
             // 
@@ -169,9 +185,10 @@
         private Label label3;
         private Label label2;
         private Label LNombre;
-        private TextBox textContraseña;
-        private TextBox textCorreo;
-        private TextBox textNombre;
+        private TextBox txtContraseña;
+        private TextBox txtCorreo;
+        private TextBox txtNombre;
         private Button button1;
+        private Button button2;
     }
 }
