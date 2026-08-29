@@ -69,6 +69,7 @@
             lista_turnos.Size = new Size(97, 86);
             lista_turnos.TabIndex = 1;
             lista_turnos.UseVisualStyleBackColor = false;
+            lista_turnos.Click += lista_turnos_Click;
             // 
             // asign_turnos
             // 

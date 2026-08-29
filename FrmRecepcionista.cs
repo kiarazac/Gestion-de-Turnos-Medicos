@@ -52,5 +52,10 @@ namespace Gestion_de_Turnos_Medicos
             // 2. Cerramos la ventana actual de Turnos (esta sí la cerramos por completo)
             this.Close();
         }
+
+        private void lista_turnos_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmListaTurnos());
+        }
     }
 }
