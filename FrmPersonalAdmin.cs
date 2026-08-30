@@ -11,8 +11,6 @@ namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmPersonalAdmin : Form
     {
-        // Contador simple para el id_usuario mientras no haya base de datos conectada.
-        // Si esto ya lo trae la BD (autoincremental), sacá este contador y usá el id que devuelva el INSERT.
         private int contadorId = 1;
 
         public FrmPersonalAdmin()
@@ -58,8 +56,6 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "usuario"
             });
 
-            // La contraseña normalmente no se muestra en texto plano en un grid real,
-            // pero si la necesitás visible por ahora, se agrega igual que las demás.
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "contrasenia",
@@ -80,31 +76,10 @@ namespace Gestion_de_Turnos_Medicos
 
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "direccion",
-                HeaderText = "Dirección"
-            });
-
-            // *** Columna FECHA ***
-            // La columna sigue siendo de tipo texto en el grid, pero el VALOR que le
-            // cargás en cada fila es un DateTime real (no un string armado a mano).
-            // Así se puede ordenar cronológicamente y no depende del formato regional.
-            DataGridViewTextBoxColumn colFecha = new DataGridViewTextBoxColumn
-            {
-                Name = "fecha_nacimiento",
-                HeaderText = "fecha nacimiento",
-                ValueType = typeof(DateTime)
-            };
-            colFecha.DefaultCellStyle.Format = "dd/MM/yyyy";
-            dgvPersonal.Columns.Add(colFecha);
-
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
                 Name = "telefono",
                 HeaderText = "telefono"
             });
 
-            // *** Columna SEXO ***
-            // Se guarda como texto ("Hombre" / "Mujer"), no como bool ni como índice.
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "sexo",
@@ -116,6 +91,14 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "nro_matricula",
                 HeaderText = "Nro Matricula"
             });
+
+            // *** NUEVA Columna ESPECIALIDADES ***
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "especialidades",
+                HeaderText = "Especialidades",
+                Width = 150
+            });
         }
 
         private void btnGuardar_Click(object sender, EventArgs e)
@@ -125,6 +108,14 @@ namespace Gestion_de_Turnos_Medicos
 
             string sexo = rbHombre.Checked ? "Hombre" : "Mujer";
 
+            // Extraer las especialidades marcadas en el CheckedListBox y unirlas con una coma
+            List<string> listaEspecialidades = new List<string>();
+            foreach (var item in clbEspecialidades.CheckedItems)
+            {
+                listaEspecialidades.Add(item.ToString());
+            }
+            string textoEspecialidades = string.Join(", ", listaEspecialidades);
+
             int filaIndex = dgvPersonal.Rows.Add();
             DataGridViewRow fila = dgvPersonal.Rows[filaIndex];
 
@@ -132,14 +123,13 @@ namespace Gestion_de_Turnos_Medicos
             fila.Cells["nombre"].Value = txtNombre.Text.Trim();
             fila.Cells["apellido"].Value = txtApellido.Text.Trim();
             fila.Cells["usuario"].Value = txtUsuario.Text.Trim();
-            fila.Cells["contrasenia"].Value = txtContrasenia.Text; // ver nota de seguridad más abajo
+            fila.Cells["contrasenia"].Value = txtContrasenia.Text;
             fila.Cells["dni"].Value = txtDNI.Text.Trim();
             fila.Cells["email"].Value = txtEmail.Text.Trim();
-            fila.Cells["direccion"].Value = txtDireccion.Text.Trim();
-            fila.Cells["fecha_nacimiento"].Value = dtpFecha.Value.Date; // DateTime real, no string
             fila.Cells["telefono"].Value = txtTelefono.Text.Trim();
             fila.Cells["sexo"].Value = sexo;
             fila.Cells["nro_matricula"].Value = txtMatricula.Text.Trim();
+            fila.Cells["especialidades"].Value = textoEspecialidades; // Guardamos el texto concatenado
 
             contadorId++;
 
@@ -199,6 +189,14 @@ namespace Gestion_de_Turnos_Medicos
                 return false;
             }
 
+            // Nueva validación para asegurar que seleccione al menos una especialidad
+            if (clbEspecialidades.CheckedItems.Count == 0)
+            {
+                MessageBox.Show("Seleccioná al menos una especialidad.",
+                    "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
             return true;
         }
 
@@ -210,12 +208,17 @@ namespace Gestion_de_Turnos_Medicos
             txtContrasenia.Clear();
             txtEmail.Clear();
             txtDNI.Clear();
-            txtDireccion.Clear();
             txtTelefono.Clear();
             txtMatricula.Clear();
-            dtpFecha.Value = DateTime.Now;
             rbHombre.Checked = false;
             rbMujer.Checked = false;
+
+            // Desmarcar todas las opciones del CheckedListBox
+            for (int i = 0; i < clbEspecialidades.Items.Count; i++)
+            {
+                clbEspecialidades.SetItemChecked(i, false);
+            }
+
             txtNombre.Focus();
         }
     }
