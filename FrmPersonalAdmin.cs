@@ -9,13 +9,13 @@ using System.Windows.Forms;
 
 namespace Gestion_de_Turnos_Medicos
 {
-    public partial class FrmPersonal : Form
+    public partial class FrmPersonalAdmin : Form
     {
         // Contador simple para el id_usuario mientras no haya base de datos conectada.
         // Si esto ya lo trae la BD (autoincremental), sacá este contador y usá el id que devuelva el INSERT.
         private int contadorId = 1;
 
-        public FrmPersonal()
+        public FrmPersonalAdmin()
         {
             InitializeComponent();
             this.Load += FrmPersonal_Load;

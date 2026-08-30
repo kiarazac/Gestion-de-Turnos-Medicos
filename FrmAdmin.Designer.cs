@@ -29,9 +29,10 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
-            BUsuarios = new Button();
-            button1 = new Button();
             button2 = new Button();
+            button1 = new Button();
+            BUsuarios = new Button();
+            pnlContenedor = new Panel();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -47,14 +48,14 @@
             panel1.Size = new Size(200, 538);
             panel1.TabIndex = 0;
             // 
-            // BUsuarios
+            // button2
             // 
-            BUsuarios.Location = new Point(54, 47);
-            BUsuarios.Name = "BUsuarios";
-            BUsuarios.Size = new Size(84, 73);
-            BUsuarios.TabIndex = 0;
-            BUsuarios.Text = "Personal medico";
-            BUsuarios.UseVisualStyleBackColor = true;
+            button2.Location = new Point(54, 376);
+            button2.Name = "button2";
+            button2.Size = new Size(84, 73);
+            button2.TabIndex = 2;
+            button2.Text = "Salas";
+            button2.UseVisualStyleBackColor = true;
             // 
             // button1
             // 
@@ -65,14 +66,23 @@
             button1.Text = "Recepcionistas";
             button1.UseVisualStyleBackColor = true;
             // 
-            // button2
+            // BUsuarios
             // 
-            button2.Location = new Point(54, 376);
-            button2.Name = "button2";
-            button2.Size = new Size(84, 73);
-            button2.TabIndex = 2;
-            button2.Text = "Salas";
-            button2.UseVisualStyleBackColor = true;
+            BUsuarios.Location = new Point(54, 47);
+            BUsuarios.Name = "BUsuarios";
+            BUsuarios.Size = new Size(84, 73);
+            BUsuarios.TabIndex = 0;
+            BUsuarios.Text = "Personal medico";
+            BUsuarios.UseVisualStyleBackColor = true;
+            // 
+            // pnlContenedor
+            // 
+            pnlContenedor.BackgroundImage = Properties.Resources.fondo_admin;
+            pnlContenedor.Dock = DockStyle.Fill;
+            pnlContenedor.Location = new Point(200, 0);
+            pnlContenedor.Name = "pnlContenedor";
+            pnlContenedor.Size = new Size(695, 538);
+            pnlContenedor.TabIndex = 1;
             // 
             // FrmAdmin
             // 
@@ -80,6 +90,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.fondo_admin;
             ClientSize = new Size(895, 538);
+            Controls.Add(pnlContenedor);
             Controls.Add(panel1);
             Name = "FrmAdmin";
             Text = "Administracion";
@@ -94,5 +105,6 @@
         private Button BUsuarios;
         private Button button2;
         private Button button1;
+        private Panel pnlContenedor;
     }
 }
