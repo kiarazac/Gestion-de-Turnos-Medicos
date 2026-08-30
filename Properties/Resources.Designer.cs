@@ -73,6 +73,16 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         /// <summary>
         ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap fondo_personalMedico {
+            get {
+                object obj = ResourceManager.GetObject("fondo_personalMedico", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap fondo_recepcionista {
             get {
                 object obj = ResourceManager.GetObject("fondo_recepcionista", resourceCulture);
@@ -96,6 +106,16 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         internal static System.Drawing.Bitmap logo_asignar_turno {
             get {
                 object obj = ResourceManager.GetObject("logo_asignar_turno", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap misSalas {
+            get {
+                object obj = ResourceManager.GetObject("misSalas", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

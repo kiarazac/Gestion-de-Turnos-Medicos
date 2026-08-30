@@ -120,9 +120,9 @@
             LEspecialidad.ForeColor = SystemColors.InactiveCaptionText;
             LEspecialidad.Location = new Point(390, 76);
             LEspecialidad.Name = "LEspecialidad";
-            LEspecialidad.Size = new Size(75, 21);
+            LEspecialidad.Size = new Size(106, 21);
             LEspecialidad.TabIndex = 19;
-            LEspecialidad.Text = "Apellido";
+            LEspecialidad.Text = "Especialidad";
             // 
             // cmbEspecialidad
             // 
@@ -198,9 +198,9 @@
             label6.Location = new Point(28, 64);
             label6.MaximumSize = new Size(325, 0);
             label6.Name = "label6";
-            label6.Size = new Size(288, 38);
+            label6.Size = new Size(325, 38);
             label6.TabIndex = 4;
-            label6.Text = "Seleccione una de las fechas disponibles en el Calendario";
+            label6.Text = "Seleccione una de las fechas resaltadas en negro del Calendario";
             // 
             // label5
             // 
