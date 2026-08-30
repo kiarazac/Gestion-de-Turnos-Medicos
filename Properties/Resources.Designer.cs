@@ -109,5 +109,15 @@ namespace Gestion_de_Turnos_Medicos.Properties {
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap turnos_emergencia {
+            get {
+                object obj = ResourceManager.GetObject("turnos_emergencia", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
     }
 }

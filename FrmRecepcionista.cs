@@ -38,11 +38,12 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.BringToFront();
             formHijo.Show();
         }
-        private void asign_turnos_Click(object sender, EventArgs e)
+        private void asign_turnosEmergencia_Click(object sender, EventArgs e)
         {
             // Llamamos a la función y le pasamos una nueva instancia de tu ventana
             AbrirFormularioHijo(new FrmTurnoEmergencia());
         }
+        
 
         private void salir_Click(object sender, EventArgs e)
         {
@@ -56,6 +57,11 @@ namespace Gestion_de_Turnos_Medicos
         private void lista_turnos_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmListaTurnos());
+        }
+
+        private void asign_turnosEspecialidad_Click_1(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmTurnoEspecialidad());
         }
     }
 }

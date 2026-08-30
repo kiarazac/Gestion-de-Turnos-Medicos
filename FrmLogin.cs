@@ -13,11 +13,12 @@ namespace Gestion_de_Turnos_Medicos
         {
             // 1. Guardamos los valores de las cajas de texto
             string nombre = txtNombre.Text;
+            string apellido = txtApellido.Text;
             string email = txtCorreo.Text;
             string contrasena = txtContraseña.Text;
 
             // 2. Validamos campos vacíos 
-            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(contrasena))
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(contrasena))
             {
                 MessageBox.Show("Por favor, completa todos los campos.", "Campos incompletos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -27,6 +28,12 @@ namespace Gestion_de_Turnos_Medicos
             if (!Validaciones.EsNombreValido(nombre))
             {
                 MessageBox.Show("El nombre no puede contener números ni símbolos especiales.", "Nombre inválido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!Validaciones.EsNombreValido(apellido))
+            {
+                MessageBox.Show("El apellido no puede contener números ni símbolos especiales.", "Apellido inválido", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 

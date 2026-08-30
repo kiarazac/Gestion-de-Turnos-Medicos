@@ -32,6 +32,7 @@
             label1 = new Label();
             panel1 = new Panel();
             panel2 = new Panel();
+            button2 = new Button();
             button1 = new Button();
             txtContraseña = new TextBox();
             txtCorreo = new TextBox();
@@ -39,7 +40,8 @@
             label3 = new Label();
             label2 = new Label();
             LNombre = new Label();
-            button2 = new Button();
+            txtApellido = new TextBox();
+            LApellido = new Label();
             panel2.SuspendLayout();
             SuspendLayout();
             // 
@@ -64,6 +66,8 @@
             // 
             // panel2
             // 
+            panel2.Controls.Add(txtApellido);
+            panel2.Controls.Add(LApellido);
             panel2.Controls.Add(button2);
             panel2.Controls.Add(button1);
             panel2.Controls.Add(txtContraseña);
@@ -76,6 +80,19 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(587, 327);
             panel2.TabIndex = 2;
+            // 
+            // button2
+            // 
+            button2.BackColor = Color.Red;
+            button2.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            button2.ForeColor = SystemColors.ButtonHighlight;
+            button2.Location = new Point(62, 264);
+            button2.Name = "button2";
+            button2.Size = new Size(171, 46);
+            button2.TabIndex = 7;
+            button2.Text = "Salir";
+            button2.UseVisualStyleBackColor = false;
+            button2.Click += button2_Click;
             // 
             // button1
             // 
@@ -108,7 +125,7 @@
             // 
             txtNombre.Location = new Point(62, 76);
             txtNombre.Name = "txtNombre";
-            txtNombre.Size = new Size(411, 23);
+            txtNombre.Size = new Size(190, 23);
             txtNombre.TabIndex = 3;
             // 
             // label3
@@ -139,23 +156,28 @@
             LNombre.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             LNombre.Location = new Point(55, 40);
             LNombre.Name = "LNombre";
-            LNombre.Size = new Size(262, 31);
+            LNombre.Size = new Size(123, 31);
             LNombre.TabIndex = 0;
-            LNombre.Text = "Nombre Completo";
+            LNombre.Text = "Nombre";
             LNombre.UseWaitCursor = true;
             // 
-            // button2
+            // txtApellido
             // 
-            button2.BackColor = Color.Red;
-            button2.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            button2.ForeColor = SystemColors.ButtonHighlight;
-            button2.Location = new Point(62, 264);
-            button2.Name = "button2";
-            button2.Size = new Size(171, 46);
-            button2.TabIndex = 7;
-            button2.Text = "Salir";
-            button2.UseVisualStyleBackColor = false;
-            button2.Click += button2_Click;
+            txtApellido.Location = new Point(283, 76);
+            txtApellido.Name = "txtApellido";
+            txtApellido.Size = new Size(190, 23);
+            txtApellido.TabIndex = 9;
+            // 
+            // LApellido
+            // 
+            LApellido.AutoSize = true;
+            LApellido.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            LApellido.Location = new Point(276, 40);
+            LApellido.Name = "LApellido";
+            LApellido.Size = new Size(132, 31);
+            LApellido.TabIndex = 8;
+            LApellido.Text = "Apellido";
+            LApellido.UseWaitCursor = true;
             // 
             // FrmLogin
             // 
@@ -190,5 +212,7 @@
         private TextBox txtNombre;
         private Button button1;
         private Button button2;
+        private TextBox txtApellido;
+        private Label LApellido;
     }
 }
