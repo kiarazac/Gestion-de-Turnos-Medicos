@@ -49,9 +49,16 @@
             label2 = new Label();
             txtNombre = new TextBox();
             label1 = new Label();
+            txtObraSocial = new TextBox();
+            LObraSocial = new Label();
+            panel3 = new Panel();
+            LdescripTurno = new Label();
+            Lid_turno = new Label();
+            Ldescrip_turno_especialidad = new Label();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
+            panel3.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
@@ -61,7 +68,7 @@
             panel1.Controls.Add(LNombrePantalla);
             panel1.Location = new Point(-157, -3);
             panel1.Name = "panel1";
-            panel1.Size = new Size(1198, 63);
+            panel1.Size = new Size(1330, 63);
             panel1.TabIndex = 1;
             // 
             // LNombrePantalla
@@ -99,6 +106,8 @@
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
+            panel2.Controls.Add(txtObraSocial);
+            panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(LEspecialidad);
             panel2.Controls.Add(cmbEspecialidad);
             panel2.Controls.Add(Condicionales);
@@ -118,7 +127,7 @@
             LEspecialidad.AutoSize = true;
             LEspecialidad.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             LEspecialidad.ForeColor = SystemColors.InactiveCaptionText;
-            LEspecialidad.Location = new Point(390, 76);
+            LEspecialidad.Location = new Point(36, 138);
             LEspecialidad.Name = "LEspecialidad";
             LEspecialidad.Size = new Size(106, 21);
             LEspecialidad.TabIndex = 19;
@@ -128,7 +137,7 @@
             // 
             cmbEspecialidad.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbEspecialidad.FormattingEnabled = true;
-            cmbEspecialidad.Location = new Point(387, 110);
+            cmbEspecialidad.Location = new Point(33, 172);
             cmbEspecialidad.Name = "cmbEspecialidad";
             cmbEspecialidad.Size = new Size(268, 23);
             cmbEspecialidad.TabIndex = 18;
@@ -143,9 +152,9 @@
             Condicionales.Controls.Add(label6);
             Condicionales.Controls.Add(label5);
             Condicionales.Controls.Add(label4);
-            Condicionales.Location = new Point(31, 158);
+            Condicionales.Location = new Point(31, 201);
             Condicionales.Name = "Condicionales";
-            Condicionales.Size = new Size(687, 322);
+            Condicionales.Size = new Size(687, 279);
             Condicionales.TabIndex = 10;
             Condicionales.TabStop = false;
             Condicionales.Text = "Especificación Fecha y Hora";
@@ -154,14 +163,14 @@
             // 
             cmbHorarios.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbHorarios.FormattingEnabled = true;
-            cmbHorarios.Location = new Point(356, 180);
+            cmbHorarios.Location = new Point(356, 128);
             cmbHorarios.Name = "cmbHorarios";
             cmbHorarios.Size = new Size(268, 23);
             cmbHorarios.TabIndex = 17;
             // 
             // calFechaTurno
             // 
-            calFechaTurno.Location = new Point(43, 133);
+            calFechaTurno.Location = new Point(52, 97);
             calFechaTurno.Name = "calFechaTurno";
             calFechaTurno.TabIndex = 16;
             calFechaTurno.DateChanged += calFechaTurno_DateChanged;
@@ -171,7 +180,7 @@
             label7.AutoSize = true;
             label7.Font = new Font("Segoe UI", 10F);
             label7.ForeColor = Color.Navy;
-            label7.Location = new Point(359, 135);
+            label7.Location = new Point(359, 83);
             label7.MaximumSize = new Size(325, 0);
             label7.Name = "label7";
             label7.Size = new Size(265, 19);
@@ -183,7 +192,7 @@
             button1.BackColor = Color.SteelBlue;
             button1.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             button1.ForeColor = SystemColors.ButtonHighlight;
-            button1.Location = new Point(507, 265);
+            button1.Location = new Point(507, 213);
             button1.Name = "button1";
             button1.Size = new Size(145, 49);
             button1.TabIndex = 14;
@@ -195,7 +204,7 @@
             label6.AutoSize = true;
             label6.Font = new Font("Segoe UI", 10F);
             label6.ForeColor = Color.Navy;
-            label6.Location = new Point(28, 64);
+            label6.Location = new Point(28, 50);
             label6.MaximumSize = new Size(325, 0);
             label6.Name = "label6";
             label6.Size = new Size(325, 38);
@@ -207,7 +216,7 @@
             label5.AutoSize = true;
             label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label5.ForeColor = SystemColors.ControlText;
-            label5.Location = new Point(452, 103);
+            label5.Location = new Point(452, 51);
             label5.Name = "label5";
             label5.Size = new Size(68, 21);
             label5.TabIndex = 10;
@@ -218,7 +227,7 @@
             label4.AutoSize = true;
             label4.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label4.ForeColor = SystemColors.ControlText;
-            label4.Location = new Point(28, 34);
+            label4.Location = new Point(28, 19);
             label4.Name = "label4";
             label4.Size = new Size(130, 21);
             label4.TabIndex = 9;
@@ -278,12 +287,76 @@
             label1.TabIndex = 3;
             label1.Text = "Nombre";
             // 
+            // txtObraSocial
+            // 
+            txtObraSocial.Location = new Point(373, 110);
+            txtObraSocial.Name = "txtObraSocial";
+            txtObraSocial.Size = new Size(326, 23);
+            txtObraSocial.TabIndex = 21;
+            // 
+            // LObraSocial
+            // 
+            LObraSocial.AutoSize = true;
+            LObraSocial.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            LObraSocial.ForeColor = SystemColors.InactiveCaptionText;
+            LObraSocial.Location = new Point(373, 76);
+            LObraSocial.Name = "LObraSocial";
+            LObraSocial.Size = new Size(97, 21);
+            LObraSocial.TabIndex = 20;
+            LObraSocial.Text = "Obra Social";
+            // 
+            // panel3
+            // 
+            panel3.BackColor = SystemColors.ActiveCaption;
+            panel3.BorderStyle = BorderStyle.Fixed3D;
+            panel3.Controls.Add(Ldescrip_turno_especialidad);
+            panel3.Controls.Add(Lid_turno);
+            panel3.Location = new Point(826, 217);
+            panel3.Name = "panel3";
+            panel3.Size = new Size(367, 191);
+            panel3.TabIndex = 7;
+            // 
+            // LdescripTurno
+            // 
+            LdescripTurno.AutoSize = true;
+            LdescripTurno.Font = new Font("Arial Black", 18F, FontStyle.Bold);
+            LdescripTurno.ForeColor = SystemColors.ControlDarkDark;
+            LdescripTurno.Location = new Point(902, 166);
+            LdescripTurno.Name = "LdescripTurno";
+            LdescripTurno.Size = new Size(226, 33);
+            LdescripTurno.TabIndex = 8;
+            LdescripTurno.Text = "Turno Generado";
+            // 
+            // Lid_turno
+            // 
+            Lid_turno.AutoSize = true;
+            Lid_turno.Font = new Font("Segoe UI", 32F, FontStyle.Bold);
+            Lid_turno.ForeColor = SystemColors.ControlText;
+            Lid_turno.Location = new Point(137, 56);
+            Lid_turno.Name = "Lid_turno";
+            Lid_turno.Size = new Size(96, 59);
+            Lid_turno.TabIndex = 18;
+            Lid_turno.Text = "# --";
+            // 
+            // Ldescrip_turno_especialidad
+            // 
+            Ldescrip_turno_especialidad.AutoSize = true;
+            Ldescrip_turno_especialidad.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
+            Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
+            Ldescrip_turno_especialidad.Location = new Point(89, 120);
+            Ldescrip_turno_especialidad.Name = "Ldescrip_turno_especialidad";
+            Ldescrip_turno_especialidad.Size = new Size(193, 41);
+            Ldescrip_turno_especialidad.TabIndex = 19;
+            Ldescrip_turno_especialidad.Text = "Especialidad";
+            // 
             // FrmTurnoEspecialidad
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Control;
-            ClientSize = new Size(1025, 668);
+            ClientSize = new Size(1205, 668);
+            Controls.Add(LdescripTurno);
+            Controls.Add(panel3);
             Controls.Add(panel2);
             Controls.Add(LNuevoPaciente2);
             Controls.Add(LNuevoPaciente);
@@ -297,6 +370,8 @@
             panel2.PerformLayout();
             Condicionales.ResumeLayout(false);
             Condicionales.PerformLayout();
+            panel3.ResumeLayout(false);
+            panel3.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -324,5 +399,11 @@
         private ComboBox cmbHorarios;
         private Label LEspecialidad;
         private ComboBox cmbEspecialidad;
+        private TextBox txtObraSocial;
+        private Label LObraSocial;
+        private Panel panel3;
+        private Label Ldescrip_turno_especialidad;
+        private Label Lid_turno;
+        private Label LdescripTurno;
     }
 }

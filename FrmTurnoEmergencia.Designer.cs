@@ -49,9 +49,16 @@
             label2 = new Label();
             txtNombre = new TextBox();
             label1 = new Label();
+            txtObraSocial = new TextBox();
+            LObraSocial = new Label();
+            LdescripTurno = new Label();
+            panel3 = new Panel();
+            Ldescrip_turno_especialidad = new Label();
+            Lid_turno = new Label();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
+            panel3.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
@@ -98,6 +105,8 @@
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
+            panel2.Controls.Add(txtObraSocial);
+            panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(Condicionales);
             panel2.Controls.Add(txtDNI);
             panel2.Controls.Add(label3);
@@ -272,11 +281,75 @@
             label1.TabIndex = 3;
             label1.Text = "Nombre";
             // 
+            // txtObraSocial
+            // 
+            txtObraSocial.Location = new Point(373, 110);
+            txtObraSocial.Name = "txtObraSocial";
+            txtObraSocial.Size = new Size(326, 23);
+            txtObraSocial.TabIndex = 12;
+            // 
+            // LObraSocial
+            // 
+            LObraSocial.AutoSize = true;
+            LObraSocial.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            LObraSocial.ForeColor = SystemColors.InactiveCaptionText;
+            LObraSocial.Location = new Point(373, 76);
+            LObraSocial.Name = "LObraSocial";
+            LObraSocial.Size = new Size(97, 21);
+            LObraSocial.TabIndex = 11;
+            LObraSocial.Text = "Obra Social";
+            // 
+            // LdescripTurno
+            // 
+            LdescripTurno.AutoSize = true;
+            LdescripTurno.Font = new Font("Arial Black", 18F, FontStyle.Bold);
+            LdescripTurno.ForeColor = SystemColors.ControlDarkDark;
+            LdescripTurno.Location = new Point(890, 204);
+            LdescripTurno.Name = "LdescripTurno";
+            LdescripTurno.Size = new Size(226, 33);
+            LdescripTurno.TabIndex = 10;
+            LdescripTurno.Text = "Turno Generado";
+            // 
+            // panel3
+            // 
+            panel3.BackColor = SystemColors.ActiveCaption;
+            panel3.BorderStyle = BorderStyle.Fixed3D;
+            panel3.Controls.Add(Ldescrip_turno_especialidad);
+            panel3.Controls.Add(Lid_turno);
+            panel3.Location = new Point(814, 255);
+            panel3.Name = "panel3";
+            panel3.Size = new Size(367, 191);
+            panel3.TabIndex = 9;
+            // 
+            // Ldescrip_turno_especialidad
+            // 
+            Ldescrip_turno_especialidad.AutoSize = true;
+            Ldescrip_turno_especialidad.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
+            Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
+            Ldescrip_turno_especialidad.Location = new Point(89, 120);
+            Ldescrip_turno_especialidad.Name = "Ldescrip_turno_especialidad";
+            Ldescrip_turno_especialidad.Size = new Size(193, 41);
+            Ldescrip_turno_especialidad.TabIndex = 19;
+            Ldescrip_turno_especialidad.Text = "Especialidad";
+            // 
+            // Lid_turno
+            // 
+            Lid_turno.AutoSize = true;
+            Lid_turno.Font = new Font("Segoe UI", 32F, FontStyle.Bold);
+            Lid_turno.ForeColor = SystemColors.ControlText;
+            Lid_turno.Location = new Point(137, 56);
+            Lid_turno.Name = "Lid_turno";
+            Lid_turno.Size = new Size(96, 59);
+            Lid_turno.TabIndex = 18;
+            Lid_turno.Text = "# --";
+            // 
             // FrmTurnoEmergencia
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1109, 662);
+            ClientSize = new Size(1195, 662);
+            Controls.Add(LdescripTurno);
+            Controls.Add(panel3);
             Controls.Add(panel2);
             Controls.Add(LNuevoPaciente2);
             Controls.Add(LNuevoPaciente);
@@ -293,6 +366,8 @@
             panel2.PerformLayout();
             Condicionales.ResumeLayout(false);
             Condicionales.PerformLayout();
+            panel3.ResumeLayout(false);
+            panel3.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -319,5 +394,11 @@
         private Label label2;
         private TextBox txtNombre;
         private Label label1;
+        private TextBox txtObraSocial;
+        private Label LObraSocial;
+        private Label LdescripTurno;
+        private Panel panel3;
+        private Label Ldescrip_turno_especialidad;
+        private Label Lid_turno;
     }
 }
