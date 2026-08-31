@@ -130,6 +130,18 @@
   <data name="turnos_emergencia" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\turnos_emergencia.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="Administrador" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Administrador.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Personal Medico" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Personal Medico.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Recepcion" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Recepcion.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="fondo_admin" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\fondo_admin.jpeg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="fondo_login" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\fondo_login.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
@@ -141,5 +153,11 @@
   </data>
   <data name="misSalas" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\misSalas.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Salas" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Salas.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="salir" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\salir.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
 </root>
