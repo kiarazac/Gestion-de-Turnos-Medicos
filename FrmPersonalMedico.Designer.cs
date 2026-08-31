@@ -64,12 +64,12 @@
             mis_Salas.BackColor = Color.White;
             mis_Salas.BackgroundImage = Properties.Resources.misSalas;
             mis_Salas.BackgroundImageLayout = ImageLayout.Center;
-            mis_Salas.Location = new Point(25, 166);
+            mis_Salas.Location = new Point(25, 76);
             mis_Salas.Name = "mis_Salas";
             mis_Salas.Size = new Size(102, 102);
             mis_Salas.TabIndex = 3;
             mis_Salas.UseVisualStyleBackColor = false;
-            mis_Salas.Click += this.mis_Salas_Click;
+            mis_Salas.Click += mis_Salas_Click;
             // 
             // salir
             // 
@@ -86,7 +86,7 @@
             lista_turnos_atención.BackColor = Color.DarkCyan;
             lista_turnos_atención.BackgroundImage = Properties.Resources.lista_turnos;
             lista_turnos_atención.BackgroundImageLayout = ImageLayout.Stretch;
-            lista_turnos_atención.Location = new Point(25, 292);
+            lista_turnos_atención.Location = new Point(25, 241);
             lista_turnos_atención.Name = "lista_turnos_atención";
             lista_turnos_atención.Size = new Size(102, 97);
             lista_turnos_atención.TabIndex = 1;

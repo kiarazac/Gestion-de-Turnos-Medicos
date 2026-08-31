@@ -266,7 +266,7 @@
             dgvEspecialidades.BorderStyle = BorderStyle.None;
             dgvEspecialidades.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvEspecialidades.Columns.AddRange(new DataGridViewColumn[] { dataGridViewTextBoxColumn1, dataGridViewTextBoxColumn3, Fecha, dataGridViewTextBoxColumn4, dataGridViewTextBoxColumn5 });
-            dgvEspecialidades.Location = new Point(609, 204);
+            dgvEspecialidades.Location = new Point(612, 250);
             dgvEspecialidades.Name = "dgvEspecialidades";
             dgvEspecialidades.ReadOnly = true;
             dgvEspecialidades.RowHeadersVisible = false;
