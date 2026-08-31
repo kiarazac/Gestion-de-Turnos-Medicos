@@ -38,12 +38,16 @@
             btnRecepcionistas = new Button();
             btnPersonalMedico = new Button();
             pnlContenedor = new Panel();
+            btnSalir = new Button();
+            Lsalir = new Label();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
             panel1.BackColor = SystemColors.ActiveCaption;
+            panel1.Controls.Add(Lsalir);
+            panel1.Controls.Add(btnSalir);
             panel1.Controls.Add(label3);
             panel1.Controls.Add(label2);
             panel1.Controls.Add(label1);
@@ -55,7 +59,7 @@
             panel1.Dock = DockStyle.Left;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(200, 538);
+            panel1.Size = new Size(200, 677);
             panel1.TabIndex = 0;
             // 
             // label3
@@ -144,15 +148,37 @@
             pnlContenedor.Dock = DockStyle.Fill;
             pnlContenedor.Location = new Point(200, 0);
             pnlContenedor.Name = "pnlContenedor";
-            pnlContenedor.Size = new Size(695, 538);
+            pnlContenedor.Size = new Size(695, 677);
             pnlContenedor.TabIndex = 1;
+            // 
+            // btnSalir
+            // 
+            btnSalir.BackgroundImage = Properties.Resources.salir;
+            btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
+            btnSalir.Location = new Point(46, 573);
+            btnSalir.Name = "btnSalir";
+            btnSalir.Size = new Size(92, 73);
+            btnSalir.TabIndex = 8;
+            btnSalir.UseVisualStyleBackColor = true;
+            btnSalir.Click += btnSalir_Click;
+            // 
+            // Lsalir
+            // 
+            Lsalir.AutoSize = true;
+            Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            Lsalir.ImageAlign = ContentAlignment.BottomCenter;
+            Lsalir.Location = new Point(63, 547);
+            Lsalir.Name = "Lsalir";
+            Lsalir.Size = new Size(50, 23);
+            Lsalir.TabIndex = 9;
+            Lsalir.Text = "Salir";
             // 
             // FrmAdmin
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.fondo_admin;
-            ClientSize = new Size(895, 538);
+            ClientSize = new Size(895, 677);
             Controls.Add(pnlContenedor);
             Controls.Add(panel1);
             Name = "FrmAdmin";
@@ -175,5 +201,7 @@
         private Button btnAdministradores;
         private Label label2;
         private Label label3;
+        private Label Lsalir;
+        private Button btnSalir;
     }
 }

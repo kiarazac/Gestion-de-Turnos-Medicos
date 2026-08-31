@@ -62,12 +62,22 @@ namespace Gestion_de_Turnos_Medicos
             AbrirFormularioHijo(new FrmSalasAdmin());
         }
 
-       
+        private void btnSalir_Click(object sender, EventArgs e)
+        {
+            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
+            Application.OpenForms["FrmLogin"].Show();
 
-
-
-
-
-        // ----------------------------------
+            // 2. Cerramos la ventana actual por completo para liberar la memoria
+            this.Close();
+        }
     }
-}
+
+
+
+
+
+
+
+       
+    }
+
