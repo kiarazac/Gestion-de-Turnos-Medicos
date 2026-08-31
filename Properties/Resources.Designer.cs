@@ -143,26 +143,6 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         /// <summary>
         ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap salir {
-            get {
-                object obj = ResourceManager.GetObject("salir", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap turnos_emergencia {
-            get {
-                object obj = ResourceManager.GetObject("turnos_emergencia", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
-        /// </summary>
         internal static System.Drawing.Bitmap Personal_Medico {
             get {
                 object obj = ResourceManager.GetObject("Personal Medico", resourceCulture);
@@ -196,6 +176,16 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         internal static System.Drawing.Bitmap salir {
             get {
                 object obj = ResourceManager.GetObject("salir", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap turnos_emergencia {
+            get {
+                object obj = ResourceManager.GetObject("turnos_emergencia", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
