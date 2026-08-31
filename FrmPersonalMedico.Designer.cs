@@ -69,7 +69,7 @@
             mis_Salas.Size = new Size(102, 102);
             mis_Salas.TabIndex = 3;
             mis_Salas.UseVisualStyleBackColor = false;
-            mis_Salas.Click += this.mis_Salas_Click;
+            mis_Salas.Click += mis_Salas_Click;
             // 
             // salir
             // 
@@ -80,6 +80,7 @@
             salir.Size = new Size(102, 91);
             salir.TabIndex = 2;
             salir.UseVisualStyleBackColor = true;
+            salir.Click += salir_Click;
             // 
             // lista_turnos_atención
             // 

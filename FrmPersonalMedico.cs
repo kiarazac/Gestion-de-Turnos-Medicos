@@ -41,12 +41,17 @@ namespace Gestion_de_Turnos_Medicos
         // Evento del botón mis_Salas: abre el formulario MisSalas_PM como hijo
         private void mis_Salas_Click(object sender, EventArgs e)
         {
-           
+
             AbrirFormularioHijo(new MisSalas_PM());
         }
 
-        
+        private void salir_Click(object sender, EventArgs e)
+        {
+            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
+            Application.OpenForms["FrmLogin"].Show();
 
-        
+            // 2. Cerramos la ventana actual de Turnos (esta sí la cerramos por completo)
+            this.Close();
+        }
     }
 }
