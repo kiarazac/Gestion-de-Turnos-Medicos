@@ -1,6 +1,6 @@
 ﻿namespace Gestion_de_Turnos_Medicos
 {
-    partial class FrmPersonalAdmin
+    partial class FrmRecepcionistaAdmin
     {
         /// <summary>
         /// Variable necesaria para el diseñador.
@@ -28,10 +28,6 @@
         private void InitializeComponent()
         {
             pnlDatos = new Panel();
-            label2 = new Label();
-            checkedListBox1 = new CheckedListBox();
-            label1 = new Label();
-            clbEspecialidades = new CheckedListBox();
             lblTitulo = new Label();
             lblNombre = new Label();
             txtNombre = new TextBox();
@@ -50,10 +46,6 @@
             lblSexo = new Label();
             rbHombre = new RadioButton();
             rbMujer = new RadioButton();
-            lblMatricula = new Label();
-            txtMatricula = new TextBox();
-            btnGuardar = new Button();
-            btnEliminar = new Button();
             dgvPersonal = new DataGridView();
             pnlDatos.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).BeginInit();
@@ -62,10 +54,6 @@
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
-            pnlDatos.Controls.Add(label2);
-            pnlDatos.Controls.Add(checkedListBox1);
-            pnlDatos.Controls.Add(label1);
-            pnlDatos.Controls.Add(clbEspecialidades);
             pnlDatos.Controls.Add(lblTitulo);
             pnlDatos.Controls.Add(lblNombre);
             pnlDatos.Controls.Add(txtNombre);
@@ -84,53 +72,11 @@
             pnlDatos.Controls.Add(lblSexo);
             pnlDatos.Controls.Add(rbHombre);
             pnlDatos.Controls.Add(rbMujer);
-            pnlDatos.Controls.Add(lblMatricula);
-            pnlDatos.Controls.Add(txtMatricula);
-            pnlDatos.Controls.Add(btnGuardar);
-            pnlDatos.Controls.Add(btnEliminar);
             pnlDatos.Dock = DockStyle.Top;
             pnlDatos.Location = new Point(0, 0);
             pnlDatos.Name = "pnlDatos";
             pnlDatos.Size = new Size(1133, 290);
             pnlDatos.TabIndex = 0;
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            label2.Location = new Point(710, 61);
-            label2.Name = "label2";
-            label2.Size = new Size(79, 15);
-            label2.TabIndex = 25;
-            label2.Text = "Sala asignada";
-            // 
-            // checkedListBox1
-            // 
-            checkedListBox1.FormattingEnabled = true;
-            checkedListBox1.Items.AddRange(new object[] { "A", "B", "C", "D", "E", "F", "G", "H" });
-            checkedListBox1.Location = new Point(813, 63);
-            checkedListBox1.Name = "checkedListBox1";
-            checkedListBox1.Size = new Size(120, 58);
-            checkedListBox1.TabIndex = 24;
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            label1.Location = new Point(470, 71);
-            label1.Name = "label1";
-            label1.Size = new Size(85, 15);
-            label1.TabIndex = 23;
-            label1.Text = "Especialidades";
-            // 
-            // clbEspecialidades
-            // 
-            clbEspecialidades.FormattingEnabled = true;
-            clbEspecialidades.Items.AddRange(new object[] { "Cardiología", "Cirujía", "Oncología", "Neurocirujía", "Neumonología", "Traumatología", "Dermatología", "Enfermería General", "Vacunatorio", "Enfermería Oncológica" });
-            clbEspecialidades.Location = new Point(575, 57);
-            clbEspecialidades.Name = "clbEspecialidades";
-            clbEspecialidades.Size = new Size(120, 58);
-            clbEspecialidades.TabIndex = 22;
             // 
             // lblTitulo
             // 
@@ -139,9 +85,9 @@
             lblTitulo.ForeColor = Color.Black;
             lblTitulo.Location = new Point(20, 12);
             lblTitulo.Name = "lblTitulo";
-            lblTitulo.Size = new Size(204, 32);
+            lblTitulo.Size = new Size(182, 32);
             lblTitulo.TabIndex = 0;
-            lblTitulo.Text = "Personal Medico";
+            lblTitulo.Text = "Recepcionistas";
             // 
             // lblNombre
             // 
@@ -250,7 +196,7 @@
             // 
             lblTelefono.AutoSize = true;
             lblTelefono.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblTelefono.Location = new Point(255, 133);
+            lblTelefono.Location = new Point(255, 103);
             lblTelefono.Name = "lblTelefono";
             lblTelefono.Size = new Size(59, 15);
             lblTelefono.TabIndex = 17;
@@ -258,7 +204,7 @@
             // 
             // txtTelefono
             // 
-            txtTelefono.Location = new Point(334, 130);
+            txtTelefono.Location = new Point(334, 100);
             txtTelefono.Name = "txtTelefono";
             txtTelefono.Size = new Size(150, 23);
             txtTelefono.TabIndex = 8;
@@ -267,7 +213,7 @@
             // 
             lblSexo.AutoSize = true;
             lblSexo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblSexo.Location = new Point(273, 162);
+            lblSexo.Location = new Point(273, 132);
             lblSexo.Name = "lblSexo";
             lblSexo.Size = new Size(38, 15);
             lblSexo.TabIndex = 19;
@@ -276,7 +222,7 @@
             // rbHombre
             // 
             rbHombre.AutoSize = true;
-            rbHombre.Location = new Point(328, 160);
+            rbHombre.Location = new Point(328, 130);
             rbHombre.Name = "rbHombre";
             rbHombre.Size = new Size(69, 19);
             rbHombre.TabIndex = 9;
@@ -286,49 +232,12 @@
             // rbMujer
             // 
             rbMujer.AutoSize = true;
-            rbMujer.Location = new Point(408, 160);
+            rbMujer.Location = new Point(408, 130);
             rbMujer.Name = "rbMujer";
             rbMujer.Size = new Size(56, 19);
             rbMujer.TabIndex = 10;
             rbMujer.Text = "Mujer";
             rbMujer.UseVisualStyleBackColor = true;
-            // 
-            // lblMatricula
-            // 
-            lblMatricula.AutoSize = true;
-            lblMatricula.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblMatricula.Location = new Point(246, 101);
-            lblMatricula.Name = "lblMatricula";
-            lblMatricula.Size = new Size(83, 15);
-            lblMatricula.TabIndex = 21;
-            lblMatricula.Text = "Nro Matricula";
-            // 
-            // txtMatricula
-            // 
-            txtMatricula.Location = new Point(334, 98);
-            txtMatricula.Name = "txtMatricula";
-            txtMatricula.Size = new Size(140, 23);
-            txtMatricula.TabIndex = 11;
-            // 
-            // btnGuardar
-            // 
-            btnGuardar.Location = new Point(990, 47);
-            btnGuardar.Name = "btnGuardar";
-            btnGuardar.Size = new Size(90, 28);
-            btnGuardar.TabIndex = 12;
-            btnGuardar.Text = "Guardar";
-            btnGuardar.UseVisualStyleBackColor = true;
-            btnGuardar.Click += btnGuardar_Click;
-            // 
-            // btnEliminar
-            // 
-            btnEliminar.Location = new Point(990, 125);
-            btnEliminar.Name = "btnEliminar";
-            btnEliminar.Size = new Size(90, 28);
-            btnEliminar.TabIndex = 13;
-            btnEliminar.Text = "Desactivar";
-            btnEliminar.UseVisualStyleBackColor = true;
-            btnEliminar.Click += btnEliminar_Click;
             // 
             // dgvPersonal
             // 
@@ -341,7 +250,7 @@
             dgvPersonal.Size = new Size(1133, 165);
             dgvPersonal.TabIndex = 14;
             // 
-            // FrmPersonalAdmin
+            // FrmRecepcionistaAdmin
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -349,8 +258,8 @@
             ClientSize = new Size(1133, 501);
             Controls.Add(dgvPersonal);
             Controls.Add(pnlDatos);
-            Name = "FrmPersonalAdmin";
-            Text = "Gestion Personal Medico";
+            Name = "FrmRecepcionistaAdmin";
+            Text = "Gestion Recepcionistas";
             pnlDatos.ResumeLayout(false);
             pnlDatos.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).EndInit();
@@ -379,14 +288,7 @@
         private System.Windows.Forms.Label lblSexo;
         private System.Windows.Forms.RadioButton rbHombre;
         private System.Windows.Forms.RadioButton rbMujer;
-        private System.Windows.Forms.Label lblMatricula;
-        private System.Windows.Forms.TextBox txtMatricula;
-        private System.Windows.Forms.Button btnGuardar;
-        private System.Windows.Forms.Button btnEliminar;
+       
         private System.Windows.Forms.DataGridView dgvPersonal;
-        private CheckedListBox clbEspecialidades;
-        private Label label1;
-        private Label label2;
-        private CheckedListBox checkedListBox1;
     }
 }

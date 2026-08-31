@@ -63,6 +63,16 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         /// <summary>
         ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap Administrador {
+            get {
+                object obj = ResourceManager.GetObject("Administrador", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap fondo_admin {
             get {
                 object obj = ResourceManager.GetObject("fondo_admin", resourceCulture);
@@ -76,6 +86,36 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         internal static System.Drawing.Bitmap fondo_login {
             get {
                 object obj = ResourceManager.GetObject("fondo_login", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Personal_Medico {
+            get {
+                object obj = ResourceManager.GetObject("Personal Medico", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Recepcion {
+            get {
+                object obj = ResourceManager.GetObject("Recepcion", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Salas {
+            get {
+                object obj = ResourceManager.GetObject("Salas", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

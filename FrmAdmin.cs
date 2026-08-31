@@ -15,7 +15,7 @@ namespace Gestion_de_Turnos_Medicos
             InitializeComponent();
         }
 
-        
+
 
         // Variable para recordar qué formulario está abierto actualmente
         private Form formularioActivo = null;
@@ -41,6 +41,13 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.BringToFront();
             formHijo.Show();
         }
+
+        private void btnPersonalMedico_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmPersonalAdmin());
+        }
+
+
 
         // ----------------------------------
     }
