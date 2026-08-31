@@ -29,15 +29,15 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
+            label3 = new Label();
+            label2 = new Label();
+            label1 = new Label();
+            btnAdministradores = new Button();
+            LPersonalMedico = new Label();
             btnSalas = new Button();
             btnRecepcionistas = new Button();
             btnPersonalMedico = new Button();
             pnlContenedor = new Panel();
-            LPersonalMedico = new Label();
-            btnAdministradores = new Button();
-            label1 = new Label();
-            label2 = new Label();
-            label3 = new Label();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -58,6 +58,56 @@
             panel1.Size = new Size(200, 538);
             panel1.TabIndex = 0;
             // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            label3.Location = new Point(63, 406);
+            label3.Name = "label3";
+            label3.Size = new Size(59, 23);
+            label3.TabIndex = 7;
+            label3.Text = "Salas";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            label2.Location = new Point(22, 278);
+            label2.Name = "label2";
+            label2.Size = new Size(147, 23);
+            label2.TabIndex = 6;
+            label2.Text = "Recepcionistas";
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            label1.Location = new Point(12, 147);
+            label1.Name = "label1";
+            label1.Size = new Size(155, 23);
+            label1.TabIndex = 5;
+            label1.Text = "Administradores";
+            // 
+            // btnAdministradores
+            // 
+            btnAdministradores.BackgroundImage = Properties.Resources.Administrador;
+            btnAdministradores.Location = new Point(46, 188);
+            btnAdministradores.Name = "btnAdministradores";
+            btnAdministradores.Size = new Size(92, 73);
+            btnAdministradores.TabIndex = 4;
+            btnAdministradores.UseVisualStyleBackColor = true;
+            btnAdministradores.Click += btnAdministradores_Click;
+            // 
+            // LPersonalMedico
+            // 
+            LPersonalMedico.AutoSize = true;
+            LPersonalMedico.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            LPersonalMedico.Location = new Point(12, 21);
+            LPersonalMedico.Name = "LPersonalMedico";
+            LPersonalMedico.Size = new Size(157, 23);
+            LPersonalMedico.TabIndex = 3;
+            LPersonalMedico.Text = "Personal Medico";
+            // 
             // btnSalas
             // 
             btnSalas.BackgroundImage = Properties.Resources.Salas;
@@ -66,6 +116,7 @@
             btnSalas.Size = new Size(92, 73);
             btnSalas.TabIndex = 2;
             btnSalas.UseVisualStyleBackColor = true;
+            btnSalas.Click += btnSalas_Click;
             // 
             // btnRecepcionistas
             // 
@@ -75,6 +126,7 @@
             btnRecepcionistas.Size = new Size(92, 73);
             btnRecepcionistas.TabIndex = 1;
             btnRecepcionistas.UseVisualStyleBackColor = true;
+            btnRecepcionistas.Click += btnRecepcionistas_Click;
             // 
             // btnPersonalMedico
             // 
@@ -94,55 +146,6 @@
             pnlContenedor.Name = "pnlContenedor";
             pnlContenedor.Size = new Size(695, 538);
             pnlContenedor.TabIndex = 1;
-            // 
-            // LPersonalMedico
-            // 
-            LPersonalMedico.AutoSize = true;
-            LPersonalMedico.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LPersonalMedico.Location = new Point(12, 21);
-            LPersonalMedico.Name = "LPersonalMedico";
-            LPersonalMedico.Size = new Size(157, 23);
-            LPersonalMedico.TabIndex = 3;
-            LPersonalMedico.Text = "Personal Medico";
-            // 
-            // btnAdministradores
-            // 
-            btnAdministradores.BackgroundImage = Properties.Resources.Administrador;
-            btnAdministradores.Location = new Point(46, 188);
-            btnAdministradores.Name = "btnAdministradores";
-            btnAdministradores.Size = new Size(92, 73);
-            btnAdministradores.TabIndex = 4;
-            btnAdministradores.UseVisualStyleBackColor = true;
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label1.Location = new Point(12, 147);
-            label1.Name = "label1";
-            label1.Size = new Size(155, 23);
-            label1.TabIndex = 5;
-            label1.Text = "Administradores";
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label2.Location = new Point(22, 278);
-            label2.Name = "label2";
-            label2.Size = new Size(147, 23);
-            label2.TabIndex = 6;
-            label2.Text = "Recepcionistas";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label3.Location = new Point(63, 406);
-            label3.Name = "label3";
-            label3.Size = new Size(59, 23);
-            label3.TabIndex = 7;
-            label3.Text = "Salas";
             // 
             // FrmAdmin
             // 

@@ -47,6 +47,25 @@ namespace Gestion_de_Turnos_Medicos
             AbrirFormularioHijo(new FrmPersonalAdmin());
         }
 
+        private void btnAdministradores_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmGestionAdmin());
+        }
+
+        private void btnRecepcionistas_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmRecepcionistaAdmin());
+        }
+
+        private void btnSalas_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmSalasAdmin());
+        }
+
+       
+
+
+
 
 
         // ----------------------------------
