@@ -91,6 +91,7 @@
             lista_turnos_atención.Size = new Size(102, 97);
             lista_turnos_atención.TabIndex = 1;
             lista_turnos_atención.UseVisualStyleBackColor = false;
+            lista_turnos_atención.Click += lista_turnos_atención_Click;
             // 
             // Pantalla_Principal_PERSONAL_MEDICO
             // 

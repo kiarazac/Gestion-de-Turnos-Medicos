@@ -41,12 +41,13 @@ namespace Gestion_de_Turnos_Medicos
         // Evento del botón mis_Salas: abre el formulario MisSalas_PM como hijo
         private void mis_Salas_Click(object sender, EventArgs e)
         {
-           
+
             AbrirFormularioHijo(new MisSalas_PM());
         }
 
-        
-
-        
+        private void lista_turnos_atención_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmListaTurnosAtencion());
+        }
     }
 }
