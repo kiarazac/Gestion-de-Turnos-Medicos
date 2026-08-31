@@ -48,10 +48,18 @@ namespace Gestion_de_Turnos_Medicos
         private void salir_Click(object sender, EventArgs e)
         {
             // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
-            Application.OpenForms["FrmLogin"].Show();
+            if (Application.OpenForms["FrmLogin"] != null)
+            {
+                Application.OpenForms["FrmLogin"].Show();
+            }
 
             // 2. Cerramos la ventana actual de Turnos (esta sí la cerramos por completo)
             this.Close();
+        }
+
+        private void lista_turnos_atención_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmListaTurnosAtencion());
         }
     }
 }
