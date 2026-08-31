@@ -42,7 +42,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "sexo", HeaderText = "Sexo" });
         }
 
-        private void btnGuardar_Click(object sender, EventArgs e)
+        private void btnGuardar_Click_1(object sender, EventArgs e)
         {
             if (!ValidarCampos())
                 return;
@@ -67,7 +67,7 @@ namespace Gestion_de_Turnos_Medicos
             LimpiarCampos();
         }
 
-        private void btnEliminar_Click(object sender, EventArgs e)
+        private void btnEliminar_Click_1(object sender, EventArgs e)
         {
             if (dgvPersonal.CurrentRow == null || dgvPersonal.CurrentRow.Index < 0)
             {
@@ -84,6 +84,8 @@ namespace Gestion_de_Turnos_Medicos
                 dgvPersonal.Rows.RemoveAt(dgvPersonal.CurrentRow.Index);
             }
         }
+
+
 
         private bool ValidarCampos()
         {
@@ -137,5 +139,7 @@ namespace Gestion_de_Turnos_Medicos
 
             txtNombre.Focus();
         }
+
+       
     }
 }

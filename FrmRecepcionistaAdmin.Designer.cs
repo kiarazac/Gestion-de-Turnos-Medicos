@@ -28,6 +28,8 @@
         private void InitializeComponent()
         {
             pnlDatos = new Panel();
+            btnEliminar = new Button();
+            btnGuardar = new Button();
             lblTitulo = new Label();
             lblNombre = new Label();
             txtNombre = new TextBox();
@@ -54,6 +56,8 @@
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
+            pnlDatos.Controls.Add(btnEliminar);
+            pnlDatos.Controls.Add(btnGuardar);
             pnlDatos.Controls.Add(lblTitulo);
             pnlDatos.Controls.Add(lblNombre);
             pnlDatos.Controls.Add(txtNombre);
@@ -77,6 +81,26 @@
             pnlDatos.Name = "pnlDatos";
             pnlDatos.Size = new Size(1133, 290);
             pnlDatos.TabIndex = 0;
+            // 
+            // btnEliminar
+            // 
+            btnEliminar.Location = new Point(409, 188);
+            btnEliminar.Name = "btnEliminar";
+            btnEliminar.Size = new Size(75, 23);
+            btnEliminar.TabIndex = 21;
+            btnEliminar.Text = "Eliminar";
+            btnEliminar.UseVisualStyleBackColor = true;
+            btnEliminar.Click += btnEliminar_Click_1;
+            // 
+            // btnGuardar
+            // 
+            btnGuardar.Location = new Point(310, 188);
+            btnGuardar.Name = "btnGuardar";
+            btnGuardar.Size = new Size(75, 23);
+            btnGuardar.TabIndex = 20;
+            btnGuardar.Text = "Guardar";
+            btnGuardar.UseVisualStyleBackColor = true;
+            btnGuardar.Click += btnGuardar_Click_1;
             // 
             // lblTitulo
             // 
@@ -290,5 +314,7 @@
         private System.Windows.Forms.RadioButton rbMujer;
        
         private System.Windows.Forms.DataGridView dgvPersonal;
+        private Button btnEliminar;
+        private Button btnGuardar;
     }
 }

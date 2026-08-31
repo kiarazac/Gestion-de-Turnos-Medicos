@@ -49,6 +49,8 @@
             lblNivelJerarquico = new Label();
             txtNivelJerarquico = new TextBox();
             dgvPersonal = new DataGridView();
+            btnGuardar = new Button();
+            btnEliminar = new Button();
             pnlDatos.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).BeginInit();
             SuspendLayout();
@@ -56,6 +58,8 @@
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
+            pnlDatos.Controls.Add(btnEliminar);
+            pnlDatos.Controls.Add(btnGuardar);
             pnlDatos.Controls.Add(lblTitulo);
             pnlDatos.Controls.Add(lblNombre);
             pnlDatos.Controls.Add(txtNombre);
@@ -271,6 +275,26 @@
             dgvPersonal.Size = new Size(1133, 165);
             dgvPersonal.TabIndex = 10;
             // 
+            // btnGuardar
+            // 
+            btnGuardar.Location = new Point(350, 209);
+            btnGuardar.Name = "btnGuardar";
+            btnGuardar.Size = new Size(75, 23);
+            btnGuardar.TabIndex = 22;
+            btnGuardar.Text = "Guardar";
+            btnGuardar.UseVisualStyleBackColor = true;
+            btnGuardar.Click += btnGuardar_Click;
+            // 
+            // btnEliminar
+            // 
+            btnEliminar.Location = new Point(456, 209);
+            btnEliminar.Name = "btnEliminar";
+            btnEliminar.Size = new Size(75, 23);
+            btnEliminar.TabIndex = 23;
+            btnEliminar.Text = "Eliminar";
+            btnEliminar.UseVisualStyleBackColor = true;
+            btnEliminar.Click += btnEliminar_Click;
+            // 
             // FrmGestionAdmin
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -311,5 +335,7 @@
         private System.Windows.Forms.Label lblNivelJerarquico;
         private System.Windows.Forms.TextBox txtNivelJerarquico;
         private System.Windows.Forms.DataGridView dgvPersonal;
+        private Button btnGuardar;
+        private Button btnEliminar;
     }
 }
