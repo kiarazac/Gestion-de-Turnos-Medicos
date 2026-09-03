@@ -270,7 +270,7 @@ namespace Gestion_de_Turnos_Medicos
 
             // Acá es donde en un caso real se persistirían en la base de datos:
             // observaciones, diagnóstico rápido, hora de cierre, médico y sala (trazabilidad).
-            _turnoActual.Observaciones = txtObservaciones.Text.Trim();
+            
             _turnoActual.DiagnosticoRapido = txtDiagnostico.Text.Trim();
             _turnoActual.HoraFinAtencion = DateTime.Now;
             _turnoActual.Estado = "Atendido";
@@ -339,7 +339,7 @@ namespace Gestion_de_Turnos_Medicos
 
             ActualizarTiempoTranscurrido();
 
-            txtObservaciones.Clear();
+           
             txtDiagnostico.Clear();
         }
 
@@ -353,7 +353,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);
             lblInfoTiempo.Text = "Hora de Entrada / Tiempo: -";
 
-            txtObservaciones.Clear();
+            
             txtDiagnostico.Clear();
         }
 
@@ -445,50 +445,12 @@ namespace Gestion_de_Turnos_Medicos
                     break;
             }
         }
+
+        private void lblObservaciones_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 
-    // ---------------------------------------------------------------
-    // Modelo de datos de un turno.
-    // En la implementación real esta clase probablemente ya exista
-    // en otra parte del proyecto (o se reemplace por una fila de DataTable).
-    // ---------------------------------------------------------------
-    public class Turno
-    {
-        public int Id { get; set; }
-        public DateTime HoraRegistro { get; set; }
-        public string HoraRegistroTexto => HoraRegistro.ToString("HH:mm");
-
-        public string Nombre { get; set; }
-        public string Apellido { get; set; }
-        public string DNI { get; set; }
-
-        // "Pérez, Juan (30.123.456)" -> como se muestra en el grid y en el panel.
-        public string PacienteTexto => $"{Apellido}, {Nombre} ({DNI})";
-        // "Pérez, Juan" -> como se muestra en el panel (sin repetir el DNI).
-        public string PacienteCorto => $"{Apellido}, {Nombre}";
-        // "Juan Pérez" -> como se usa en la barra de estado inferior.
-        public string NombreCompleto => $"{Nombre} {Apellido}";
-
-        public int Edad { get; set; }
-        public string Cobertura { get; set; }
-        public string Motivo { get; set; }
-
-        // "Alta" / "Media" / "Baja" (vacío si el servicio no es de emergencias).
-        public string Triage { get; set; }
-
-        // "En Espera" -> "Llamado" -> "En Consulta" -> "Atendido"
-        public string Estado { get; set; }
-
-        public string Servicio { get; set; }
-
-        public DateTime? HoraInicioAtencion { get; set; }
-        public DateTime? HoraFinAtencion { get; set; }
-
-        public string Observaciones { get; set; }
-        public string DiagnosticoRapido { get; set; }
-
-        // Trazabilidad: quién y dónde se hizo la atención.
-        public string MedicoQueAtendio { get; set; }
-        public string SalaDeAtencion { get; set; }
-    }
+    // (El modelo Turno fue movido a Modelos.cs) 
 }

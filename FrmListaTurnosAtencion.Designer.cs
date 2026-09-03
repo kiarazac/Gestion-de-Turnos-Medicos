@@ -37,7 +37,6 @@
             lblInfoPrioridadValor = new Label();
             lblInfoTiempo = new Label();
             lblObservaciones = new Label();
-            txtObservaciones = new TextBox();
             lblDiagnostico = new Label();
             txtDiagnostico = new TextBox();
             btnSiguientePaciente = new Button();
@@ -173,7 +172,6 @@
             pnlAtencionActual.Controls.Add(lblInfoPrioridadValor);
             pnlAtencionActual.Controls.Add(lblInfoTiempo);
             pnlAtencionActual.Controls.Add(lblObservaciones);
-            pnlAtencionActual.Controls.Add(txtObservaciones);
             pnlAtencionActual.Controls.Add(lblDiagnostico);
             pnlAtencionActual.Controls.Add(txtDiagnostico);
             pnlAtencionActual.Location = new Point(656, 10);
@@ -260,21 +258,13 @@
             lblObservaciones.Size = new Size(136, 15);
             lblObservaciones.TabIndex = 7;
             lblObservaciones.Text = "Observaciones Médicas";
-            // 
-            // txtObservaciones
-            // 
-            txtObservaciones.Location = new Point(16, 174);
-            txtObservaciones.Multiline = true;
-            txtObservaciones.Name = "txtObservaciones";
-            txtObservaciones.ScrollBars = ScrollBars.Vertical;
-            txtObservaciones.Size = new Size(308, 70);
-            txtObservaciones.TabIndex = 0;
+            lblObservaciones.Click += lblObservaciones_Click;
             // 
             // lblDiagnostico
             // 
             lblDiagnostico.AutoSize = true;
             lblDiagnostico.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblDiagnostico.Location = new Point(16, 254);
+            lblDiagnostico.Location = new Point(16, 187);
             lblDiagnostico.Name = "lblDiagnostico";
             lblDiagnostico.Size = new Size(113, 15);
             lblDiagnostico.TabIndex = 9;
@@ -282,7 +272,7 @@
             // 
             // txtDiagnostico
             // 
-            txtDiagnostico.Location = new Point(16, 274);
+            txtDiagnostico.Location = new Point(16, 207);
             txtDiagnostico.Multiline = true;
             txtDiagnostico.Name = "txtDiagnostico";
             txtDiagnostico.ScrollBars = ScrollBars.Vertical;
@@ -421,7 +411,7 @@
         private System.Windows.Forms.Label lblInfoPrioridadValor;
         private System.Windows.Forms.Label lblInfoTiempo;
         private System.Windows.Forms.Label lblObservaciones;
-        private System.Windows.Forms.TextBox txtObservaciones;
+        // txtObservaciones removed
         private System.Windows.Forms.Label lblDiagnostico;
         private System.Windows.Forms.TextBox txtDiagnostico;
 

@@ -34,6 +34,9 @@
             mis_Salas = new Button();
             salir = new Button();
             lista_turnos_atención = new Button();
+            LPersonalMedico = new Label();
+            label1 = new Label();
+            label2 = new Label();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -49,7 +52,10 @@
             // 
             // panel1
             // 
-            panel1.BackColor = Color.SteelBlue;
+            panel1.BackColor = Color.LightSkyBlue;
+            panel1.Controls.Add(label2);
+            panel1.Controls.Add(label1);
+            panel1.Controls.Add(LPersonalMedico);
             panel1.Controls.Add(mis_Salas);
             panel1.Controls.Add(salir);
             panel1.Controls.Add(lista_turnos_atención);
@@ -94,6 +100,36 @@
             lista_turnos_atención.UseVisualStyleBackColor = false;
             lista_turnos_atención.Click += lista_turnos_atención_Click;
             // 
+            // LPersonalMedico
+            // 
+            LPersonalMedico.AutoSize = true;
+            LPersonalMedico.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            LPersonalMedico.Location = new Point(33, 40);
+            LPersonalMedico.Name = "LPersonalMedico";
+            LPersonalMedico.Size = new Size(94, 23);
+            LPersonalMedico.TabIndex = 4;
+            LPersonalMedico.Text = "Mis Salas";
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            label1.Location = new Point(43, 202);
+            label1.Name = "label1";
+            label1.Size = new Size(72, 23);
+            label1.TabIndex = 5;
+            label1.Text = "Turnos";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            label2.Location = new Point(53, 378);
+            label2.Name = "label2";
+            label2.Size = new Size(50, 23);
+            label2.TabIndex = 6;
+            label2.Text = "Salir";
+            // 
             // Pantalla_Principal_PERSONAL_MEDICO
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -105,6 +141,7 @@
             Name = "Pantalla_Principal_PERSONAL_MEDICO";
             Text = "Pantalla Principal |PERSONAL MÉDICO|";
             panel1.ResumeLayout(false);
+            panel1.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -115,5 +152,8 @@
         private Button mis_Salas;
         private Button salir;
         private Button lista_turnos_atención;
+        private Label label2;
+        private Label label1;
+        private Label LPersonalMedico;
     }
 }

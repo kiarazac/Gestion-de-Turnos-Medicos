@@ -312,7 +312,7 @@
             // 
             // btnGuardar
             // 
-            btnGuardar.Location = new Point(843, 190);
+            btnGuardar.Location = new Point(813, 183);
             btnGuardar.Name = "btnGuardar";
             btnGuardar.Size = new Size(90, 28);
             btnGuardar.TabIndex = 12;
@@ -322,7 +322,7 @@
             // 
             // btnEliminar
             // 
-            btnEliminar.Location = new Point(1004, 190);
+            btnEliminar.Location = new Point(604, 183);
             btnEliminar.Name = "btnEliminar";
             btnEliminar.Size = new Size(90, 28);
             btnEliminar.TabIndex = 13;

@@ -138,21 +138,31 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnEliminar_Click(object sender, EventArgs e)
         {
-            if (dgvPersonal.CurrentRow == null || dgvPersonal.CurrentRow.Index < 0)
+            // Verificar que haya una fila seleccionada
+            if (dgvPersonal.CurrentRow != null)
             {
-                MessageBox.Show("Seleccioná una fila para eliminar.", "Atención",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+                // Confirmar la acción con el usuario
+                DialogResult result = MessageBox.Show("¿Desea desactivar este registro?",
+                    "Confirmar Baja Lógica", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
-            var confirmar = MessageBox.Show("¿Seguro que querés eliminar el registro seleccionado?",
-                "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result == DialogResult.Yes)
+                {
+                    // Cambiar el valor de la columna que maneja el estado
+                    dgvPersonal.CurrentRow.Cells["Activo"].Value = false;
 
-            if (confirmar == DialogResult.Yes)
-            {
-                dgvPersonal.Rows.RemoveAt(dgvPersonal.CurrentRow.Index);
+                    // Opcional: Actualizar en la base de datos inmediatamente
+                    // int id = Convert.ToInt32(dgvPersonal.CurrentRow.Cells["Id"].Value);
+                    // DesactivarEnBaseDeDatos(id);
+
+                    // Opcional: Ocultar la fila si no quieres mostrar registros desactivados
+                    // CurrencyManager cm = (CurrencyManager)BindingContext[dgvPersonal.DataSource];
+                    // cm.SuspendBinding();
+                    // dgvPersonal.CurrentRow.Visible = false;
+                    // cm.ResumeBinding();
+                }
             }
         }
+        
 
         private bool ValidarCampos()
         {

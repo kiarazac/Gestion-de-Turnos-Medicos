@@ -90,7 +90,7 @@
             btnEliminar.TabIndex = 21;
             btnEliminar.Text = "Eliminar";
             btnEliminar.UseVisualStyleBackColor = true;
-            btnEliminar.Click += btnEliminar_Click_1;
+            btnEliminar.Click += btnEliminar_Click;
             // 
             // btnGuardar
             // 
