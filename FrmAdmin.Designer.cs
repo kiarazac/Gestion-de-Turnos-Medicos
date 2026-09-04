@@ -29,17 +29,13 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
+            Lsalir = new Label();
+            btnSalir = new Button();
             label3 = new Label();
-            label2 = new Label();
-            label1 = new Label();
-            btnAdministradores = new Button();
             LPersonalMedico = new Label();
             btnSalas = new Button();
-            btnRecepcionistas = new Button();
             btnPersonalMedico = new Button();
             pnlContenedor = new Panel();
-            btnSalir = new Button();
-            Lsalir = new Label();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -49,88 +45,66 @@
             panel1.Controls.Add(Lsalir);
             panel1.Controls.Add(btnSalir);
             panel1.Controls.Add(label3);
-            panel1.Controls.Add(label2);
-            panel1.Controls.Add(label1);
-            panel1.Controls.Add(btnAdministradores);
             panel1.Controls.Add(LPersonalMedico);
             panel1.Controls.Add(btnSalas);
-            panel1.Controls.Add(btnRecepcionistas);
             panel1.Controls.Add(btnPersonalMedico);
             panel1.Dock = DockStyle.Left;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(200, 677);
+            panel1.Size = new Size(200, 425);
             panel1.TabIndex = 0;
+            // 
+            // Lsalir
+            // 
+            Lsalir.AutoSize = true;
+            Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            Lsalir.ImageAlign = ContentAlignment.BottomCenter;
+            Lsalir.Location = new Point(63, 297);
+            Lsalir.Name = "Lsalir";
+            Lsalir.Size = new Size(50, 23);
+            Lsalir.TabIndex = 9;
+            Lsalir.Text = "Salir";
+            // 
+            // btnSalir
+            // 
+            btnSalir.BackgroundImage = Properties.Resources.salir;
+            btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
+            btnSalir.Location = new Point(46, 323);
+            btnSalir.Name = "btnSalir";
+            btnSalir.Size = new Size(92, 73);
+            btnSalir.TabIndex = 8;
+            btnSalir.UseVisualStyleBackColor = true;
+            btnSalir.Click += btnSalir_Click;
             // 
             // label3
             // 
             label3.AutoSize = true;
             label3.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label3.Location = new Point(63, 406);
+            label3.Location = new Point(63, 156);
             label3.Name = "label3";
             label3.Size = new Size(59, 23);
             label3.TabIndex = 7;
             label3.Text = "Salas";
             // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label2.Location = new Point(22, 278);
-            label2.Name = "label2";
-            label2.Size = new Size(147, 23);
-            label2.TabIndex = 6;
-            label2.Text = "Recepcionistas";
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            label1.Location = new Point(12, 147);
-            label1.Name = "label1";
-            label1.Size = new Size(155, 23);
-            label1.TabIndex = 5;
-            label1.Text = "Administradores";
-            // 
-            // btnAdministradores
-            // 
-            btnAdministradores.BackgroundImage = Properties.Resources.Administrador;
-            btnAdministradores.Location = new Point(46, 188);
-            btnAdministradores.Name = "btnAdministradores";
-            btnAdministradores.Size = new Size(92, 73);
-            btnAdministradores.TabIndex = 4;
-            btnAdministradores.UseVisualStyleBackColor = true;
-            btnAdministradores.Click += btnAdministradores_Click;
-            // 
             // LPersonalMedico
             // 
             LPersonalMedico.AutoSize = true;
             LPersonalMedico.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LPersonalMedico.Location = new Point(12, 21);
+            LPersonalMedico.Location = new Point(46, 21);
             LPersonalMedico.Name = "LPersonalMedico";
-            LPersonalMedico.Size = new Size(157, 23);
+            LPersonalMedico.Size = new Size(88, 23);
             LPersonalMedico.TabIndex = 3;
-            LPersonalMedico.Text = "Personal Medico";
+            LPersonalMedico.Text = "Usuarios";
             // 
             // btnSalas
             // 
             btnSalas.BackgroundImage = Properties.Resources.Salas;
-            btnSalas.Location = new Point(46, 442);
+            btnSalas.Location = new Point(46, 192);
             btnSalas.Name = "btnSalas";
             btnSalas.Size = new Size(92, 73);
             btnSalas.TabIndex = 2;
             btnSalas.UseVisualStyleBackColor = true;
             btnSalas.Click += btnSalas_Click;
-            // 
-            // btnRecepcionistas
-            // 
-            btnRecepcionistas.BackgroundImage = Properties.Resources.Recepcion;
-            btnRecepcionistas.Location = new Point(46, 317);
-            btnRecepcionistas.Name = "btnRecepcionistas";
-            btnRecepcionistas.Size = new Size(92, 73);
-            btnRecepcionistas.TabIndex = 1;
-            btnRecepcionistas.UseVisualStyleBackColor = true;
-            btnRecepcionistas.Click += btnRecepcionistas_Click;
             // 
             // btnPersonalMedico
             // 
@@ -148,37 +122,15 @@
             pnlContenedor.Dock = DockStyle.Fill;
             pnlContenedor.Location = new Point(200, 0);
             pnlContenedor.Name = "pnlContenedor";
-            pnlContenedor.Size = new Size(695, 677);
+            pnlContenedor.Size = new Size(693, 425);
             pnlContenedor.TabIndex = 1;
-            // 
-            // btnSalir
-            // 
-            btnSalir.BackgroundImage = Properties.Resources.salir;
-            btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
-            btnSalir.Location = new Point(46, 573);
-            btnSalir.Name = "btnSalir";
-            btnSalir.Size = new Size(92, 73);
-            btnSalir.TabIndex = 8;
-            btnSalir.UseVisualStyleBackColor = true;
-            btnSalir.Click += btnSalir_Click;
-            // 
-            // Lsalir
-            // 
-            Lsalir.AutoSize = true;
-            Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(63, 547);
-            Lsalir.Name = "Lsalir";
-            Lsalir.Size = new Size(50, 23);
-            Lsalir.TabIndex = 9;
-            Lsalir.Text = "Salir";
             // 
             // FrmAdmin
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.fondo_admin;
-            ClientSize = new Size(895, 677);
+            ClientSize = new Size(893, 425);
             Controls.Add(pnlContenedor);
             Controls.Add(panel1);
             Name = "FrmAdmin";
@@ -194,12 +146,8 @@
         private Panel panel1;
         private Button btnPersonalMedico;
         private Button btnSalas;
-        private Button btnRecepcionistas;
         private Panel pnlContenedor;
         private Label LPersonalMedico;
-        private Label label1;
-        private Button btnAdministradores;
-        private Label label2;
         private Label label3;
         private Label Lsalir;
         private Button btnSalir;
