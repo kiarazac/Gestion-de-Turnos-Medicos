@@ -5,59 +5,90 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Gestion_de_Turnos_Medicos
 {
-    // Prioridad: representa la urgencia del turno (Alta, Media, Baja, etc.).
-    public class Prioridad
+    // ==========================================
+    // CLASE BASE PARA AUDITORÍA
+    // ==========================================
+    // Al heredar de esta clase, todas las tablas en la base de datos 
+    // tendrán automáticamente estas dos columnas para registrar cuándo
+    // se creó el registro y cuándo fue la última vez que se alteró.
+    public abstract class EntidadAuditable
+    {
+        public DateTime FechaCreacion { get; set; } = DateTime.Now;
+        public DateTime? FechaModificacion { get; set; }
+
+        // --- NUEVOS CAMPOS PARA BORRADO LÓGICO ---
+        // Todos los registros nacen activos por defecto
+        public bool Activo { get; set; } = true;
+
+        // Registra exactamente cuándo se "eliminó" el registro
+        public DateTime? FechaBaja { get; set; }
+    }
+
+    // ==========================================
+    // MODELOS ESTRICTOS 
+    // ==========================================
+
+    public class Prioridad : EntidadAuditable
     {
         [Key]
         public int IdPrioridad { get; set; }
         public string Descripcion { get; set; }
 
-        // Navegación: una prioridad puede aplicarse a muchos turnos.
+        // Navegación: Una prioridad tiene muchos turnos.
         public ICollection<Turno> Turnos { get; set; }
     }
 
-    // Paciente: entidad persistente que almacena la información básica del paciente.
-    // Cuando se registra un turno, primero se crea (o se busca) el Paciente y luego
-    // se asocia el Turno a ese Paciente (IdPaciente / Paciente).
-    public class Paciente
+    public class Paciente : EntidadAuditable
     {
         [Key]
         public int IdPaciente { get; set; }
 
-        // Datos personales básicos
+        // Se eliminó 'Edad' y los atributos NotMapped para apegarse al diagrama.
         public string Nombre { get; set; }
         public string Apellido { get; set; }
         public string Dni { get; set; }
-        public int Edad { get; set; }
         public string ObraSocial { get; set; }
 
-        // Relaciones
+        // Relaciones: Un paciente tiene muchos turnos e historias clínicas.
         public ICollection<Turno> Turnos { get; set; }
         public ICollection<HistoriaClinica> HistoriasClinicas { get; set; }
     }
 
-    // Usuario: médico, recepcionista u otro actor del sistema.
-    public class Usuario
+    public class Rol : EntidadAuditable
+    {
+        [Key]
+        public int IdRol { get; set; }
+        public string Descripcion { get; set; }
+
+        // Navegación: Un mismo rol (ej. "Médico") puede pertenecer a muchos usuarios.
+        public ICollection<Usuario> Usuarios { get; set; }
+    }
+    public class Usuario : EntidadAuditable
     {
         [Key]
         public int IdUsuario { get; set; }
+
         public string Correo { get; set; }
         public string Nombre { get; set; }
-        public string Apellido { get; set; }
         public string Contrasena { get; set; }
-        public string Rol { get; set; }
+
+        [ForeignKey("RolNav")] // El nombre en el ForeignKey debe coincidir con la propiedad de navegación de abajo
+        public int IdRol { get; set; }
+        public Rol RolNav { get; set; } 
+
         public string NroMatricula { get; set; }
         public string Telefono { get; set; }
         public string Dni { get; set; }
+        public string Apellido { get; set; }
 
-        // Relaciones
+        // Relaciones que ya tenías
         public ICollection<Turno> Turnos { get; set; }
         public ICollection<HistoriaClinica> HistoriasClinicas { get; set; }
         public ICollection<MedicoEspecialidad> MedicoEspecialidades { get; set; }
         public ICollection<DetalleSala> DetallesSala { get; set; }
     }
 
-    public class Especialidad
+    public class Especialidad : EntidadAuditable
     {
         [Key]
         public int IdEspecialidad { get; set; }
@@ -67,8 +98,7 @@ namespace Gestion_de_Turnos_Medicos
         public ICollection<MedicoEspecialidad> MedicoEspecialidades { get; set; }
     }
 
-    // Tabla intermedia Medico <-> Especialidad
-    public class MedicoEspecialidad
+    public class MedicoEspecialidad : EntidadAuditable
     {
         [Key]
         public int IdMedicoEsp { get; set; }
@@ -82,38 +112,21 @@ namespace Gestion_de_Turnos_Medicos
         public Usuario Usuario { get; set; }
     }
 
-    // Turno: entidad central. Diseñada para mapear directamente a la tabla de turnos
-    // en la base de datos. Contiene claves foráneas a Paciente, Prioridad, Especialidad y Usuario.
-    // Para mantener el modelo prolijo, aquí guardamos solo los campos relevantes y
-    // relaciones; las transformaciones para la UI deben hacerse en ViewModels o
-    // mappers fuera de la entidad.
-    public class Turno
+    public class Turno : EntidadAuditable
     {
         [Key]
         public int IdTurno { get; set; }
 
-        // Número interno / orden del turno
         public string NroOrden { get; set; }
-
-        // Estado (En Espera, Llamado, En Consulta, Atendido, etc.)
         public string Estado { get; set; }
-
-        // Fecha + hora de registro del turno (almacenamos Fecha; si se requiere hora
-        // separada, se puede usar Horario de tipo TimeSpan).
         public DateTime Fecha { get; set; }
         public TimeSpan Horario { get; set; }
-
-        // Información clínica breve que puede almacenarse directamente en el turno
-        // o en una HistoriaClinica relacionada. Aquí permitimos guardar Motivo y
-        // Triage para búsquedas y filtros rápidos sin exigir una tabla adicional.
-        public string Motivo { get; set; }
-        public string Triage { get; set; }
-
         public string TipoTurno { get; set; }
 
-        // Foreign keys y propiedades de navegación
+        // --- RELACIONES OBLIGATORIAS (No pueden ser nulas al crear) ---
+
         [ForeignKey("Prioridad")]
-        public int? IdPrioridad { get; set; }
+        public int IdPrioridad { get; set; }
         public Prioridad Prioridad { get; set; }
 
         [ForeignKey("Paciente")]
@@ -121,126 +134,31 @@ namespace Gestion_de_Turnos_Medicos
         public Paciente Paciente { get; set; }
 
         [ForeignKey("Especialidad")]
-        public int? IdEspecialidad { get; set; }
+        public int IdEspecialidad { get; set; }
         public Especialidad Especialidad { get; set; }
 
+
+        // --- RELACIONES OPCIONALES (Se asignan en plena ejecución) ---
+
+        // Médico (Usuario): Puede estar vacío al principio y asignarse cuando el médico lo llama.
         [ForeignKey("Usuario")]
         public int? IdUsuario { get; set; }
         public Usuario Usuario { get; set; }
 
-        // Tiempos de atención (persistidos). Se usan en la UI para medir duración.
-        public DateTime? HoraInicioAtencion { get; set; }
-        public DateTime? HoraFinAtencion { get; set; }
+        // Sala: Puede estar vacía al crear el turno en recepción, y llenarse cuando 
+        // se decide en qué consultorio se va a atender al paciente.
+        [ForeignKey("Sala")]
+        public int? IdSala { get; set; }
+        public Sala Sala { get; set; }
 
-        // Colecciones relacionadas
+        // -------------------------------------------------------------
+
+        // Colecciones dependientes
         public ICollection<TurnoSintoma> TurnoSintomas { get; set; }
-        public ICollection<Sala> Salas { get; set; }
         public ICollection<HistoriaClinica> HistoriasClinicas { get; set; }
-
-        // ------------------------
-        // Propiedades de compatibilidad mínima (NotMapped)
-        // ------------------------
-        // Para no romper el código existente en los forms (inicialmente
-        // escritos contra un POCO diferente) exponemos unos pocos atajos
-        // NotMapped. Estos atajos delegan la lectura/escritura a las entidades
-        // relacionadas (Paciente, Especialidad). Sólo se añaden los necesarios
-        // para mantener la compatibilidad y facilitar el registro desde forms
-        // sin introducir un gran número de propiedades "sueltas".
-
-        [NotMapped]
-        public int Id { get => IdTurno; set => IdTurno = value; }
-
-        [NotMapped]
-        public DateTime HoraRegistro { get => Fecha; set => Fecha = value; }
-
-        [NotMapped]
-        public string HoraRegistroTexto => Fecha.ToString("HH:mm");
-
-        [NotMapped]
-        public string Nombre
-        {
-            get => Paciente?.Nombre ?? string.Empty;
-            set
-            {
-                if (Paciente == null) Paciente = new Paciente();
-                Paciente.Nombre = value;
-            }
-        }
-
-        [NotMapped]
-        public string Apellido
-        {
-            get => Paciente?.Apellido ?? string.Empty;
-            set
-            {
-                if (Paciente == null) Paciente = new Paciente();
-                Paciente.Apellido = value;
-            }
-        }
-
-        [NotMapped]
-        public string DNI
-        {
-            get => Paciente?.Dni ?? string.Empty;
-            set
-            {
-                if (Paciente == null) Paciente = new Paciente();
-                Paciente.Dni = value;
-            }
-        }
-
-        [NotMapped]
-        public int Edad
-        {
-            get => Paciente?.Edad ?? 0;
-            set
-            {
-                if (Paciente == null) Paciente = new Paciente();
-                Paciente.Edad = value;
-            }
-        }
-
-        [NotMapped]
-        public string Cobertura
-        {
-            get => Paciente?.ObraSocial ?? string.Empty;
-            set
-            {
-                if (Paciente == null) Paciente = new Paciente();
-                Paciente.ObraSocial = value;
-            }
-        }
-
-        [NotMapped]
-        public string Servicio
-        {
-            get => Especialidad?.Nombre ?? string.Empty;
-            set
-            {
-                if (Especialidad == null) Especialidad = new Especialidad();
-                Especialidad.Nombre = value;
-            }
-        }
-
-        [NotMapped]
-        public string PacienteTexto => Paciente != null ? $"{Paciente.Apellido}, {Paciente.Nombre} ({Paciente.Dni})" : string.Empty;
-
-        // Campos clínicos y de trazabilidad que se usan en la UI.
-        // Se mantienen en la entidad Turno para simplificar la edición rápida
-        // desde los formularios. Si se busca un diseño más normalizado, mover
-        // estos campos a HistoriaClinica.
-        public string DiagnosticoRapido { get; set; }
-        public string MedicoQueAtendio { get; set; }
-        public string SalaDeAtencion { get; set; }
-
-        [NotMapped]
-        public string PacienteCorto => Paciente != null ? $"{Paciente.Apellido}, {Paciente.Nombre}" : string.Empty;
-
-        [NotMapped]
-        public string NombreCompleto => Paciente != null ? $"{Paciente.Nombre} {Paciente.Apellido}" : string.Empty;
     }
 
-    public class Sintoma
+    public class Sintoma : EntidadAuditable
     {
         [Key]
         public int IdSintoma { get; set; }
@@ -250,8 +168,7 @@ namespace Gestion_de_Turnos_Medicos
         public ICollection<TurnoSintoma> TurnoSintomas { get; set; }
     }
 
-    // Tabla intermedia entre Turno y Sintoma.
-    public class TurnoSintoma
+    public class TurnoSintoma : EntidadAuditable
     {
         [Key]
         public int IdTurnoSintoma { get; set; }
@@ -266,9 +183,7 @@ namespace Gestion_de_Turnos_Medicos
         public Sintoma Sintoma { get; set; }
     }
 
-    // HistoriaClinica: registros completos de atención. Un Turno puede apuntar
-    // a varias HistoriasClínicas (por ejemplo: evolución, notas, recetas).
-    public class HistoriaClinica
+    public class HistoriaClinica : EntidadAuditable
     {
         [Key]
         public int IdHistoria { get; set; }
@@ -291,21 +206,20 @@ namespace Gestion_de_Turnos_Medicos
         public Usuario Usuario { get; set; }
     }
 
-    public class Sala
+    public class Sala : EntidadAuditable
     {
         [Key]
         public int IdSala { get; set; }
+
         public string NombreSala { get; set; }
         public string EstadoSala { get; set; }
 
-        [ForeignKey("Turno")]
-        public int? IdTurno { get; set; }
-        public Turno Turno { get; set; }
+        public ICollection<Turno> Turnos { get; set; }
 
         public ICollection<DetalleSala> DetallesSala { get; set; }
     }
 
-    public class DetalleSala
+    public class DetalleSala : EntidadAuditable
     {
         [Key]
         public int IdDetalleSala { get; set; }
@@ -319,15 +233,4 @@ namespace Gestion_de_Turnos_Medicos
         public int IdUsuario { get; set; }
         public Usuario Usuario { get; set; }
     }
-
-    /*
-     * Notas sobre cómo registrar un turno correctamente con este modelo:
-     * - Al crear un turno desde un formulario se recomienda:
-     *   1) Buscar o crear la entidad Paciente y obtener su IdPaciente.
-     *   2) Crear la entidad Turno rellenando IdPaciente (y opcionalmente IdEspecialidad/IdPrioridad/IdUsuario).
-     *   3) Guardar el Turno y luego crear las entradas TurnoSintoma que referencien IdTurno.
-     *
-     * De esta forma las entidades quedan normalizadas y los datos clínicos (observaciones,
-     * diagnósticos extensos) pueden almacenarse en HistoriaClinica cuando se requiera trazabilidad.
-     */
 }
