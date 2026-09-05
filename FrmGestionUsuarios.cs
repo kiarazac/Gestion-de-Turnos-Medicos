@@ -9,11 +9,15 @@ using System.Windows.Forms;
 
 namespace Gestion_de_Turnos_Medicos
 {
-    public partial class FrmPersonalAdmin : Form
+    public partial class FrmGestionUsuarios : Form
     {
+        private const string ROL_PERSONAL_MEDICO = "Personal Médico";
+
+        // Contador simple para el id_usuario mientras no haya base de datos conectada.
+        // Si esto ya lo trae la BD (autoincremental), sacá este contador y usá el id que devuelva el INSERT.
         private int contadorId = 1;
 
-        public FrmPersonalAdmin()
+        public FrmGestionUsuarios()
         {
             InitializeComponent();
             this.Load += FrmPersonal_Load;
@@ -22,6 +26,10 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmPersonal_Load(object sender, EventArgs e)
         {
             ConfigurarDataGrid();
+
+            // Arranca en "Inactivo": dispara cmbRol_SelectedIndexChanged,
+            // que oculta la sección médica y muestra el cartel informativo.
+            cmbRol.SelectedIndex = 0;
         }
 
         private void ConfigurarDataGrid()
@@ -86,19 +94,69 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "sexo"
             });
 
+            // *** Rol elegido por el administrador ***
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "rol",
+                HeaderText = "Rol",
+                Width = 110
+            });
+
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "nro_matricula",
                 HeaderText = "Nro Matricula"
             });
 
-            // *** NUEVA Columna ESPECIALIDADES ***
+            // *** Columnas exclusivas de Personal Médico (quedan vacías si el rol no aplica) ***
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "especialidades",
                 HeaderText = "Especialidades",
                 Width = 150
             });
+
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "sala",
+                HeaderText = "Sala",
+                Width = 90
+            });
+        }
+
+        // Se dispara al elegir un rol distinto y también una vez al cargar el form
+        // (porque FrmPersonal_Load fuerza cmbRol.SelectedIndex = 0).
+        private void cmbRol_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ActualizarSeccionMedica();
+        }
+
+        // Muestra/oculta el panel "Datos Médicos" según el rol elegido y,
+        // cuando el rol deja de ser Personal Médico, limpia esos campos
+        // para que no quede información médica "pegada" a otro rol.
+        private void ActualizarSeccionMedica()
+        {
+            bool esPersonalMedico = EsPersonalMedico();
+
+            pnlDatosMedicos.Visible = esPersonalMedico;
+            lblInfoMedico.Visible = !esPersonalMedico;
+
+            if (!esPersonalMedico)
+            {
+                for (int i = 0; i < clbEspecialidades.Items.Count; i++)
+                    clbEspecialidades.SetItemChecked(i, false);
+
+                for (int i = 0; i < clbSala.Items.Count; i++)
+                    clbSala.SetItemChecked(i, false);
+
+                txtMatricula.Clear();
+            }
+        }
+
+        private bool EsPersonalMedico()
+        {
+            return cmbRol.SelectedItem != null &&
+                   cmbRol.SelectedItem.ToString() == ROL_PERSONAL_MEDICO;
         }
 
         private void btnGuardar_Click(object sender, EventArgs e)
@@ -107,14 +165,31 @@ namespace Gestion_de_Turnos_Medicos
                 return;
 
             string sexo = rbHombre.Checked ? "Hombre" : "Mujer";
+            string rol = cmbRol.SelectedItem.ToString();
+            bool esPersonalMedico = EsPersonalMedico();
 
-            // Extraer las especialidades marcadas en el CheckedListBox y unirlas con una coma
-            List<string> listaEspecialidades = new List<string>();
-            foreach (var item in clbEspecialidades.CheckedItems)
+            // Los atributos médicos solo se completan si el rol es Personal Médico;
+            // en cualquier otro caso quedan vacíos (equivalente al "null" que pedías
+            // cuando esto se conecte a una base de datos: ahí esas columnas irían
+            // como DBNull.Value en vez de string.Empty).
+            string textoEspecialidades = string.Empty;
+            string textoSala = string.Empty;
+            string matricula = string.Empty;
+
+            if (esPersonalMedico)
             {
-                listaEspecialidades.Add(item.ToString());
+                List<string> listaEspecialidades = new List<string>();
+                foreach (var item in clbEspecialidades.CheckedItems)
+                    listaEspecialidades.Add(item.ToString());
+                textoEspecialidades = string.Join(", ", listaEspecialidades);
+
+                List<string> listaSala = new List<string>();
+                foreach (var item in clbSala.CheckedItems)
+                    listaSala.Add(item.ToString());
+                textoSala = string.Join(", ", listaSala);
+
+                matricula = txtMatricula.Text.Trim();
             }
-            string textoEspecialidades = string.Join(", ", listaEspecialidades);
 
             int filaIndex = dgvPersonal.Rows.Add();
             DataGridViewRow fila = dgvPersonal.Rows[filaIndex];
@@ -123,13 +198,15 @@ namespace Gestion_de_Turnos_Medicos
             fila.Cells["nombre"].Value = txtNombre.Text.Trim();
             fila.Cells["apellido"].Value = txtApellido.Text.Trim();
             fila.Cells["usuario"].Value = txtUsuario.Text.Trim();
-            fila.Cells["contrasenia"].Value = txtContrasenia.Text;
+            fila.Cells["contrasenia"].Value = txtContrasenia.Text; // ver nota de seguridad al final
             fila.Cells["dni"].Value = txtDNI.Text.Trim();
             fila.Cells["email"].Value = txtEmail.Text.Trim();
             fila.Cells["telefono"].Value = txtTelefono.Text.Trim();
             fila.Cells["sexo"].Value = sexo;
-            fila.Cells["nro_matricula"].Value = txtMatricula.Text.Trim();
-            fila.Cells["especialidades"].Value = textoEspecialidades; // Guardamos el texto concatenado
+            fila.Cells["rol"].Value = rol;
+            fila.Cells["nro_matricula"].Value = matricula;
+            fila.Cells["especialidades"].Value = textoEspecialidades;
+            fila.Cells["sala"].Value = textoSala;
 
             contadorId++;
 
@@ -138,31 +215,21 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnEliminar_Click(object sender, EventArgs e)
         {
-            // Verificar que haya una fila seleccionada
-            if (dgvPersonal.CurrentRow != null)
+            if (dgvPersonal.CurrentRow == null || dgvPersonal.CurrentRow.Index < 0)
             {
-                // Confirmar la acción con el usuario
-                DialogResult result = MessageBox.Show("¿Desea desactivar este registro?",
-                    "Confirmar Baja Lógica", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                MessageBox.Show("Seleccioná una fila para eliminar.", "Atención",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-                if (result == DialogResult.Yes)
-                {
-                    // Cambiar el valor de la columna que maneja el estado
-                    dgvPersonal.CurrentRow.Cells["Activo"].Value = false;
+            var confirmar = MessageBox.Show("¿Seguro que querés eliminar el usuario seleccionado?",
+                "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
-                    // Opcional: Actualizar en la base de datos inmediatamente
-                    // int id = Convert.ToInt32(dgvPersonal.CurrentRow.Cells["Id"].Value);
-                    // DesactivarEnBaseDeDatos(id);
-
-                    // Opcional: Ocultar la fila si no quieres mostrar registros desactivados
-                    // CurrencyManager cm = (CurrencyManager)BindingContext[dgvPersonal.DataSource];
-                    // cm.SuspendBinding();
-                    // dgvPersonal.CurrentRow.Visible = false;
-                    // cm.ResumeBinding();
-                }
+            if (confirmar == DialogResult.Yes)
+            {
+                dgvPersonal.Rows.RemoveAt(dgvPersonal.CurrentRow.Index);
             }
         }
-        
 
         private bool ValidarCampos()
         {
@@ -199,8 +266,17 @@ namespace Gestion_de_Turnos_Medicos
                 return false;
             }
 
-            // Nueva validación para asegurar que seleccione al menos una especialidad
-            if (clbEspecialidades.CheckedItems.Count == 0)
+            // El combo arranca en "Inactivo" (índice 0): no es un rol válido para
+            // dar de alta a un usuario, así que obligamos a elegir uno real.
+            if (cmbRol.SelectedIndex <= 0)
+            {
+                MessageBox.Show("Seleccioná un rol para el usuario (Recepcionista, Personal Médico o Administrador).",
+                    "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            // La especialidad solo es obligatoria cuando el rol es Personal Médico.
+            if (EsPersonalMedico() && clbEspecialidades.CheckedItems.Count == 0)
             {
                 MessageBox.Show("Seleccioná al menos una especialidad.",
                     "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -219,15 +295,12 @@ namespace Gestion_de_Turnos_Medicos
             txtEmail.Clear();
             txtDNI.Clear();
             txtTelefono.Clear();
-            txtMatricula.Clear();
             rbHombre.Checked = false;
             rbMujer.Checked = false;
 
-            // Desmarcar todas las opciones del CheckedListBox
-            for (int i = 0; i < clbEspecialidades.Items.Count; i++)
-            {
-                clbEspecialidades.SetItemChecked(i, false);
-            }
+            // Vuelve a "Inactivo": dispara cmbRol_SelectedIndexChanged, que ya se
+            // encarga de ocultar el panel médico y limpiar sus campos.
+            cmbRol.SelectedIndex = 0;
 
             txtNombre.Focus();
         }
