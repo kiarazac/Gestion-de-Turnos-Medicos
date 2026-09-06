@@ -1,18 +1,27 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
+using Gestion_de_Turnos_Medicos.Negocio;
 
 namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmGestionUsuarios : Form
     {
         private const string ROL_PERSONAL_MEDICO = "Personal Médico";
+
+        // 1. Invocación exclusiva de la Capa de Negocio (BLL)
+        private readonly UsuarioBLL _usuarioBLL = new UsuarioBLL();
+        private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
+        private readonly SalaBLL _salaBLL = new SalaBLL();
+
+        // Wrapper para mostrar texto y conservar el Id real en ComboBox/CheckedListBox
+        private sealed class ItemConId
+        {
+            public int Id { get; set; }
+            public string Texto { get; set; } = string.Empty;
+            public override string ToString() => Texto;
+        }
 
         public FrmGestionUsuarios()
         {
@@ -24,12 +33,14 @@ namespace Gestion_de_Turnos_Medicos
         {
             ConfigurarDataGrid();
 
-            // Cargar usuarios existentes desde la base de datos
-            CargarUsuariosDesdeBD();
+            CargarRolesDesdeBD();
+            CargarEspecialidadesDesdeBD();
+            CargarSalasDesdeBD();
 
-            // Arranca en "Inactivo": dispara cmbRol_SelectedIndexChanged,
-            // que oculta la sección médica y muestra el cartel informativo.
-            cmbRol.SelectedIndex = 0;
+            if (cmbRol.Items.Count > 0)
+                cmbRol.SelectedIndex = 0;
+
+            CargarUsuariosDesdeBD();
         }
 
         private void ConfigurarDataGrid()
@@ -40,114 +51,109 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvPersonal.MultiSelect = false;
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "id_usuario",
-                HeaderText = "ID",
-                DataPropertyName = "id_usuario",
-                ReadOnly = true,
-                Width = 60
-            });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "IdUsuario", HeaderText = "ID", ReadOnly = true, Width = 60 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nombre", HeaderText = "Nombre", Width = 100 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Apellido", HeaderText = "Apellido", Width = 100 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Correo", HeaderText = "Correo", Width = 150 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Dni", HeaderText = "DNI", Width = 90 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Telefono", HeaderText = "Teléfono", Width = 100 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Rol", HeaderText = "Rol", Width = 120 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "NroMatricula", HeaderText = "Matrícula", Width = 90 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Especialidades", HeaderText = "Especialidades", Width = 150 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Salas", HeaderText = "Salas", Width = 120 });
+        }
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "nombre",
-                HeaderText = "Nombre",
-                DataPropertyName = "nombre",
-                Width = 100
-            });
+        // ---------------------------------------------------------------
+        // Carga de catálogos mediante la Capa de Negocio (BLL)
+        // ---------------------------------------------------------------
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "apellido",
-                HeaderText = "Apellido",
-                DataPropertyName = "apellido",
-                Width = 100
-            });
+        private void CargarRolesDesdeBD()
+        {
+            cmbRol.Items.Clear();
+            cmbRol.Items.Add(new ItemConId { Id = 0, Texto = "Seleccione un rol..." });
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            try
             {
-                Name = "usuario",
-                HeaderText = "Usuario",
-                DataPropertyName = "usuario",
-                Width = 100
-            });
+                // BLL delega en UsuarioDAL -> sp_ListarRoles
+                var roles = _usuarioBLL.ObtenerRoles();
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+                if (roles != null)
+                {
+                    foreach (var r in roles)
+                    {
+                        cmbRol.Items.Add(new ItemConId
+                        {
+                            Id = r.IdRol,
+                            Texto = r.Descripcion
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
             {
-                Name = "contrasenia",
-                HeaderText = "Contraseña",
-                DataPropertyName = "contrasenia",
-                Visible = false // Por seguridad no mostrar contraseña en texto plano
-            });
+                MessageBox.Show("No se pudieron cargar los roles de usuario:\n" + ex.Message,
+                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "dni",
-                HeaderText = "DNI",
-                DataPropertyName = "dni",
-                Width = 90
-            });
+        private void CargarEspecialidadesDesdeBD()
+        {
+            clbEspecialidades.Items.Clear();
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            try
             {
-                Name = "email",
-                HeaderText = "Email",
-                DataPropertyName = "email",
-                Width = 150
-            });
+                // BLL delega en EspecialidadDAL -> sp_ListarEspecialidades
+                var especialidades = _especialidadBLL.ObtenerEspecialidades();
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+                if (especialidades != null)
+                {
+                    foreach (var esp in especialidades)
+                    {
+                        clbEspecialidades.Items.Add(new ItemConId
+                        {
+                            Id = esp.IdEspecialidad,
+                            Texto = esp.Nombre
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
             {
-                Name = "telefono",
-                HeaderText = "Teléfono",
-                DataPropertyName = "telefono",
-                Width = 100
-            });
+                MessageBox.Show("No se pudieron cargar las especialidades:\n" + ex.Message,
+                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "sexo",
-                HeaderText = "Sexo",
-                DataPropertyName = "sexo",
-                Width = 80
-            });
+        private void CargarSalasDesdeBD()
+        {
+            clbSala.Items.Clear();
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+            try
             {
-                Name = "rol",
-                HeaderText = "Rol",
-                DataPropertyName = "rol",
-                Width = 120
-            });
+                // BLL delega en SalaDAL -> sp_ObtenerSalas
+                var salas = _salaBLL.ObtenerSalas(null);
 
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
+                if (salas != null)
+                {
+                    foreach (var s in salas)
+                    {
+                        clbSala.Items.Add(new ItemConId
+                        {
+                            Id = s.IdSala,
+                            Texto = s.NombreSala
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
             {
-                Name = "nro_matricula",
-                HeaderText = "Matrícula",
-                DataPropertyName = "nro_matricula",
-                Width = 90
-            });
-
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "especialidades",
-                HeaderText = "Especialidades",
-                DataPropertyName = "especialidades",
-                Width = 150
-            });
-
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "sala",
-                HeaderText = "Sala",
-                DataPropertyName = "sala",
-                Width = 90
-            });
+                MessageBox.Show("No se pudieron cargar las salas:\n" + ex.Message,
+                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         /// <summary>
-        /// Obtiene la lista de usuarios activos desde la base de datos SQL Server.
+        /// Obtiene los usuarios activos a través de UsuarioBLL (delegando en sp_ListarUsuarios).
         /// </summary>
         private void CargarUsuariosDesdeBD()
         {
@@ -155,48 +161,39 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_ListarUsuarios
-                using (SqlConnection con = Conexion.ObtenerConexion())
+                // BLL delega en UsuarioDAL -> sp_ListarUsuarios
+                var usuarios = _usuarioBLL.ObtenerUsuarios();
+
+                if (usuarios != null)
                 {
-                    using (SqlCommand cmd = new SqlCommand("sp_ListarUsuarios", con))
+                    foreach (var u in usuarios)
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        con.Open();
+                        int filaIndex = dgvPersonal.Rows.Add();
+                        DataGridViewRow fila = dgvPersonal.Rows[filaIndex];
 
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                int filaIndex = dgvPersonal.Rows.Add();
-                                DataGridViewRow fila = dgvPersonal.Rows[filaIndex];
-
-                                fila.Cells["id_usuario"].Value = reader["id_usuario"];
-                                fila.Cells["nombre"].Value = reader["nombre"];
-                                fila.Cells["apellido"].Value = reader["apellido"];
-                                fila.Cells["usuario"].Value = reader["usuario"];
-                                fila.Cells["contrasenia"].Value = reader["contrasenia"];
-                                fila.Cells["dni"].Value = reader["dni"];
-                                fila.Cells["email"].Value = reader["email"];
-                                fila.Cells["telefono"].Value = reader["telefono"];
-                                fila.Cells["sexo"].Value = reader["sexo"];
-                                fila.Cells["rol"].Value = reader["rol"];
-                                fila.Cells["nro_matricula"].Value = reader["nro_matricula"] != DBNull.Value ? reader["nro_matricula"] : "";
-                                fila.Cells["especialidades"].Value = reader["especialidades"] != DBNull.Value ? reader["especialidades"] : "";
-                                fila.Cells["sala"].Value = reader["sala"] != DBNull.Value ? reader["sala"] : "";
-                            }
-                        }
+                        fila.Cells["IdUsuario"].Value = u.IdUsuario;
+                        fila.Cells["Nombre"].Value = u.Nombre;
+                        fila.Cells["Apellido"].Value = u.Apellido;
+                        fila.Cells["Correo"].Value = u.Correo;
+                        fila.Cells["Dni"].Value = u.Dni;
+                        fila.Cells["Telefono"].Value = u.Telefono;
+                        fila.Cells["Rol"].Value = u.Rol;
+                        fila.Cells["NroMatricula"].Value = !string.IsNullOrWhiteSpace(u.NroMatricula) ? u.NroMatricula : "";
+                        fila.Cells["Especialidades"].Value = !string.IsNullOrWhiteSpace(u.Especialidades) ? u.Especialidades : "";
+                        fila.Cells["Salas"].Value = !string.IsNullOrWhiteSpace(u.Salas) ? u.Salas : "";
                     }
                 }
             }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al cargar la lista de usuarios desde la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al consultar usuarios:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudo cargar la lista de usuarios desde la base de datos:\n" + ex.Message,
+                    "Error de Consulta", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        // ---------------------------------------------------------------
+        // Dinámica visual de sección médica según rol
+        // ---------------------------------------------------------------
 
         private void cmbRol_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -219,14 +216,19 @@ namespace Gestion_de_Turnos_Medicos
                     clbSala.SetItemChecked(i, false);
 
                 txtMatricula.Clear();
+                txtNotaSala.Clear();
             }
         }
 
         private bool EsPersonalMedico()
         {
-            return cmbRol.SelectedItem != null &&
-                   cmbRol.SelectedItem.ToString() == ROL_PERSONAL_MEDICO;
+            return cmbRol.SelectedItem is ItemConId item &&
+                   item.Texto.Equals(ROL_PERSONAL_MEDICO, StringComparison.OrdinalIgnoreCase);
         }
+
+        // ---------------------------------------------------------------
+        // Guardar y Desactivar usuarios mediante Capa BLL
+        // ---------------------------------------------------------------
 
         private void btnGuardar_Click(object sender, EventArgs e)
         {
@@ -235,81 +237,54 @@ namespace Gestion_de_Turnos_Medicos
 
             string nombre = txtNombre.Text.Trim();
             string apellido = txtApellido.Text.Trim();
-            string usuario = txtUsuario.Text.Trim();
-            string contrasenia = txtContrasenia.Text;
+            string correo = txtCorreo.Text.Trim();
+            string contrasena = txtContrasena.Text;
             string dni = txtDNI.Text.Trim();
-            string email = txtEmail.Text.Trim();
             string telefono = txtTelefono.Text.Trim();
-            string sexo = rbHombre.Checked ? "Hombre" : "Mujer";
-            string rol = cmbRol.SelectedItem!.ToString()!;
+            var rolSeleccionado = (ItemConId)cmbRol.SelectedItem!;
             bool esPersonalMedico = EsPersonalMedico();
 
-            string textoEspecialidades = string.Empty;
-            string textoSala = string.Empty;
-            string matricula = string.Empty;
+            string matricula = esPersonalMedico ? txtMatricula.Text.Trim() : string.Empty;
+            string notaSala = txtNotaSala.Text.Trim();
+
+            List<int> especialidadesIds = new List<int>();
+            List<int> salasIds = new List<int>();
 
             if (esPersonalMedico)
             {
-                List<string> listaEspecialidades = new List<string>();
                 foreach (var item in clbEspecialidades.CheckedItems)
-                    listaEspecialidades.Add(item.ToString()!);
-                textoEspecialidades = string.Join(", ", listaEspecialidades);
+                {
+                    if (item is ItemConId esp)
+                        especialidadesIds.Add(esp.Id);
+                }
 
-                List<string> listaSala = new List<string>();
                 foreach (var item in clbSala.CheckedItems)
-                    listaSala.Add(item.ToString()!);
-                textoSala = string.Join(", ", listaSala);
-
-                matricula = txtMatricula.Text.Trim();
+                {
+                    if (item is ItemConId sala)
+                        salasIds.Add(sala.Id);
+                }
             }
 
             try
             {
-                // Stored Procedure: sp_GuardarUsuario
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_GuardarUsuario", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@Nombre", SqlDbType.VarChar, 100).Value = nombre;
-                        cmd.Parameters.Add("@Apellido", SqlDbType.VarChar, 100).Value = apellido;
-                        cmd.Parameters.Add("@Usuario", SqlDbType.VarChar, 100).Value = usuario;
-                        cmd.Parameters.Add("@Contrasenia", SqlDbType.VarChar, 100).Value = contrasenia;
-                        cmd.Parameters.Add("@Dni", SqlDbType.VarChar, 20).Value = dni;
-                        cmd.Parameters.Add("@Email", SqlDbType.VarChar, 100).Value = string.IsNullOrEmpty(email) ? (object)DBNull.Value : email;
-                        cmd.Parameters.Add("@Telefono", SqlDbType.VarChar, 50).Value = string.IsNullOrEmpty(telefono) ? (object)DBNull.Value : telefono;
-                        cmd.Parameters.Add("@Sexo", SqlDbType.VarChar, 20).Value = sexo;
-                        cmd.Parameters.Add("@Rol", SqlDbType.VarChar, 50).Value = rol;
-                        cmd.Parameters.Add("@NroMatricula", SqlDbType.VarChar, 50).Value = string.IsNullOrEmpty(matricula) ? (object)DBNull.Value : matricula;
-                        cmd.Parameters.Add("@Especialidades", SqlDbType.VarChar, 255).Value = string.IsNullOrEmpty(textoEspecialidades) ? (object)DBNull.Value : textoEspecialidades;
-                        cmd.Parameters.Add("@Sala", SqlDbType.VarChar, 100).Value = string.IsNullOrEmpty(textoSala) ? (object)DBNull.Value : textoSala;
+                // BLL orquesta el guardado con UsuarioDAL -> sp_InsertarUsuario, sp_AsignarEspecialidadMedico, sp_AsignarSalaMedico
+                _usuarioBLL.RegistrarUsuario(nombre, apellido, correo, contrasena, dni, telefono,
+                    rolSeleccionado.Id, matricula, especialidadesIds, salasIds, notaSala);
 
-                        SqlParameter paramIdUsuario = new SqlParameter("@IdUsuario", SqlDbType.Int)
-                        {
-                            Direction = ParameterDirection.Output
-                        };
-                        cmd.Parameters.Add(paramIdUsuario);
+                MessageBox.Show($"Usuario '{nombre} {apellido}' registrado correctamente.",
+                    "Usuario Guardado", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-
-                        int nuevoId = Convert.ToInt32(paramIdUsuario.Value);
-
-                        MessageBox.Show($"Usuario registrado correctamente con ID #{nuevoId}.", "Usuario Guardado", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
-
-                // Refrescar listado desde la base de datos
                 CargarUsuariosDesdeBD();
                 LimpiarCampos();
             }
-            catch (SqlException sqlEx)
+            catch (ArgumentException argEx)
             {
-                MessageBox.Show("Error al guardar el usuario en la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(argEx.Message, "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Ocurrió un error al registrar el usuario:\n" + ex.Message,
+                    "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -317,43 +292,34 @@ namespace Gestion_de_Turnos_Medicos
         {
             if (dgvPersonal.CurrentRow == null || dgvPersonal.CurrentRow.Index < 0)
             {
-                MessageBox.Show("Seleccioná una fila para desactivar.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Seleccioná una fila para desactivar.", "Atención",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            var confirmar = MessageBox.Show("¿Seguro que querés desactivar el usuario seleccionado?", "Confirmar Desactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            int idUsuario = Convert.ToInt32(dgvPersonal.CurrentRow.Cells["IdUsuario"].Value);
+            string usuarioNombre = $"{dgvPersonal.CurrentRow.Cells["Nombre"].Value} {dgvPersonal.CurrentRow.Cells["Apellido"].Value}";
+
+            var confirmar = MessageBox.Show($"¿Seguro que querés desactivar al usuario '{usuarioNombre}'?",
+                "Confirmar Desactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (confirmar != DialogResult.Yes)
                 return;
 
-            int idUsuario = Convert.ToInt32(dgvPersonal.CurrentRow.Cells["id_usuario"].Value);
-
             try
             {
-                // Stored Procedure: sp_DesactivarUsuario
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_DesactivarUsuario", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
+                // BLL delega a UsuarioDAL -> sp_EliminarUsuario (baja lógica)
+                _usuarioBLL.EliminarUsuario(idUsuario);
 
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-
-                        MessageBox.Show("Usuario desactivado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
+                MessageBox.Show($"El usuario '{usuarioNombre}' fue desactivado correctamente.",
+                    "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 CargarUsuariosDesdeBD();
             }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al desactivar usuario en la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Ocurrió un error al desactivar el usuario:\n" + ex.Message,
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -361,42 +327,43 @@ namespace Gestion_de_Turnos_Medicos
         {
             if (string.IsNullOrWhiteSpace(txtNombre.Text) ||
                 string.IsNullOrWhiteSpace(txtApellido.Text) ||
-                string.IsNullOrWhiteSpace(txtUsuario.Text) ||
-                string.IsNullOrWhiteSpace(txtContrasenia.Text) ||
+                string.IsNullOrWhiteSpace(txtCorreo.Text) ||
+                string.IsNullOrWhiteSpace(txtContrasena.Text) ||
                 string.IsNullOrWhiteSpace(txtDNI.Text))
             {
-                MessageBox.Show("Completá al menos Nombre, Apellido, Usuario, Contraseña y DNI.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Completá al menos Nombre, Apellido, Correo, Contraseña y DNI.",
+                    "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
             if (!Regex.IsMatch(txtDNI.Text.Trim(), @"^\d{7,8}$"))
             {
-                MessageBox.Show("El DNI tiene que tener entre 7 y 8 números, sin puntos.", "DNI inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El DNI tiene que tener entre 7 y 8 números, sin puntos.",
+                    "DNI inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtDNI.Focus();
                 return false;
             }
 
-            if (!rbHombre.Checked && !rbMujer.Checked)
+            if (!Regex.IsMatch(txtCorreo.Text.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
             {
-                MessageBox.Show("Seleccioná el sexo (Hombre o Mujer).", "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El correo no tiene un formato válido.",
+                    "Correo inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtCorreo.Focus();
                 return false;
             }
 
-            if (!string.IsNullOrWhiteSpace(txtEmail.Text) &&
-                !Regex.IsMatch(txtEmail.Text.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            if (cmbRol.SelectedItem is not ItemConId rolSeleccionado || rolSeleccionado.Id == 0)
             {
-                MessageBox.Show("El email no tiene un formato válido.", "Email inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            if (cmbRol.SelectedIndex <= 0)
-            {
-                MessageBox.Show("Seleccioná un rol para el usuario (Recepcionista, Personal Médico o Administrador).", "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Seleccioná un rol válido para el usuario.",
+                    "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                cmbRol.Focus();
                 return false;
             }
 
             if (EsPersonalMedico() && clbEspecialidades.CheckedItems.Count == 0)
             {
-                MessageBox.Show("Seleccioná al menos una especialidad.", "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El personal médico debe tener al menos una especialidad seleccionada.",
+                    "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -407,15 +374,15 @@ namespace Gestion_de_Turnos_Medicos
         {
             txtNombre.Clear();
             txtApellido.Clear();
-            txtUsuario.Clear();
-            txtContrasenia.Clear();
-            txtEmail.Clear();
+            txtCorreo.Clear();
+            txtContrasena.Clear();
             txtDNI.Clear();
             txtTelefono.Clear();
-            rbHombre.Checked = false;
-            rbMujer.Checked = false;
+            txtNotaSala.Clear();
 
-            cmbRol.SelectedIndex = 0;
+            if (cmbRol.Items.Count > 0)
+                cmbRol.SelectedIndex = 0;
+
             txtNombre.Focus();
         }
     }

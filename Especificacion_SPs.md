@@ -231,3 +231,30 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
   | `@NuevoEstado` | `VARCHAR(50)` | IN | Nuevo estado asignado ('Disponible', 'Ocupada', 'En Mantenimiento'). |
+
+---
+
+## FrmGestionEspecialidades
+
+### 1. `sp_ListarEspecialidades` (Reutilizado)
+- **Descripción**: Obtiene la lista de especialidades médicas activas (`Activo = 1`) para poblar la grilla de administración de especialidades y los selectores médicos.
+- **Tablas involucradas**: `Especialidad`
+- **Parámetros**: Ninguno. Retorna: `IdEspecialidad`, `Nombre`.
+
+### 2. `sp_GuardarEspecialidad`
+- **Descripción**: Registra una nueva especialidad médica en la tabla `Especialidad`.
+- **Tablas involucradas**: `Especialidad`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Nombre` | `VARCHAR(100)` | IN | Nombre de la especialidad médica. |
+  | `@IdEspecialidad` | `INT` | OUT | ID autoincremental de la especialidad registrada. |
+
+### 3. `sp_DesactivarEspecialidad`
+- **Descripción**: Realiza la baja lógica (`Activo = 0`, `FechaBaja = GETDATE()`) de la especialidad especificada, y desactiva las relaciones activas en `MedicoEspecialidad`.
+- **Tablas involucradas**: `Especialidad`, `MedicoEspecialidad`, `Turno`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad a desactivar. |
+

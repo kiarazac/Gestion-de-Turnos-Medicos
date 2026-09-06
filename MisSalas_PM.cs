@@ -1,21 +1,26 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
+using Gestion_de_Turnos_Medicos.Negocio;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
     public partial class MisSalas_PM : Form
     {
-        public MisSalas_PM()
+        // 1. Invocación exclusiva de la Capa de Negocio (BLL)
+        private readonly SalaBLL _salaBLL = new SalaBLL();
+        private readonly UsuarioLoginResult? _usuarioActual;
+
+        public MisSalas_PM() : this(null)
+        {
+        }
+
+        public MisSalas_PM(UsuarioLoginResult? usuario)
         {
             InitializeComponent();
+            _usuarioActual = usuario;
 
-            // Cableado manual de eventos en el constructor
             this.Load += MisSalas_PM_Load;
             this.dgvMisSalas.SelectionChanged += DgvMisSalas_SelectionChanged;
             this.btnAbrirSala.Click += BtnAbrirSala_Click;
@@ -33,7 +38,7 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Obtiene de SQL Server las salas asignadas al personal médico.
+        /// Obtiene las salas asignadas al médico autenticado a través de la Capa de Negocio (BLL).
         /// </summary>
         private void CargarMisSalas()
         {
@@ -41,37 +46,27 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_ListarMisSalas
-                using (SqlConnection con = Conexion.ObtenerConexion())
+                // BLL delega a SalaDAL y ejecuta sp_ObtenerSalas filtrando por IdUsuario
+                var salas = _salaBLL.ObtenerSalas(_usuarioActual?.IdUsuario);
+
+                if (salas != null)
                 {
-                    using (SqlCommand cmd = new SqlCommand("sp_ListarMisSalas", con))
+                    foreach (var s in salas)
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        con.Open();
+                        int filaIndex = dgvMisSalas.Rows.Add();
+                        DataGridViewRow fila = dgvMisSalas.Rows[filaIndex];
 
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                int filaIndex = dgvMisSalas.Rows.Add();
-                                DataGridViewRow fila = dgvMisSalas.Rows[filaIndex];
-
-                                fila.Cells["ID"].Value = reader["id_sala"];
-                                fila.Cells["NombreSala"].Value = reader["nombreSala"];
-                                fila.Cells["descrip_atención"].Value = reader["descripcion_atencion"] != DBNull.Value ? reader["descripcion_atencion"] : "--";
-                                fila.Cells["Estado"].Value = reader["estadoSala"];
-                            }
-                        }
+                        fila.Cells["ID"].Value = s.IdSala;
+                        fila.Cells["NombreSala"].Value = s.NombreSala;
+                        fila.Cells["descrip_atención"].Value = !string.IsNullOrWhiteSpace(s.DescripcionAtencion) ? s.DescripcionAtencion : "--";
+                        fila.Cells["Estado"].Value = s.EstadoSala;
                     }
                 }
             }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al consultar salas asignadas:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
             catch (Exception ex)
             {
-                MessageBox.Show("Error inesperado al cargar salas:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudieron cargar las salas asignadas:\n" + ex.Message,
+                    "Error al consultar salas", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             ActualizarEstadoVisual();
@@ -89,7 +84,7 @@ namespace Gestion_de_Turnos_Medicos
                 string estado = dgvMisSalas.CurrentRow.Cells["Estado"].Value?.ToString() ?? "-----";
                 LestadoSala.Text = estado;
 
-                if (estado.Equals("Disponible", StringComparison.OrdinalIgnoreCase))
+                if (estado.Equals("Disponible", StringComparison.OrdinalIgnoreCase) || estado.Equals("Libre", StringComparison.OrdinalIgnoreCase))
                 {
                     LestadoSala.ForeColor = Color.ForestGreen;
                     btnAbrirSala.Enabled = false;
@@ -119,22 +114,37 @@ namespace Gestion_de_Turnos_Medicos
 
         private void BtnAbrirSala_Click(object? sender, EventArgs e)
         {
-            CambiarEstadoSala("Disponible");
+            if (dgvMisSalas.CurrentRow == null || dgvMisSalas.CurrentRow.Index < 0)
+            {
+                MessageBox.Show("Seleccione una sala de la tabla para abrirla.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int idSala = Convert.ToInt32(dgvMisSalas.CurrentRow.Cells["ID"].Value);
+            string nombre = dgvMisSalas.CurrentRow.Cells["NombreSala"].Value?.ToString() ?? "Sala";
+            int idUsuario = _usuarioActual?.IdUsuario ?? 0;
+
+            try
+            {
+                // BLL delega a SalaDAL y ejecuta sp_AbrirSala (aplica validaciones de negocio en SQL Server)
+                _salaBLL.AbrirSala(idSala, idUsuario);
+
+                MessageBox.Show($"La sala '{nombre}' fue abierta correctamente y se encuentra disponible para atención.",
+                    "Sala Abierta", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                CargarMisSalas();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo abrir la sala:\n" + ex.Message, "Acción denegada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void BtnCerrarSala_Click(object? sender, EventArgs e)
         {
-            CambiarEstadoSala("En Mantenimiento");
-        }
-
-        /// <summary>
-        /// Modifica el estado de la sala seleccionada mediante Stored Procedure en SQL Server.
-        /// </summary>
-        private void CambiarEstadoSala(string nuevoEstado)
-        {
             if (dgvMisSalas.CurrentRow == null || dgvMisSalas.CurrentRow.Index < 0)
             {
-                MessageBox.Show("Seleccione una sala de la tabla.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Seleccione una sala de la tabla para cerrarla.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -143,31 +153,17 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_ActualizarEstadoSala
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_ActualizarEstadoSala", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@IdSala", SqlDbType.Int).Value = idSala;
-                        cmd.Parameters.Add("@NuevoEstado", SqlDbType.VarChar, 50).Value = nuevoEstado;
+                // BLL delega a SalaDAL y ejecuta sp_CerrarSala (bloquea si está en estado 'Ocupada')
+                _salaBLL.CerrarSala(idSala);
 
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-
-                        MessageBox.Show($"La sala '{nombre}' ahora se encuentra '{nuevoEstado}'.", "Estado Actualizado", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
+                MessageBox.Show($"La sala '{nombre}' fue cerrada correctamente.",
+                    "Sala Cerrada", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 CargarMisSalas();
             }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al actualizar estado en base de datos:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
             catch (Exception ex)
             {
-                MessageBox.Show("Error inesperado:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudo cerrar la sala:\n" + ex.Message, "Acción denegada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
     }

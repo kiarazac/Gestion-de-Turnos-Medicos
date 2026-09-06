@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -56,6 +56,11 @@ namespace Gestion_de_Turnos_Medicos
         private void btnSalas_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmSalasAdmin());
+        }
+
+        private void btnEspecialidades_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmGestionEspecialidades());
         }
 
         private void btnSalir_Click(object sender, EventArgs e)

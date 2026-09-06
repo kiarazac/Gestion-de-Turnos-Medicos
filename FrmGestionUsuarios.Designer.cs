@@ -39,24 +39,21 @@
             clbSala = new CheckedListBox();
             lblMatricula = new Label();
             txtMatricula = new TextBox();
+            lblNotaSala = new Label();
+            txtNotaSala = new TextBox();
             lblTitulo = new Label();
             lblNombre = new Label();
             txtNombre = new TextBox();
             lblApellido = new Label();
             txtApellido = new TextBox();
-            lblUsuario = new Label();
-            txtUsuario = new TextBox();
-            lblContrasenia = new Label();
-            txtContrasenia = new TextBox();
-            lblEmail = new Label();
-            txtEmail = new TextBox();
+            lblCorreo = new Label();
+            txtCorreo = new TextBox();
+            lblContrasena = new Label();
+            txtContrasena = new TextBox();
             lblDNI = new Label();
             txtDNI = new TextBox();
             lblTelefono = new Label();
             txtTelefono = new TextBox();
-            lblSexo = new Label();
-            rbHombre = new RadioButton();
-            rbMujer = new RadioButton();
             btnGuardar = new Button();
             btnEliminar = new Button();
             dgvPersonal = new DataGridView();
@@ -77,19 +74,14 @@
             pnlDatos.Controls.Add(txtNombre);
             pnlDatos.Controls.Add(lblApellido);
             pnlDatos.Controls.Add(txtApellido);
-            pnlDatos.Controls.Add(lblUsuario);
-            pnlDatos.Controls.Add(txtUsuario);
-            pnlDatos.Controls.Add(lblContrasenia);
-            pnlDatos.Controls.Add(txtContrasenia);
-            pnlDatos.Controls.Add(lblEmail);
-            pnlDatos.Controls.Add(txtEmail);
+            pnlDatos.Controls.Add(lblCorreo);
+            pnlDatos.Controls.Add(txtCorreo);
+            pnlDatos.Controls.Add(lblContrasena);
+            pnlDatos.Controls.Add(txtContrasena);
             pnlDatos.Controls.Add(lblDNI);
             pnlDatos.Controls.Add(txtDNI);
             pnlDatos.Controls.Add(lblTelefono);
             pnlDatos.Controls.Add(txtTelefono);
-            pnlDatos.Controls.Add(lblSexo);
-            pnlDatos.Controls.Add(rbHombre);
-            pnlDatos.Controls.Add(rbMujer);
             pnlDatos.Controls.Add(btnGuardar);
             pnlDatos.Controls.Add(btnEliminar);
             pnlDatos.Dock = DockStyle.Top;
@@ -110,9 +102,10 @@
             // 
             // cmbRol
             // 
+            // Los ítems se cargan en tiempo de ejecución desde sp_ListarRoles
+            // (ver FrmGestionUsuarios.cs -> CargarRolesDesdeBD). No se harcodea nada acá.
             cmbRol.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbRol.FormattingEnabled = true;
-            cmbRol.Items.AddRange(new object[] { "Inactivo", "Recepcionista", "Personal Médico", "Administrador" });
             cmbRol.Location = new Point(595, 15);
             cmbRol.Name = "cmbRol";
             cmbRol.Size = new Size(180, 23);
@@ -126,7 +119,7 @@
             lblInfoMedico.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
             lblInfoMedico.Location = new Point(545, 50);
             lblInfoMedico.Name = "lblInfoMedico";
-            lblInfoMedico.Size = new Size(470, 120);
+            lblInfoMedico.Size = new Size(470, 135);
             lblInfoMedico.TabIndex = 21;
             lblInfoMedico.Text = "Sección reservada solo para Personal Médico.\n(Habilitar seleccionando 'Personal Médico' en el rol)";
             lblInfoMedico.TextAlign = ContentAlignment.MiddleCenter;
@@ -142,9 +135,11 @@
             pnlDatosMedicos.Controls.Add(clbSala);
             pnlDatosMedicos.Controls.Add(lblMatricula);
             pnlDatosMedicos.Controls.Add(txtMatricula);
+            pnlDatosMedicos.Controls.Add(lblNotaSala);
+            pnlDatosMedicos.Controls.Add(txtNotaSala);
             pnlDatosMedicos.Location = new Point(545, 50);
             pnlDatosMedicos.Name = "pnlDatosMedicos";
-            pnlDatosMedicos.Size = new Size(470, 120);
+            pnlDatosMedicos.Size = new Size(470, 135);
             pnlDatosMedicos.TabIndex = 22;
             pnlDatosMedicos.Visible = false;
             // 
@@ -170,8 +165,8 @@
             // 
             // clbEspecialidades
             // 
+            // Los ítems se cargan desde sp_ListarEspecialidades (ver CargarEspecialidadesDesdeBD).
             clbEspecialidades.FormattingEnabled = true;
-            clbEspecialidades.Items.AddRange(new object[] { "Cardiología", "Cirujía", "Oncología", "Neurocirujía", "Neumonología", "Traumatología", "Dermatología", "Enfermería General", "Vacunatorio", "Enfermería Oncológica" });
             clbEspecialidades.Location = new Point(12, 51);
             clbEspecialidades.Name = "clbEspecialidades";
             clbEspecialidades.Size = new Size(140, 58);
@@ -189,8 +184,8 @@
             // 
             // clbSala
             // 
+            // Los ítems se cargan desde sp_ListarSalas (ver CargarSalasDesdeBD).
             clbSala.FormattingEnabled = true;
-            clbSala.Items.AddRange(new object[] { "A", "B", "C", "D", "E", "F", "G", "H" });
             clbSala.Location = new Point(165, 51);
             clbSala.Name = "clbSala";
             clbSala.Size = new Size(90, 58);
@@ -212,6 +207,24 @@
             txtMatricula.Name = "txtMatricula";
             txtMatricula.Size = new Size(150, 23);
             txtMatricula.TabIndex = 6;
+            // 
+            // lblNotaSala
+            // 
+            lblNotaSala.AutoSize = true;
+            lblNotaSala.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblNotaSala.Location = new Point(268, 78);
+            lblNotaSala.Name = "lblNotaSala";
+            lblNotaSala.Size = new Size(120, 15);
+            lblNotaSala.TabIndex = 7;
+            lblNotaSala.Text = "Nota sala (opcional)";
+            // 
+            // txtNotaSala
+            // 
+            // Se guarda como DetalleSala.DescripcionAtencion para cada sala marcada.
+            txtNotaSala.Location = new Point(268, 95);
+            txtNotaSala.Name = "txtNotaSala";
+            txtNotaSala.Size = new Size(150, 23);
+            txtNotaSala.TabIndex = 8;
             // 
             // lblTitulo
             // 
@@ -258,57 +271,40 @@
             txtApellido.Size = new Size(130, 23);
             txtApellido.TabIndex = 1;
             // 
-            // lblUsuario
+            // lblCorreo
             // 
-            lblUsuario.AutoSize = true;
-            lblUsuario.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblUsuario.Location = new Point(25, 130);
-            lblUsuario.Name = "lblUsuario";
-            lblUsuario.Size = new Size(52, 15);
-            lblUsuario.TabIndex = 5;
-            lblUsuario.Text = "Usuario:";
+            lblCorreo.AutoSize = true;
+            lblCorreo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblCorreo.Location = new Point(28, 130);
+            lblCorreo.Name = "lblCorreo";
+            lblCorreo.Size = new Size(50, 15);
+            lblCorreo.TabIndex = 5;
+            lblCorreo.Text = "Correo:";
             // 
-            // txtUsuario
+            // txtCorreo
             // 
-            txtUsuario.Location = new Point(110, 126);
-            txtUsuario.Name = "txtUsuario";
-            txtUsuario.Size = new Size(130, 23);
-            txtUsuario.TabIndex = 2;
+            txtCorreo.Location = new Point(110, 126);
+            txtCorreo.Name = "txtCorreo";
+            txtCorreo.Size = new Size(130, 23);
+            txtCorreo.TabIndex = 2;
             // 
-            // lblContrasenia
+            // lblContrasena
             // 
-            lblContrasenia.AutoSize = true;
-            lblContrasenia.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblContrasenia.Location = new Point(5, 160);
-            lblContrasenia.Name = "lblContrasenia";
-            lblContrasenia.Size = new Size(72, 15);
-            lblContrasenia.TabIndex = 7;
-            lblContrasenia.Text = "Contraseña:";
+            lblContrasena.AutoSize = true;
+            lblContrasena.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblContrasena.Location = new Point(5, 160);
+            lblContrasena.Name = "lblContrasena";
+            lblContrasena.Size = new Size(72, 15);
+            lblContrasena.TabIndex = 7;
+            lblContrasena.Text = "Contraseña:";
             // 
-            // txtContrasenia
+            // txtContrasena
             // 
-            txtContrasenia.Location = new Point(110, 156);
-            txtContrasenia.Name = "txtContrasenia";
-            txtContrasenia.PasswordChar = '*';
-            txtContrasenia.Size = new Size(130, 23);
-            txtContrasenia.TabIndex = 3;
-            // 
-            // lblEmail
-            // 
-            lblEmail.AutoSize = true;
-            lblEmail.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblEmail.Location = new Point(35, 190);
-            lblEmail.Name = "lblEmail";
-            lblEmail.Size = new Size(39, 15);
-            lblEmail.TabIndex = 9;
-            lblEmail.Text = "Email:";
-            // 
-            // txtEmail
-            // 
-            txtEmail.Location = new Point(110, 186);
-            txtEmail.Name = "txtEmail";
-            txtEmail.Size = new Size(130, 23);
-            txtEmail.TabIndex = 4;
+            txtContrasena.Location = new Point(110, 156);
+            txtContrasena.Name = "txtContrasena";
+            txtContrasena.PasswordChar = '*';
+            txtContrasena.Size = new Size(130, 23);
+            txtContrasena.TabIndex = 3;
             // 
             // lblDNI
             // 
@@ -344,36 +340,6 @@
             txtTelefono.Size = new Size(150, 23);
             txtTelefono.TabIndex = 8;
             // 
-            // lblSexo
-            // 
-            lblSexo.AutoSize = true;
-            lblSexo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblSexo.Location = new Point(273, 132);
-            lblSexo.Name = "lblSexo";
-            lblSexo.Size = new Size(38, 15);
-            lblSexo.TabIndex = 19;
-            lblSexo.Text = "Sexo:";
-            // 
-            // rbHombre
-            // 
-            rbHombre.AutoSize = true;
-            rbHombre.Location = new Point(328, 130);
-            rbHombre.Name = "rbHombre";
-            rbHombre.Size = new Size(69, 19);
-            rbHombre.TabIndex = 9;
-            rbHombre.Text = "Hombre";
-            rbHombre.UseVisualStyleBackColor = true;
-            // 
-            // rbMujer
-            // 
-            rbMujer.AutoSize = true;
-            rbMujer.Location = new Point(408, 130);
-            rbMujer.Name = "rbMujer";
-            rbMujer.Size = new Size(56, 19);
-            rbMujer.TabIndex = 10;
-            rbMujer.Text = "Mujer";
-            rbMujer.UseVisualStyleBackColor = true;
-            // 
             // btnGuardar
             // 
             btnGuardar.Location = new Point(689, 193);
@@ -405,7 +371,7 @@
             dgvPersonal.Size = new Size(1133, 165);
             dgvPersonal.TabIndex = 14;
             // 
-            // FrmPersonalAdmin
+            // FrmGestionUsuarios
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -413,8 +379,8 @@
             ClientSize = new Size(1133, 501);
             Controls.Add(dgvPersonal);
             Controls.Add(pnlDatos);
-            Name = "FrmPersonalAdmin";
-            Text = "Gestion de usuarios";
+            Name = "FrmGestionUsuarios";
+            Text = "Gestión de Usuarios";
             pnlDatos.ResumeLayout(false);
             pnlDatos.PerformLayout();
             pnlDatosMedicos.ResumeLayout(false);
@@ -432,19 +398,14 @@
         private System.Windows.Forms.TextBox txtNombre;
         private System.Windows.Forms.Label lblApellido;
         private System.Windows.Forms.TextBox txtApellido;
-        private System.Windows.Forms.Label lblUsuario;
-        private System.Windows.Forms.TextBox txtUsuario;
-        private System.Windows.Forms.Label lblContrasenia;
-        private System.Windows.Forms.TextBox txtContrasenia;
-        private System.Windows.Forms.Label lblEmail;
-        private System.Windows.Forms.TextBox txtEmail;
+        private System.Windows.Forms.Label lblCorreo;
+        private System.Windows.Forms.TextBox txtCorreo;
+        private System.Windows.Forms.Label lblContrasena;
+        private System.Windows.Forms.TextBox txtContrasena;
         private System.Windows.Forms.Label lblDNI;
         private System.Windows.Forms.TextBox txtDNI;
         private System.Windows.Forms.Label lblTelefono;
         private System.Windows.Forms.TextBox txtTelefono;
-        private System.Windows.Forms.Label lblSexo;
-        private System.Windows.Forms.RadioButton rbHombre;
-        private System.Windows.Forms.RadioButton rbMujer;
         private System.Windows.Forms.Button btnGuardar;
         private System.Windows.Forms.Button btnEliminar;
         private System.Windows.Forms.DataGridView dgvPersonal;
@@ -461,5 +422,7 @@
         private CheckedListBox clbSala;
         private Label lblMatricula;
         private TextBox txtMatricula;
+        private Label lblNotaSala;
+        private TextBox txtNotaSala;
     }
 }

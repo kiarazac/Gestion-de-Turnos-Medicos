@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
+using Gestion_de_Turnos_Medicos.Negocio;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -19,22 +19,26 @@ namespace Gestion_de_Turnos_Medicos
             EnConsulta     // Iniciar Atención ya fue presionado.
         }
 
-        // Datos del médico logueado / sala asignada (llegan desde FrmPersonalMedico).
+        // Invocación exclusiva de la Capa de Negocio (BLL)
+        private readonly TurnoBLL _turnoBLL = new TurnoBLL();
+        private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
+        private readonly HistoriaClinicaBLL _historiaClinicaBLL = new HistoriaClinicaBLL();
+
+        // Datos del médico autenticado / sala asignada
+        private readonly UsuarioLoginResult? _usuarioActual;
         private readonly string _nombreMedico;
         private readonly string _matriculaMedico;
         private readonly string _salaAsignada;
 
         // Lista de turnos cargados desde la base de datos
-        private List<Turno> _todosLosTurnos;
-        private List<Turno> _historialAtendidos;
+        private List<Turno> _todosLosTurnos = new List<Turno>();
+        private List<Turno> _historialAtendidos = new List<Turno>();
 
-        // Campos locales para almacenar datos de atención en curso sin modificar
-        // la entidad Turno (respetando el diseño de Modelos.cs).
         private DateTime? _horaInicioAtencion;
         private DateTime? _horaFinAtencion;
-        private string _diagnosticoRapido;
-        private string _medicoQueAtendio;
-        private string _salaDeAtencion;
+        private string _diagnosticoRapido = string.Empty;
+        private string _medicoQueAtendio = string.Empty;
+        private string _salaDeAtencion = string.Empty;
 
         private BindingList<Turno> _turnosVisibles;
         private Turno _turnoActual;
@@ -43,9 +47,18 @@ namespace Gestion_de_Turnos_Medicos
         private int _indiceServicioAnterior = 0;
         private bool _bloqueandoCombo = false;
 
-        public FrmListaTurnosAtencion() : this("Dr. Juan Pérez", "12345", "Consultorio 3 (Piso 1)")
+        public FrmListaTurnosAtencion() : this(null)
         {
-            // Constructor sin parámetros solo para poder previsualizar el form.
+        }
+
+        public FrmListaTurnosAtencion(UsuarioLoginResult? usuario)
+            : this(
+                usuario != null ? $"Dr. {usuario.Nombre} {usuario.Apellido}" : "Médico de Turno",
+                "M.N. General",
+                "Consultorio de Atención"
+            )
+        {
+            _usuarioActual = usuario;
         }
 
         public FrmListaTurnosAtencion(string nombreMedico, string matricula, string salaAsignada)
@@ -62,7 +75,7 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmListaTurnosAtencion_Load(object sender, EventArgs e)
         {
             this.Text = $"FrmListaTurnosAtencion - {_nombreMedico}";
-            lblMedicoInfo.Text = $"{_nombreMedico} (M.N. {_matriculaMedico})  |  Sala: {_salaAsignada}";
+            lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
             lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
 
             ConfigurarGrid();
@@ -118,7 +131,7 @@ namespace Gestion_de_Turnos_Medicos
             {
                 Name = "colTriage",
                 HeaderText = "Triage",
-                DataPropertyName = "", // no binding; se formatea en CellFormatting
+                DataPropertyName = "", // formateado en CellFormatting
                 Width = 90
             });
 
@@ -131,22 +144,43 @@ namespace Gestion_de_Turnos_Medicos
             });
         }
 
+        /// <summary>
+        /// Obtiene el catálogo de especialidades disponibles desde la Capa de Negocio (BLL).
+        /// </summary>
         private void CargarServiciosDelMedico()
         {
             cboServicio.Items.Clear();
 
-            // Opción fija, disponible para cualquier médico.
+            // Opción fija siempre disponible para guardia
             cboServicio.Items.Add("Emergencias / Guardia");
-            cboServicio.Items.Add("Cardiología");
-            cboServicio.Items.Add("Traumatología");
-            cboServicio.Items.Add("Pediatría");
 
-            cboServicio.SelectedIndex = 0;
-            _indiceServicioAnterior = 0;
+            try
+            {
+                var especialidades = _especialidadBLL.ObtenerEspecialidades();
+                if (especialidades != null)
+                {
+                    foreach (var esp in especialidades)
+                    {
+                        if (!string.IsNullOrWhiteSpace(esp.Nombre))
+                            cboServicio.Items.Add(esp.Nombre);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudieron cargar los servicios médicos:\n" + ex.Message,
+                    "Error de Servicios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            if (cboServicio.Items.Count > 0)
+            {
+                cboServicio.SelectedIndex = 0;
+                _indiceServicioAnterior = 0;
+            }
         }
 
         /// <summary>
-        /// Obtiene los turnos en espera desde la base de datos SQL Server mediante Stored Procedure.
+        /// Obtiene los turnos en espera desde la Capa de Negocio (BLL), delegando al SP sp_ListarTurnosAtencion.
         /// </summary>
         private void CargarTurnosDesdeBD()
         {
@@ -155,96 +189,39 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_ListarTurnosAtencion
-                using (SqlConnection con = Conexion.ObtenerConexion())
+                // BLL delega en TurnoDAL -> sp_ListarTurnosAtencion
+                var turnosAtencion = _turnoBLL.ObtenerTurnosAtencion();
+
+                if (turnosAtencion != null)
                 {
-                    using (SqlCommand cmd = new SqlCommand("sp_ListarTurnosAtencion", con))
+                    foreach (var dto in turnosAtencion)
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        con.Open();
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        Turno t = new Turno
                         {
-                            while (reader.Read())
+                            IdTurno = dto.IdTurno,
+                            NroOrden = !string.IsNullOrWhiteSpace(dto.NroOrden) ? dto.NroOrden : dto.IdTurno.ToString(),
+                            Fecha = dto.Fecha,
+                            Estado = !string.IsNullOrWhiteSpace(dto.Estado) ? dto.Estado : "En Espera",
+                            Especialidad = new Especialidad { Nombre = !string.IsNullOrWhiteSpace(dto.Especialidad) ? dto.Especialidad : "Emergencias / Guardia" },
+                            Prioridad = new Prioridad { Descripcion = !string.IsNullOrWhiteSpace(dto.Triage) ? dto.Triage : "MEDIA" },
+                            Paciente = new Paciente
                             {
-                                int idTurno = Convert.ToInt32(reader["IdTurno"]);
-                                string nroOrden = reader["NroOrden"]?.ToString() ?? idTurno.ToString();
-                                DateTime fecha = Convert.ToDateTime(reader["Fecha"]);
-                                string estado = reader["Estado"]?.ToString() ?? "En Espera";
-                                string nomEsp = reader["Especialidad"]?.ToString() ?? "Emergencias / Guardia";
-
-                                string nomPac = reader["NombrePaciente"]?.ToString() ?? "";
-                                string apePac = reader["ApellidoPaciente"]?.ToString() ?? "";
-                                string dniPac = reader["DniPaciente"]?.ToString() ?? "";
-                                string obraPac = reader["ObraSocial"]?.ToString() ?? "";
-                                string triage = reader["Triage"]?.ToString() ?? "MEDIA";
-
-                                Turno t = new Turno
-                                {
-                                    IdTurno = idTurno,
-                                    NroOrden = nroOrden,
-                                    Fecha = fecha,
-                                    Estado = estado,
-                                    Especialidad = new Especialidad { Nombre = nomEsp },
-                                    Prioridad = new Prioridad { Descripcion = triage },
-                                    Paciente = new Paciente
-                                    {
-                                        Nombre = nomPac,
-                                        Apellido = apePac,
-                                        Dni = dniPac,
-                                        ObraSocial = obraPac
-                                    }
-                                };
-
-                                _todosLosTurnos.Add(t);
+                                Nombre = dto.NombrePaciente ?? string.Empty,
+                                Apellido = dto.ApellidoPaciente ?? string.Empty,
+                                Dni = dto.DniPaciente ?? string.Empty,
+                                ObraSocial = dto.ObraSocial ?? string.Empty
                             }
-                        }
+                        };
+
+                        _todosLosTurnos.Add(t);
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Si la BD aún no tiene turnos o no está accesible, cargar datos iniciales de prueba
-                CargarDatosDeEjemplo();
+                MessageBox.Show("No se pudieron consultar los turnos en espera desde la base de datos:\n" + ex.Message,
+                    "Error de Turnos", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void CargarDatosDeEjemplo()
-        {
-            var hoy = DateTime.Today;
-            _todosLosTurnos = new List<Turno>
-            {
-                new Turno
-                {
-                    IdTurno = 101,
-                    NroOrden = "E-001",
-                    Fecha = hoy.AddHours(8).AddMinutes(30),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
-                    Prioridad = new Prioridad { Descripcion = "ALTA" },
-                    Paciente = new Paciente { Nombre = "Juan", Apellido = "Pérez", Dni = "30.123.456", ObraSocial = "PAMI" }
-                },
-                new Turno
-                {
-                    IdTurno = 102,
-                    NroOrden = "E-002",
-                    Fecha = hoy.AddHours(8).AddMinutes(31),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
-                    Prioridad = new Prioridad { Descripcion = "MEDIA" },
-                    Paciente = new Paciente { Nombre = "María", Apellido = "García", Dni = "25.987.654", ObraSocial = "OSDE" }
-                },
-                new Turno
-                {
-                    IdTurno = 201,
-                    NroOrden = "C-010",
-                    Fecha = hoy.AddHours(9).AddMinutes(0),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Cardiología" },
-                    Prioridad = new Prioridad { Descripcion = "BAJA" },
-                    Paciente = new Paciente { Nombre = "Carlos", Apellido = "Fernández", Dni = "22.456.789", ObraSocial = "PAMI" }
-                }
-            };
         }
 
         // ---------------------------------------------------------------
@@ -326,28 +303,13 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_LlamarSiguientePaciente
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_LlamarSiguientePaciente", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
-                        cmd.Parameters.Add("@NombreMedico", SqlDbType.VarChar, 100).Value = _nombreMedico;
-                        cmd.Parameters.Add("@SalaAsignada", SqlDbType.VarChar, 100).Value = _salaAsignada;
-
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-                    }
-                }
+                // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguientePaciente
+                _turnoBLL.LlamarSiguientePaciente(_turnoActual.IdTurno, _nombreMedico, _salaAsignada);
             }
-            catch (SqlException sqlEx)
+            catch (Exception ex)
             {
-                MessageBox.Show("Error al registrar llamado en base de datos:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-            catch (Exception)
-            {
-                // Continuar en memoria si no hay conexión
+                MessageBox.Show("Aviso al registrar el llamado en la base de datos:\n" + ex.Message,
+                    "Aviso de Comunicación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             _todosLosTurnos.Remove(_turnoActual);
@@ -369,25 +331,13 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_IniciarAtencionTurno
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_IniciarAtencionTurno", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
-
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-                    }
-                }
+                // BLL delega a TurnoDAL y ejecuta sp_IniciarAtencionTurno
+                _turnoBLL.IniciarAtencionTurno(_turnoActual.IdTurno);
             }
-            catch (SqlException sqlEx)
+            catch (Exception ex)
             {
-                MessageBox.Show("Error al registrar inicio de consulta:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-            catch (Exception)
-            {
+                MessageBox.Show("Aviso al registrar inicio de consulta en la base de datos:\n" + ex.Message,
+                    "Aviso de Comunicación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
@@ -406,31 +356,15 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Stored Procedure: sp_FinalizarAtencionTurno
-                using (SqlConnection con = Conexion.ObtenerConexion())
-                {
-                    using (SqlCommand cmd = new SqlCommand("sp_FinalizarAtencionTurno", con))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
-                        cmd.Parameters.Add("@Diagnostico", SqlDbType.VarChar, -1).Value = string.IsNullOrEmpty(_diagnosticoRapido) ? (object)DBNull.Value : _diagnosticoRapido;
-                        cmd.Parameters.Add("@NombreMedico", SqlDbType.VarChar, 100).Value = _medicoQueAtendio;
-                        cmd.Parameters.Add("@SalaAsignada", SqlDbType.VarChar, 100).Value = _salaDeAtencion;
+                // BLL delega a TurnoDAL y ejecuta sp_FinalizarAtencionTurno
+                _turnoBLL.FinalizarAtencionTurno(_turnoActual.IdTurno, _diagnosticoRapido, _medicoQueAtendio, _salaDeAtencion);
 
-                        con.Open();
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-
-                MessageBox.Show("Atención finalizada con éxito.", "Turno Atendido", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al guardar la atención en la base de datos:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Atención médica finalizada con éxito.", "Turno Atendido", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error inesperado al finalizar atención:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudo registrar la finalización de la atención:\n" + ex.Message,
+                    "Error al finalizar", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             _historialAtendidos.Add(_turnoActual);

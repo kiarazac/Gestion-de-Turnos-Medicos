@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -45,19 +45,15 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.Show();
         }
 
-        // Evento del botón mis_Salas: abre el formulario MisSalas_PM como hijo
+        // Evento del botón mis_Salas: abre el formulario MisSalas_PM como hijo pasando el usuario autenticado
         private void mis_Salas_Click(object sender, EventArgs e)
         {
-            // NOTA: Para listar solo las salas de este médico, deberás modificar el constructor 
-            // de MisSalas_PM para que reciba al usuario, así: AbrirFormularioHijo(new MisSalas_PM(_usuarioActual));
-            AbrirFormularioHijo(new MisSalas_PM());
+            AbrirFormularioHijo(new MisSalas_PM(_usuarioActual));
         }
 
         private void lista_turnos_atención_Click(object sender, EventArgs e)
         {
-            // NOTA: Para llamar pacientes y crear la historia clínica, también necesitarás los datos del médico.
-            // Cuando actualices esa pantalla, lo llamarás así: AbrirFormularioHijo(new FrmListaTurnosAtencion(_usuarioActual));
-            AbrirFormularioHijo(new FrmListaTurnosAtencion());
+            AbrirFormularioHijo(new FrmListaTurnosAtencion(_usuarioActual));
         }
 
         private void salir_Click(object sender, EventArgs e)
