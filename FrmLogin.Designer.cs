@@ -36,12 +36,8 @@
             button1 = new Button();
             txtContraseña = new TextBox();
             txtCorreo = new TextBox();
-            txtNombre = new TextBox();
             label3 = new Label();
             label2 = new Label();
-            LNombre = new Label();
-            txtApellido = new TextBox();
-            LApellido = new Label();
             panel2.SuspendLayout();
             SuspendLayout();
             // 
@@ -66,16 +62,12 @@
             // 
             // panel2
             // 
-            panel2.Controls.Add(txtApellido);
-            panel2.Controls.Add(LApellido);
             panel2.Controls.Add(button2);
             panel2.Controls.Add(button1);
             panel2.Controls.Add(txtContraseña);
             panel2.Controls.Add(txtCorreo);
-            panel2.Controls.Add(txtNombre);
             panel2.Controls.Add(label3);
             panel2.Controls.Add(label2);
-            panel2.Controls.Add(LNombre);
             panel2.Location = new Point(89, 139);
             panel2.Name = "panel2";
             panel2.Size = new Size(587, 327);
@@ -116,17 +108,10 @@
             // 
             // txtCorreo
             // 
-            txtCorreo.Location = new Point(62, 156);
+            txtCorreo.Location = new Point(62, 88);
             txtCorreo.Name = "txtCorreo";
             txtCorreo.Size = new Size(411, 23);
             txtCorreo.TabIndex = 4;
-            // 
-            // txtNombre
-            // 
-            txtNombre.Location = new Point(62, 76);
-            txtNombre.Name = "txtNombre";
-            txtNombre.Size = new Size(190, 23);
-            txtNombre.TabIndex = 3;
             // 
             // label3
             // 
@@ -143,41 +128,12 @@
             // 
             label2.AutoSize = true;
             label2.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            label2.Location = new Point(55, 110);
+            label2.Location = new Point(55, 42);
             label2.Name = "label2";
             label2.Size = new Size(107, 31);
             label2.TabIndex = 1;
             label2.Text = "Correo";
             label2.UseWaitCursor = true;
-            // 
-            // LNombre
-            // 
-            LNombre.AutoSize = true;
-            LNombre.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            LNombre.Location = new Point(55, 40);
-            LNombre.Name = "LNombre";
-            LNombre.Size = new Size(123, 31);
-            LNombre.TabIndex = 0;
-            LNombre.Text = "Nombre";
-            LNombre.UseWaitCursor = true;
-            // 
-            // txtApellido
-            // 
-            txtApellido.Location = new Point(283, 76);
-            txtApellido.Name = "txtApellido";
-            txtApellido.Size = new Size(190, 23);
-            txtApellido.TabIndex = 9;
-            // 
-            // LApellido
-            // 
-            LApellido.AutoSize = true;
-            LApellido.Font = new Font("Cooper Black", 20.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            LApellido.Location = new Point(276, 40);
-            LApellido.Name = "LApellido";
-            LApellido.Size = new Size(132, 31);
-            LApellido.TabIndex = 8;
-            LApellido.Text = "Apellido";
-            LApellido.UseWaitCursor = true;
             // 
             // FrmLogin
             // 
@@ -206,13 +162,9 @@
         private Panel panel2;
         private Label label3;
         private Label label2;
-        private Label LNombre;
         private TextBox txtContraseña;
         private TextBox txtCorreo;
-        private TextBox txtNombre;
         private Button button1;
         private Button button2;
-        private TextBox txtApellido;
-        private Label LApellido;
     }
 }
