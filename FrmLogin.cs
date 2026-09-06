@@ -1,7 +1,8 @@
+using Gestion_de_Turnos_Medicos.Negocio; // Importamos la capa de negocio
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
-using System.Data;
-using Microsoft.Data.SqlClient;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.CapaDeDatos; // Asegúrate de poner el namespace correcto donde guardaste UsuarioLoginResult
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -14,123 +15,77 @@ namespace Gestion_de_Turnos_Medicos
 
         private void button1_Click(object sender, EventArgs e)
         {
-            // 1. Obtenemos los valores de las cajas de texto
+            // 1. Obtenemos los valores. (No le hacemos Trim() a la contraseña por si el usuario le puso un espacio al final a propósito)
             string email = txtCorreo.Text.Trim();
-            string contrasena = txtContraseña.Text.Trim();
+            string contrasena = txtContraseña.Text;
 
-            // 2. Validamos campos vacíos
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(contrasena))
-            {
-                MessageBox.Show("Por favor, completa todos los campos.", "Campos incompletos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // 3. Validamos el formato del correo
+            // 2. Validamos con TU clase de validaciones
             if (!Validaciones.EsEmailValido(email))
             {
-                MessageBox.Show("Por favor, ingresa un correo válido (@gmail.com, @hotmail.com o @outlook.com).", "Correo inválido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Por favor, ingresa un correo válido (@gmail.com, @hotmail.com o @outlook.com).", "Correo inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // 4. Verificación y obtención del Rol desde SQL Server
+            // 3. Verificación pasando por la Capa de Negocio
             try
             {
-                string rol = ValidarUsuarioEnBD(email, contrasena);
+                UsuarioBLL negocio = new UsuarioBLL();
 
-                if (string.IsNullOrEmpty(rol))
+                // El método Login ahora nos devuelve todos los datos del usuario (DTO), no solo el rol
+                UsuarioLoginResult usuarioLogueado = negocio.Login(email, contrasena);
+
+                if (usuarioLogueado == null)
                 {
-                    MessageBox.Show("Correo o contraseña incorrectos.", "Acceso denegado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Correo o contraseña incorrectos, o el usuario está inactivo.", "Acceso denegado", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                // 5. Redirección según el tipo de usuario / rol
-                AbrirFormularioSegunRol(rol);
-            }
-            catch (SqlException sqlEx)
-            {
-                MessageBox.Show("Error al conectar con la base de datos SQL Server:\n" + sqlEx.Message, "Error de Conexión", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // 4. Redirección pasándole TODOS los datos del usuario logueado
+                AbrirFormularioSegunRol(usuarioLogueado);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error General", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // El BLL nos devolverá errores si los campos están vacíos, o si falla la conexión a BD
+                MessageBox.Show("Ocurrió un error:\n" + ex.Message, "Atención", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         /// <summary>
-        /// Consulta a SQL Server vía Stored Procedure para validar credenciales y devolver el rol del usuario.
+        /// Instancia y muestra el Form correspondiente según el rol del usuario logueado.
         /// </summary>
-        private string ValidarUsuarioEnBD(string correo, string clave)
-        {
-            // Stored Procedure: sp_ValidarUsuario
-            using (SqlConnection con = Conexion.ObtenerConexion())
-            {
-                using (SqlCommand cmd = new SqlCommand("sp_ValidarUsuario", con))
-                {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.Add("@Correo", SqlDbType.VarChar, 100).Value = correo;
-                    cmd.Parameters.Add("@Clave", SqlDbType.VarChar, 100).Value = clave;
-
-                    SqlParameter paramRol = new SqlParameter("@Rol", SqlDbType.VarChar, 50)
-                    {
-                        Direction = ParameterDirection.Output
-                    };
-                    cmd.Parameters.Add(paramRol);
-
-                    con.Open();
-                    cmd.ExecuteNonQuery();
-
-                    if (paramRol.Value == null || paramRol.Value == DBNull.Value)
-                    {
-                        return null;
-                    }
-
-                    return paramRol.Value.ToString()?.Trim();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Instancia y muestra el Form correspondiente según el rol.
-        /// </summary>
-        private void AbrirFormularioSegunRol(string rol)
+        private void AbrirFormularioSegunRol(UsuarioLoginResult usuario)
         {
             Form formularioDestino = null;
 
-            // Normalizamos texto a minúsculas y sin espacios para evitar errores de tipeo
-            switch (rol.ToLower())
+            // Evaluamos directamente el IdRol (Asumiendo 1=Admin, 2=Médico, 3=Recepcionista según el orden en que los creamos)
+            switch (usuario.IdRol)
             {
-                case "personal medico":
-                case "personal médico":
-                case "personal_medico": 
-                case "personal_médico":
-                case "medico":
-                case "médico":
-                    formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO();
+                case 3: // Administrador
+                    formularioDestino = new FrmAdmin(usuario);
                     break;
 
-                case "administrador":
-                case "admin":
-                    formularioDestino = new FrmAdmin();
+                case 1: // Personal médico
+                    formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO(usuario);
                     break;
 
-                case "recepcionista":
-                case "recepcion":
-                case "recepción":
-                    formularioDestino = new FrmRecepcionista();
+                case 2: // Recepcionista
+                    formularioDestino = new FrmRecepcionista(usuario);
                     break;
 
                 default:
-                    MessageBox.Show($"El rol '{rol}' no tiene un formulario asignado.", "Rol desconocido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show($"El ID de rol '{usuario.IdRol}' no está configurado en el sistema.", "Rol desconocido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
             }
 
-            // Al cerrar la nueva ventana, cerramos también el Login para que el proceso no quede colgado en segundo plano
+            // Al cerrar la nueva ventana, cerramos también el Login
             formularioDestino.FormClosed += (s, args) => this.Close();
 
             // Mostramos la ventana correspondiente y ocultamos el Login
             formularioDestino.Show();
             this.Hide();
         }
+
+        
 
         private void button2_Click(object sender, EventArgs e)
         {

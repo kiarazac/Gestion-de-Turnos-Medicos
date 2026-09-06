@@ -10,12 +10,16 @@ namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmAdmin : Form
     {
-        public FrmAdmin()
+        // 1. Declaramos la variable privada para guardar los datos del usuario logueado en la memoria de este formulario
+        private ResultadosSQL.UsuarioLoginResult _usuarioActual;
+
+        public FrmAdmin(ResultadosSQL.UsuarioLoginResult usuario)
         {
             InitializeComponent();
+
+            // 2. Atrapamos el objeto que nos envió el Login y lo guardamos
+            _usuarioActual = usuario;
         }
-
-
 
         // Variable para recordar qué formulario está abierto actualmente
         private Form formularioActivo = null;
@@ -35,7 +39,7 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.FormBorderStyle = FormBorderStyle.None;
             formHijo.Dock = DockStyle.Fill;
 
-            // pnlContenedor debe ser el nombre (propiedad Name) del panel central que arrastraste al diseño
+            // pnlContenedor debe ser el nombre del panel central
             pnlContenedor.Controls.Add(formHijo);
             pnlContenedor.Tag = formHijo;
             formHijo.BringToFront();
@@ -44,10 +48,10 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnPersonalMedico_Click(object sender, EventArgs e)
         {
+            // NOTA: Si FrmGestionUsuarios llega a necesitar saber quién es el admin logueado para registrar auditorías, 
+            // simplemente modificarías su constructor y le pasarías el objeto así: new FrmGestionUsuarios(_usuarioActual)
             AbrirFormularioHijo(new FrmGestionUsuarios());
         }
-
-       
 
         private void btnSalas_Click(object sender, EventArgs e)
         {
@@ -63,13 +67,4 @@ namespace Gestion_de_Turnos_Medicos
             this.Close();
         }
     }
-
-
-
-
-
-
-
-       
-    }
-
+}

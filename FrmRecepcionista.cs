@@ -10,9 +10,15 @@ namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmRecepcionista : Form
     {
-        public FrmRecepcionista()
+        // 1. Declaramos la variable privada para guardar los datos del recepcionista logueado
+        private ResultadosSQL.UsuarioLoginResult _usuarioActual;
+
+        public FrmRecepcionista(ResultadosSQL.UsuarioLoginResult usuario)
         {
             InitializeComponent();
+
+            // 2. Atrapamos el objeto que nos envió el Login y lo guardamos para esta sesión
+            _usuarioActual = usuario;
         }
 
         // Variable para recordar qué formulario está abierto actualmente
@@ -38,20 +44,15 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.BringToFront();
             formHijo.Show();
         }
+
         private void asign_turnosEmergencia_Click(object sender, EventArgs e)
         {
-            // Llamamos a la función y le pasamos una nueva instancia de tu ventana
             AbrirFormularioHijo(new FrmTurnoEmergencia());
         }
-        
 
-        private void salir_Click(object sender, EventArgs e)
+        private void asign_turnosEspecialidad_Click_1(object sender, EventArgs e)
         {
-            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
-            Application.OpenForms["FrmLogin"].Show();
-
-            // 2. Cerramos la ventana actual de Turnos (esta sí la cerramos por completo)
-            this.Close();
+            AbrirFormularioHijo(new FrmTurnoEspecialidad());
         }
 
         private void lista_turnos_Click(object sender, EventArgs e)
@@ -59,9 +60,16 @@ namespace Gestion_de_Turnos_Medicos
             AbrirFormularioHijo(new FrmListaTurnos());
         }
 
-        private void asign_turnosEspecialidad_Click_1(object sender, EventArgs e)
+        private void salir_Click(object sender, EventArgs e)
         {
-            AbrirFormularioHijo(new FrmTurnoEspecialidad());
+            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
+            if (Application.OpenForms["FrmLogin"] != null)
+            {
+                Application.OpenForms["FrmLogin"].Show();
+            }
+
+            // 2. Cerramos la ventana actual por completo
+            this.Close();
         }
     }
 }

@@ -76,7 +76,7 @@ namespace Gestion_de_Turnos_Medicos
         public int IdRol { get; set; }
         public Rol RolNav { get; set; } 
 
-        public string NroMatricula { get; set; }
+        public string? NroMatricula { get; set; }
         public string Telefono { get; set; }
         public string Dni { get; set; }
         public string Apellido { get; set; }
