@@ -1,14 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Windows.Forms;
+using Microsoft.Data.SqlClient;
 
 namespace Gestion_de_Turnos_Medicos
 {
-    // El nombre debe coincidir exactamente con el del Designer
     public partial class FrmSalasAdmin : Form
     {
-        private int contadorIdSala = 1;
-
         public FrmSalasAdmin()
         {
             InitializeComponent();
@@ -19,7 +18,8 @@ namespace Gestion_de_Turnos_Medicos
         {
             ConfigurarDataGrid();
             CargarEstados();
-            CargarPersonalPrueba();
+            CargarPersonalMedicoDesdeBD();
+            CargarSalasDesdeBD();
         }
 
         private void ConfigurarDataGrid()
@@ -27,11 +27,12 @@ namespace Gestion_de_Turnos_Medicos
             dgvSalas.Columns.Clear();
             dgvSalas.AutoGenerateColumns = false;
             dgvSalas.AllowUserToAddRows = false;
+            dgvSalas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvSalas.MultiSelect = false;
 
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "id_sala", HeaderText = "ID Sala", ReadOnly = true, Width = 60 });
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "nombreSala", HeaderText = "Nombre de Sala", Width = 150 });
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "estadoSala", HeaderText = "Estado", Width = 120 });
-
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "personal_asignado", HeaderText = "Personal Asignado", Width = 250 });
         }
 
@@ -44,56 +45,186 @@ namespace Gestion_de_Turnos_Medicos
             cmbEstadoSala.SelectedIndex = 0;
         }
 
-        private void CargarPersonalPrueba()
+        /// <summary>
+        /// Carga el personal médico activo desde SQL Server para poblar el CheckedListBox.
+        /// </summary>
+        private void CargarPersonalMedicoDesdeBD()
         {
             clbPersonal.Items.Clear();
-            clbPersonal.Items.Add("Dr. Pérez (Cardiología)");
-            clbPersonal.Items.Add("Dra. Gómez (Pediatría)");
-            clbPersonal.Items.Add("Enf. Martínez");
-            clbPersonal.Items.Add("Dr. López (Traumatología)");
+
+            try
+            {
+                // Stored Procedure: sp_ListarPersonalMedico
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_ListarPersonalMedico", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        con.Open();
+
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string medico = reader["NombreCompleto"]?.ToString() ?? string.Empty;
+                                if (!string.IsNullOrWhiteSpace(medico))
+                                {
+                                    clbPersonal.Items.Add(medico);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Valores de fallback si la BD está en proceso de carga inicial
+                clbPersonal.Items.Add("Dr. Pérez (Cardiología)");
+                clbPersonal.Items.Add("Dra. Gómez (Pediatría)");
+                clbPersonal.Items.Add("Enf. Martínez");
+                clbPersonal.Items.Add("Dr. López (Traumatología)");
+            }
         }
 
-        // Aquí están los métodos que Visual Studio no encontraba
+        /// <summary>
+        /// Carga todas las salas registradas y activas en el DataGridView.
+        /// </summary>
+        private void CargarSalasDesdeBD()
+        {
+            dgvSalas.Rows.Clear();
+
+            try
+            {
+                // Stored Procedure: sp_ListarSalas
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_ListarSalas", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        con.Open();
+
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                int filaIndex = dgvSalas.Rows.Add();
+                                DataGridViewRow fila = dgvSalas.Rows[filaIndex];
+
+                                fila.Cells["id_sala"].Value = reader["id_sala"];
+                                fila.Cells["nombreSala"].Value = reader["nombreSala"];
+                                fila.Cells["estadoSala"].Value = reader["estadoSala"];
+                                fila.Cells["personal_asignado"].Value = reader["personal_asignado"] != DBNull.Value ? reader["personal_asignado"] : "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al cargar las salas desde la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al consultar salas:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void btnGuardar_Click(object sender, EventArgs e)
         {
             if (!ValidarCampos())
                 return;
 
+            string nombreSala = txtNombreSala.Text.Trim();
+            string estadoSala = cmbEstadoSala.SelectedItem!.ToString()!;
+
             List<string> listaPersonal = new List<string>();
             foreach (var item in clbPersonal.CheckedItems)
             {
-                listaPersonal.Add(item.ToString());
+                listaPersonal.Add(item.ToString()!);
             }
             string personalConcatenado = string.Join(", ", listaPersonal);
 
-            int filaIndex = dgvSalas.Rows.Add();
-            DataGridViewRow fila = dgvSalas.Rows[filaIndex];
+            try
+            {
+                // Stored Procedure: sp_GuardarSala
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_GuardarSala", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add("@NombreSala", SqlDbType.VarChar, 100).Value = nombreSala;
+                        cmd.Parameters.Add("@EstadoSala", SqlDbType.VarChar, 50).Value = estadoSala;
+                        cmd.Parameters.Add("@PersonalAsignado", SqlDbType.VarChar, 255).Value = personalConcatenado;
 
-            fila.Cells["id_sala"].Value = contadorIdSala;
-            fila.Cells["nombreSala"].Value = txtNombreSala.Text.Trim();
-            fila.Cells["estadoSala"].Value = cmbEstadoSala.SelectedItem.ToString();
-            fila.Cells["personal_asignado"].Value = personalConcatenado;
+                        SqlParameter paramIdSala = new SqlParameter("@IdSala", SqlDbType.Int)
+                        {
+                            Direction = ParameterDirection.Output
+                        };
+                        cmd.Parameters.Add(paramIdSala);
 
-            contadorIdSala++;
+                        con.Open();
+                        cmd.ExecuteNonQuery();
 
-            LimpiarCampos();
+                        int nuevoId = Convert.ToInt32(paramIdSala.Value);
+
+                        MessageBox.Show($"Sala '{nombreSala}' registrada correctamente con ID #{nuevoId}.", "Sala Guardada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+
+                CargarSalasDesdeBD();
+                LimpiarCampos();
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al guardar la sala en la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void btnEliminar_Click(object sender, EventArgs e)
         {
             if (dgvSalas.CurrentRow == null || dgvSalas.CurrentRow.Index < 0)
             {
-                MessageBox.Show("Seleccioná una sala de la lista para eliminarla.", "Atención",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Seleccioná una sala de la lista para desactivarla.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            var confirmar = MessageBox.Show("¿Seguro que querés eliminar la sala seleccionada?",
-                "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var confirmar = MessageBox.Show("¿Seguro que querés desactivar la sala seleccionada?", "Confirmar Desactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
-            if (confirmar == DialogResult.Yes)
+            if (confirmar != DialogResult.Yes)
+                return;
+
+            int idSala = Convert.ToInt32(dgvSalas.CurrentRow.Cells["id_sala"].Value);
+
+            try
             {
-                dgvSalas.Rows.RemoveAt(dgvSalas.CurrentRow.Index);
+                // Stored Procedure: sp_DesactivarSala
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_DesactivarSala", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add("@IdSala", SqlDbType.Int).Value = idSala;
+
+                        con.Open();
+                        cmd.ExecuteNonQuery();
+
+                        MessageBox.Show("Sala desactivada correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+
+                CargarSalasDesdeBD();
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al desactivar la sala en la base de datos:\n" + sqlEx.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

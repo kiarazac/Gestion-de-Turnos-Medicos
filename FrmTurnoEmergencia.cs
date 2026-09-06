@@ -10,12 +10,6 @@ namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmTurnoEmergencia : Form
     {
-        // =========================================================================
-        // CONFIGURACIÓN DE CONEXIÓN A SQL SERVER (DOCKER / LOCAL)
-        // Reemplazar "TU_PASSWORD" y las credenciales según tu contenedor Docker.
-        // =========================================================================
-        private readonly string connectionString = "Server=localhost,1433;Database=GestionTurnosMedicos;User Id=sa;Password=TU_PASSWORD;TrustServerCertificate=True;";
-
         public FrmTurnoEmergencia()
         {
             InitializeComponent();
@@ -56,7 +50,7 @@ namespace Gestion_de_Turnos_Medicos
             // 4. Guardar en Base de Datos mediante Stored Procedures y ADO.NET
             try
             {
-                using (SqlConnection con = new SqlConnection(connectionString))
+                using (SqlConnection con = Conexion.ObtenerConexion())
                 {
                     con.Open();
 
@@ -66,7 +60,7 @@ namespace Gestion_de_Turnos_Medicos
                         try
                         {
                             // -------------------------------------------------------------
-                            // PASO 1: Guardar o recuperar al Paciente (sp_GuardarPaciente)
+                            // Stored Procedure: sp_GuardarPaciente
                             // -------------------------------------------------------------
                             int idPaciente;
                             using (SqlCommand cmdPaciente = new SqlCommand("sp_GuardarPaciente", con, tran))
@@ -89,7 +83,7 @@ namespace Gestion_de_Turnos_Medicos
                             }
 
                             // -------------------------------------------------------------
-                            // PASO 2: Crear el Turno de Emergencia (sp_CrearTurno)
+                            // Stored Procedure: sp_CrearTurno
                             // -------------------------------------------------------------
                             int idTurno;
                             string nroOrden;
@@ -120,7 +114,7 @@ namespace Gestion_de_Turnos_Medicos
                             }
 
                             // -------------------------------------------------------------
-                            // PASO 3: Registrar los síntomas asociados al turno (sp_RegistrarTurnoSintoma)
+                            // Stored Procedure: sp_RegistrarTurnoSintoma
                             // -------------------------------------------------------------
                             foreach (string sintoma in sintomasSeleccionados)
                             {
@@ -135,7 +129,7 @@ namespace Gestion_de_Turnos_Medicos
                                 }
                             }
 
-                            // Si todo salió bien, confirmamos la transacción
+                            // Confirmamos la transacción
                             tran.Commit();
 
                             // 5. Actualizar la interfaz con el turno generado
@@ -258,10 +252,7 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Calcula la prioridad (Triage) según la gravedad de los síntomas seleccionados:
-        /// - ALTA: Cualquier síntoma grave de la lista checkedListBox1.
-        /// - MEDIA: Algún síntoma intermedio de checkedListBox2, o condición especial si no hay alta.
-        /// - BAJA: "Otro (No es de gravedad)" o consultas leves.
+        /// Calcula la prioridad (Triage) según la gravedad de los síntomas seleccionados.
         /// </summary>
         private string CalcularPrioridad()
         {

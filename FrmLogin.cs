@@ -1,18 +1,12 @@
 using System;
 using System.Data;
-using Microsoft.Data.SqlClient; // O System.Data.SqlClient según tu versión
-using System.Text.RegularExpressions;
+using Microsoft.Data.SqlClient;
 using System.Windows.Forms;
 
 namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmLogin : Form
     {
-        // AJUSTA TU CADENA DE CONEXIÓN AQUÍ:
-        // Si usas autenticación de Windows: "Server=TU_SERVIDOR;Database=TU_BD;Integrated Security=True;TrustServerCertificate=True;"
-        // Si usas usuario y contraseña SQL: "Server=TU_SERVIDOR;Database=TU_BD;User Id=sa;Password=tu_clave;TrustServerCertificate=True;"
-        private readonly string connectionString = "Server=localhost;Database=GestionTurnosMedicos;Integrated Security=True;TrustServerCertificate=True;";
-
         public FrmLogin()
         {
             InitializeComponent();
@@ -52,39 +46,45 @@ namespace Gestion_de_Turnos_Medicos
                 // 5. Redirección según el tipo de usuario / rol
                 AbrirFormularioSegunRol(rol);
             }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al conectar con la base de datos SQL Server:\n" + sqlEx.Message, "Error de Conexión", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al conectar con la base de datos:\n" + ex.Message, "Error de Conexión", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Ocurrió un error inesperado:\n" + ex.Message, "Error General", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         /// <summary>
-        /// Consulta a SQL Server para validar credenciales y devolver el rol del usuario.
+        /// Consulta a SQL Server vía Stored Procedure para validar credenciales y devolver el rol del usuario.
         /// </summary>
         private string ValidarUsuarioEnBD(string correo, string clave)
         {
-            // Opción A: Si creaste una Función Escalar en SQL Server: SELECT dbo.fn_ObtenerRolUsuario(@correo, @clave)
-            // Opción B: Si consultas directo a una tabla: SELECT Rol FROM Usuarios WHERE Correo = @correo AND Contrasena = @clave
-            string query = "SELECT dbo.fn_ObtenerRolUsuario(@correo, @clave)";
-
-            using (SqlConnection con = new SqlConnection(connectionString))
+            // Stored Procedure: sp_ValidarUsuario
+            using (SqlConnection con = Conexion.ObtenerConexion())
             {
-                using (SqlCommand cmd = new SqlCommand(query, con))
+                using (SqlCommand cmd = new SqlCommand("sp_ValidarUsuario", con))
                 {
-                    // Se usan parámetros para evitar inyección SQL
-                    cmd.Parameters.Add("@correo", SqlDbType.VarChar, 100).Value = correo;
-                    cmd.Parameters.Add("@clave", SqlDbType.VarChar, 100).Value = clave;
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.Add("@Correo", SqlDbType.VarChar, 100).Value = correo;
+                    cmd.Parameters.Add("@Clave", SqlDbType.VarChar, 100).Value = clave;
+
+                    SqlParameter paramRol = new SqlParameter("@Rol", SqlDbType.VarChar, 50)
+                    {
+                        Direction = ParameterDirection.Output
+                    };
+                    cmd.Parameters.Add(paramRol);
 
                     con.Open();
-                    object resultado = cmd.ExecuteScalar();
+                    cmd.ExecuteNonQuery();
 
-                    // Si no encontró coincidencia o devolvió NULL
-                    if (resultado == null || resultado == DBNull.Value)
+                    if (paramRol.Value == null || paramRol.Value == DBNull.Value)
                     {
                         return null;
                     }
 
-                    return resultado.ToString().Trim();
+                    return paramRol.Value.ToString()?.Trim();
                 }
             }
         }
@@ -100,14 +100,9 @@ namespace Gestion_de_Turnos_Medicos
             switch (rol.ToLower())
             {
                 case "personal medico":
-                case "Personal médico":
-                case "Personal Médico":
-                case "Personal Medico":
-                case "Personal_Medico":
-                case "Personal_Médico":
+                case "personal médico":
                 case "personal_medico": 
                 case "personal_médico":
-                case "personal médico":
                 case "medico":
                 case "médico":
                     formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO();

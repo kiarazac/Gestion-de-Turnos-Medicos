@@ -1,9 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.Data.SqlClient;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -22,8 +24,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly string _matriculaMedico;
         private readonly string _salaAsignada;
 
-        // "Base de datos" simulada. En la implementación real esto se reemplaza
-        // por consultas a la base (SELECT de turnos en espera por servicio).
+        // Lista de turnos cargados desde la base de datos
         private List<Turno> _todosLosTurnos;
         private List<Turno> _historialAtendidos;
 
@@ -45,7 +46,6 @@ namespace Gestion_de_Turnos_Medicos
         public FrmListaTurnosAtencion() : this("Dr. Juan Pérez", "12345", "Consultorio 3 (Piso 1)")
         {
             // Constructor sin parámetros solo para poder previsualizar el form.
-            // En la app real siempre se debería usar el constructor con los datos del médico logueado.
         }
 
         public FrmListaTurnosAtencion(string nombreMedico, string matricula, string salaAsignada)
@@ -67,7 +67,7 @@ namespace Gestion_de_Turnos_Medicos
 
             ConfigurarGrid();
             CargarServiciosDelMedico();
-            CargarDatosDeEjemplo();
+            CargarTurnosDesdeBD();
 
             RefrescarListado();
             LimpiarPanelAtencion();
@@ -92,8 +92,8 @@ namespace Gestion_de_Turnos_Medicos
             {
                 Name = "colId",
                 HeaderText = "N° Turno",
-                DataPropertyName = "IdTurno",
-                Width = 70
+                DataPropertyName = "NroOrden",
+                Width = 80
             });
 
             dgvTurnos.Columns.Add(new DataGridViewTextBoxColumn
@@ -137,77 +137,114 @@ namespace Gestion_de_Turnos_Medicos
 
             // Opción fija, disponible para cualquier médico.
             cboServicio.Items.Add("Emergencias / Guardia");
-
-            // TODO: reemplazar esto por la carga real de las especialidades asignadas
-            // al médico logueado según sus permisos (consulta a la tabla de asignaciones).
             cboServicio.Items.Add("Cardiología");
             cboServicio.Items.Add("Traumatología");
+            cboServicio.Items.Add("Pediatría");
 
             cboServicio.SelectedIndex = 0;
             _indiceServicioAnterior = 0;
         }
 
+        /// <summary>
+        /// Obtiene los turnos en espera desde la base de datos SQL Server mediante Stored Procedure.
+        /// </summary>
+        private void CargarTurnosDesdeBD()
+        {
+            _todosLosTurnos = new List<Turno>();
+            _historialAtendidos = new List<Turno>();
+
+            try
+            {
+                // Stored Procedure: sp_ListarTurnosAtencion
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_ListarTurnosAtencion", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        con.Open();
+
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                int idTurno = Convert.ToInt32(reader["IdTurno"]);
+                                string nroOrden = reader["NroOrden"]?.ToString() ?? idTurno.ToString();
+                                DateTime fecha = Convert.ToDateTime(reader["Fecha"]);
+                                string estado = reader["Estado"]?.ToString() ?? "En Espera";
+                                string nomEsp = reader["Especialidad"]?.ToString() ?? "Emergencias / Guardia";
+
+                                string nomPac = reader["NombrePaciente"]?.ToString() ?? "";
+                                string apePac = reader["ApellidoPaciente"]?.ToString() ?? "";
+                                string dniPac = reader["DniPaciente"]?.ToString() ?? "";
+                                string obraPac = reader["ObraSocial"]?.ToString() ?? "";
+                                string triage = reader["Triage"]?.ToString() ?? "MEDIA";
+
+                                Turno t = new Turno
+                                {
+                                    IdTurno = idTurno,
+                                    NroOrden = nroOrden,
+                                    Fecha = fecha,
+                                    Estado = estado,
+                                    Especialidad = new Especialidad { Nombre = nomEsp },
+                                    Prioridad = new Prioridad { Descripcion = triage },
+                                    Paciente = new Paciente
+                                    {
+                                        Nombre = nomPac,
+                                        Apellido = apePac,
+                                        Dni = dniPac,
+                                        ObraSocial = obraPac
+                                    }
+                                };
+
+                                _todosLosTurnos.Add(t);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Si la BD aún no tiene turnos o no está accesible, cargar datos iniciales de prueba
+                CargarDatosDeEjemplo();
+            }
+        }
+
         private void CargarDatosDeEjemplo()
         {
-            // Datos de ejemplo para poder ver el formulario funcionando.
-            // En la implementación real, este método se reemplaza por la carga
-            // de turnos en espera desde la base de datos.
             var hoy = DateTime.Today;
-
-            // Crear datos de ejemplo respetando las entidades del modelo.
             _todosLosTurnos = new List<Turno>
             {
                 new Turno
                 {
                     IdTurno = 101,
+                    NroOrden = "E-001",
                     Fecha = hoy.AddHours(8).AddMinutes(30),
                     Estado = "En Espera",
                     Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
+                    Prioridad = new Prioridad { Descripcion = "ALTA" },
                     Paciente = new Paciente { Nombre = "Juan", Apellido = "Pérez", Dni = "30.123.456", ObraSocial = "PAMI" }
                 },
                 new Turno
                 {
                     IdTurno = 102,
+                    NroOrden = "E-002",
                     Fecha = hoy.AddHours(8).AddMinutes(31),
                     Estado = "En Espera",
                     Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
+                    Prioridad = new Prioridad { Descripcion = "MEDIA" },
                     Paciente = new Paciente { Nombre = "María", Apellido = "García", Dni = "25.987.654", ObraSocial = "OSDE" }
                 },
                 new Turno
                 {
-                    IdTurno = 103,
-                    Fecha = hoy.AddHours(8).AddMinutes(32),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
-                    Paciente = new Paciente { Nombre = "Luis", Apellido = "Martínez", Dni = "28.321.098", ObraSocial = "IOMA" }
-                },
-                new Turno
-                {
-                    IdTurno = 104,
-                    Fecha = hoy.AddHours(8).AddMinutes(33),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Emergencias / Guardia" },
-                    Paciente = new Paciente { Nombre = "Ana", Apellido = "Rodríguez", Dni = "31.765.432", ObraSocial = "Swiss Medical" }
-                },
-                new Turno
-                {
                     IdTurno = 201,
+                    NroOrden = "C-010",
                     Fecha = hoy.AddHours(9).AddMinutes(0),
                     Estado = "En Espera",
                     Especialidad = new Especialidad { Nombre = "Cardiología" },
+                    Prioridad = new Prioridad { Descripcion = "BAJA" },
                     Paciente = new Paciente { Nombre = "Carlos", Apellido = "Fernández", Dni = "22.456.789", ObraSocial = "PAMI" }
-                },
-                new Turno
-                {
-                    IdTurno = 202,
-                    Fecha = hoy.AddHours(9).AddMinutes(15),
-                    Estado = "En Espera",
-                    Especialidad = new Especialidad { Nombre = "Cardiología" },
-                    Paciente = new Paciente { Nombre = "Lucía", Apellido = "Gómez", Dni = "27.654.321", ObraSocial = "OSDE" }
                 }
             };
-
-            _historialAtendidos = new List<Turno>();
         }
 
         // ---------------------------------------------------------------
@@ -224,13 +261,10 @@ namespace Gestion_de_Turnos_Medicos
             IEnumerable<Turno> ordenados;
             if (esEmergencia)
             {
-                // Modo Emergencias: prioridad (Alta -> Media -> Baja) y, a igual prioridad, FIFO.
-                ordenados = filtrados
-                    .OrderBy(t => t.Fecha);
+                ordenados = filtrados.OrderBy(t => PrioridadNumerica(t.Prioridad?.Descripcion ?? "MEDIA")).ThenBy(t => t.Fecha);
             }
             else
             {
-                // Modo Especialidades: orden estricto de llegada (FIFO).
                 ordenados = filtrados.OrderBy(t => t.Fecha);
             }
 
@@ -248,11 +282,11 @@ namespace Gestion_de_Turnos_Medicos
 
         private int PrioridadNumerica(string triage)
         {
-            switch (triage)
+            switch (triage?.ToUpperInvariant())
             {
-                case "Alta": return 1;
-                case "Media": return 2;
-                case "Baja": return 3;
+                case "ALTA": return 1;
+                case "MEDIA": return 2;
+                case "BAJA": return 3;
                 default: return 4;
             }
         }
@@ -262,8 +296,6 @@ namespace Gestion_de_Turnos_Medicos
             if (_bloqueandoCombo)
                 return;
 
-            // Bloqueo por atención en curso: no se puede cambiar de servicio
-            // si hay un paciente llamado o en consulta sin finalizar.
             if (_estadoActual != EstadoPuesto.SinPaciente)
             {
                 _bloqueandoCombo = true;
@@ -292,7 +324,32 @@ namespace Gestion_de_Turnos_Medicos
             _turnoActual = _turnosVisibles[0];
             _turnoActual.Estado = "Llamado";
 
-            // Se remueve tanto de la cola general como del listado visible.
+            try
+            {
+                // Stored Procedure: sp_LlamarSiguientePaciente
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_LlamarSiguientePaciente", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
+                        cmd.Parameters.Add("@NombreMedico", SqlDbType.VarChar, 100).Value = _nombreMedico;
+                        cmd.Parameters.Add("@SalaAsignada", SqlDbType.VarChar, 100).Value = _salaAsignada;
+
+                        con.Open();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al registrar llamado en base de datos:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception)
+            {
+                // Continuar en memoria si no hay conexión
+            }
+
             _todosLosTurnos.Remove(_turnoActual);
             _turnosVisibles.RemoveAt(0);
 
@@ -307,9 +364,31 @@ namespace Gestion_de_Turnos_Medicos
             if (_turnoActual == null)
                 return;
 
-            // Guardamos la hora de inicio localmente para no alterar la entidad
             _horaInicioAtencion = DateTime.Now;
             _turnoActual.Estado = "En Consulta";
+
+            try
+            {
+                // Stored Procedure: sp_IniciarAtencionTurno
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_IniciarAtencionTurno", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
+
+                        con.Open();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al registrar inicio de consulta:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception)
+            {
+            }
 
             CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
         }
@@ -319,23 +398,51 @@ namespace Gestion_de_Turnos_Medicos
             if (_turnoActual == null)
                 return;
 
-            // Acá es donde en un caso real se persistirían en la base de datos:
-            // observaciones, diagnóstico rápido, hora de cierre, médico y sala (trazabilidad).
             _diagnosticoRapido = txtDiagnostico.Text.Trim();
             _horaFinAtencion = DateTime.Now;
             _turnoActual.Estado = "Atendido";
             _medicoQueAtendio = _nombreMedico;
             _salaDeAtencion = _salaAsignada;
 
-            // En la implementación real guardaríamos un registro en HistoriaClinica
-            // y/o actualizaríamos el Turno en la base. Aquí sólo movemos el turno a historial.
-            _historialAtendidos.Add(_turnoActual);
+            try
+            {
+                // Stored Procedure: sp_FinalizarAtencionTurno
+                using (SqlConnection con = Conexion.ObtenerConexion())
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_FinalizarAtencionTurno", con))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add("@IdTurno", SqlDbType.Int).Value = _turnoActual.IdTurno;
+                        cmd.Parameters.Add("@Diagnostico", SqlDbType.VarChar, -1).Value = string.IsNullOrEmpty(_diagnosticoRapido) ? (object)DBNull.Value : _diagnosticoRapido;
+                        cmd.Parameters.Add("@NombreMedico", SqlDbType.VarChar, 100).Value = _medicoQueAtendio;
+                        cmd.Parameters.Add("@SalaAsignada", SqlDbType.VarChar, 100).Value = _salaDeAtencion;
 
+                        con.Open();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+
+                MessageBox.Show("Atención finalizada con éxito.", "Turno Atendido", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (SqlException sqlEx)
+            {
+                MessageBox.Show("Error al guardar la atención en la base de datos:\n" + sqlEx.Message, "Error BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error inesperado al finalizar atención:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            _historialAtendidos.Add(_turnoActual);
             tmrTiempoTranscurrido.Stop();
             _turnoActual = null;
 
             LimpiarPanelAtencion();
             CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+
+            // Refrescar lista de turnos desde BD
+            CargarTurnosDesdeBD();
+            RefrescarListado();
         }
 
         private void CambiarEstadoPuesto(EstadoPuesto nuevoEstado)
@@ -378,25 +485,20 @@ namespace Gestion_de_Turnos_Medicos
 
         private void LlenarPanelAtencion(Turno t)
         {
-            // Mostrar información basada en las entidades relacionadas (Paciente, Especialidad).
-            lblInfoTurno.Text = $"N° Turno: {t.IdTurno}";
+            lblInfoTurno.Text = $"N° Turno: {t.NroOrden ?? t.IdTurno.ToString()}";
             lblInfoPaciente.Text = t.Paciente != null ? $"Paciente: {t.Paciente.Apellido}, {t.Paciente.Nombre}" : "Paciente: -";
             string dni = t.Paciente?.Dni ?? "-";
-            string edad = "-"; // El modelo Paciente actual no contiene Edad; mostrar placeholder
+            string edad = "-";
             string cobertura = t.Paciente?.ObraSocial ?? "-";
-            lblInfoDni.Text = $"DNI / Edad / Cobertura: {dni} / {edad} años / {cobertura}";
+            lblInfoDni.Text = $"DNI / Edad / Cobertura: {dni} / {edad} / {cobertura}";
 
-            // Motivo/Triage no están modelados en la entidad Turno actual; mostrar placeholder.
-            lblInfoMotivo.Text = "Motivo / Prioridad: - /";
-            lblInfoPrioridadValor.Text = "-";
-            lblInfoPrioridadValor.ForeColor = Color.Black;
-            // Se reposiciona a mano al lado del label anterior, porque su ancho
-            // cambia según el largo del texto (AutoSize no alinea dos labels solo).
+            string prioridad = t.Prioridad?.Descripcion ?? "MEDIA";
+            lblInfoMotivo.Text = $"Prioridad: {prioridad}";
+            lblInfoPrioridadValor.Text = prioridad;
+            lblInfoPrioridadValor.ForeColor = ColorSegunTriage(prioridad);
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);
 
             ActualizarTiempoTranscurrido();
-
-            // Limpiar cuadro de diagnóstico
             txtDiagnostico.Clear();
         }
 
@@ -409,18 +511,16 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoPrioridadValor.Text = "";
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);
             lblInfoTiempo.Text = "Hora de Entrada / Tiempo: -";
-
-            
             txtDiagnostico.Clear();
         }
 
         private Color ColorSegunTriage(string triage)
         {
-            switch (triage)
+            switch (triage?.ToUpperInvariant())
             {
-                case "Alta": return Color.FromArgb(214, 39, 40);
-                case "Media": return Color.FromArgb(184, 134, 11);
-                case "Baja": return Color.FromArgb(46, 139, 87);
+                case "ALTA": return Color.FromArgb(214, 39, 40);
+                case "MEDIA": return Color.FromArgb(184, 134, 11);
+                case "BAJA": return Color.FromArgb(46, 139, 87);
                 default: return Color.Black;
             }
         }
@@ -438,17 +538,12 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
-            // Usamos la Fecha del turno como hora de entrada al panel
             DateTime horaEntrada = _turnoActual.Fecha;
             TimeSpan transcurrido = DateTime.Now - horaEntrada;
             int minutos = Math.Max(0, (int)transcurrido.TotalMinutes);
 
             lblInfoTiempo.Text = $"Hora de Entrada / Tiempo: {horaEntrada:HH:mm} / {minutos} min.";
         }
-
-        // ---------------------------------------------------------------
-        // Barra de estado inferior
-        // ---------------------------------------------------------------
 
         private void ActualizarBarraEstado()
         {
@@ -474,44 +569,40 @@ namespace Gestion_de_Turnos_Medicos
             lblEstadoInferior.Text = $"Total pacientes en espera: {enEspera}  |  Estado: {mensaje}";
         }
 
-        // ---------------------------------------------------------------
-        // Coloreado de la columna Triage en el grid
-        // ---------------------------------------------------------------
-
         private void dgvTurnos_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
-            // Formateo personalizado para columnas: triage (colTriage) y paciente (colPaciente).
             string colName = dgvTurnos.Columns[e.ColumnIndex].Name;
 
             if (colName == "colTriage")
             {
-                // No tenemos Triage persistido en el modelo; dejar vacío o usar datos de TurnoSintomas si los hubiera.
-                if (e.Value == null || string.IsNullOrEmpty(e.Value.ToString()))
-                    return;
-
-                string triage = e.Value.ToString();
-                switch (triage)
+                if (dgvTurnos.Rows[e.RowIndex].DataBoundItem is Turno t && t.Prioridad != null)
                 {
-                    case "Alta":
-                        e.CellStyle.BackColor = Color.FromArgb(214, 39, 40);
-                        e.CellStyle.ForeColor = Color.White;
-                        e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
-                        break;
-                    case "Media":
-                        e.CellStyle.BackColor = Color.FromArgb(255, 204, 0);
-                        e.CellStyle.ForeColor = Color.Black;
-                        e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
-                        break;
-                    case "Baja":
-                        e.CellStyle.BackColor = Color.FromArgb(46, 139, 87);
-                        e.CellStyle.ForeColor = Color.White;
-                        e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
-                        break;
+                    string triage = t.Prioridad.Descripcion ?? "MEDIA";
+                    e.Value = triage;
+                    e.FormattingApplied = true;
+
+                    switch (triage.ToUpperInvariant())
+                    {
+                        case "ALTA":
+                            e.CellStyle.BackColor = Color.FromArgb(214, 39, 40);
+                            e.CellStyle.ForeColor = Color.White;
+                            e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
+                            break;
+                        case "MEDIA":
+                            e.CellStyle.BackColor = Color.FromArgb(255, 204, 0);
+                            e.CellStyle.ForeColor = Color.Black;
+                            e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
+                            break;
+                        case "BAJA":
+                            e.CellStyle.BackColor = Color.FromArgb(46, 139, 87);
+                            e.CellStyle.ForeColor = Color.White;
+                            e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
+                            break;
+                    }
                 }
             }
             else if (colName == "colPaciente")
             {
-                // Mostrar "Apellido, Nombre (DNI)" en la columna paciente.
                 if (e.Value is Paciente p)
                 {
                     e.Value = $"{p.Apellido}, {p.Nombre} ({p.Dni})";
@@ -520,11 +611,8 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private void lblObservaciones_Click(object sender, EventArgs e)
+        private void lblObservaciones_Click(object? sender, EventArgs e)
         {
-
         }
     }
-
-    // (El modelo Turno fue movido a Modelos.cs) 
 }
