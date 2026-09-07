@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmRecepcionista
     {
@@ -30,6 +30,7 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmRecepcionista));
             panel1 = new Panel();
+            btnUsuarioVentana = new Button();
             asign_turnosEspecialidad = new Button();
             salir = new Button();
             lista_turnos = new Button();
@@ -41,6 +42,7 @@
             // panel1
             // 
             panel1.BackColor = Color.SteelBlue;
+            panel1.Controls.Add(btnUsuarioVentana);
             panel1.Controls.Add(asign_turnosEspecialidad);
             panel1.Controls.Add(salir);
             panel1.Controls.Add(lista_turnos);
@@ -51,14 +53,27 @@
             panel1.Size = new Size(161, 540);
             panel1.TabIndex = 0;
             // 
+            // btnUsuarioVentana
+            // 
+            btnUsuarioVentana.BackColor = Color.White;
+            btnUsuarioVentana.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnUsuarioVentana.ForeColor = Color.FromArgb(20, 87, 153);
+            btnUsuarioVentana.Location = new Point(25, 305);
+            btnUsuarioVentana.Name = "btnUsuarioVentana";
+            btnUsuarioVentana.Size = new Size(102, 85);
+            btnUsuarioVentana.TabIndex = 4;
+            btnUsuarioVentana.Text = "Pantalla\r\nTurnos";
+            btnUsuarioVentana.UseVisualStyleBackColor = false;
+            btnUsuarioVentana.Click += btnUsuarioVentana_Click;
+            // 
             // asign_turnosEspecialidad
             // 
             asign_turnosEspecialidad.BackColor = Color.White;
             asign_turnosEspecialidad.BackgroundImage = Properties.Resources.logo_asignar_turno;
             asign_turnosEspecialidad.BackgroundImageLayout = ImageLayout.Center;
-            asign_turnosEspecialidad.Location = new Point(25, 166);
+            asign_turnosEspecialidad.Location = new Point(25, 115);
             asign_turnosEspecialidad.Name = "asign_turnosEspecialidad";
-            asign_turnosEspecialidad.Size = new Size(102, 102);
+            asign_turnosEspecialidad.Size = new Size(102, 85);
             asign_turnosEspecialidad.TabIndex = 3;
             asign_turnosEspecialidad.UseVisualStyleBackColor = false;
             asign_turnosEspecialidad.Click += asign_turnosEspecialidad_Click_1;
@@ -67,9 +82,9 @@
             // 
             salir.BackgroundImage = Properties.Resources.salir;
             salir.BackgroundImageLayout = ImageLayout.Stretch;
-            salir.Location = new Point(25, 418);
+            salir.Location = new Point(25, 415);
             salir.Name = "salir";
-            salir.Size = new Size(102, 91);
+            salir.Size = new Size(102, 85);
             salir.TabIndex = 2;
             salir.UseVisualStyleBackColor = true;
             salir.Click += salir_Click;
@@ -79,9 +94,9 @@
             lista_turnos.BackColor = Color.DarkCyan;
             lista_turnos.BackgroundImage = Properties.Resources.lista_turnos;
             lista_turnos.BackgroundImageLayout = ImageLayout.Stretch;
-            lista_turnos.Location = new Point(25, 292);
+            lista_turnos.Location = new Point(25, 210);
             lista_turnos.Name = "lista_turnos";
-            lista_turnos.Size = new Size(102, 97);
+            lista_turnos.Size = new Size(102, 85);
             lista_turnos.TabIndex = 1;
             lista_turnos.UseVisualStyleBackColor = false;
             lista_turnos.Click += lista_turnos_Click;
@@ -91,9 +106,9 @@
             asign_turnosEmergencia.BackColor = Color.White;
             asign_turnosEmergencia.BackgroundImage = Properties.Resources.turnos_emergencia;
             asign_turnosEmergencia.BackgroundImageLayout = ImageLayout.Stretch;
-            asign_turnosEmergencia.Location = new Point(25, 41);
+            asign_turnosEmergencia.Location = new Point(25, 20);
             asign_turnosEmergencia.Name = "asign_turnosEmergencia";
-            asign_turnosEmergencia.Size = new Size(102, 100);
+            asign_turnosEmergencia.Size = new Size(102, 85);
             asign_turnosEmergencia.TabIndex = 0;
             asign_turnosEmergencia.UseVisualStyleBackColor = false;
             asign_turnosEmergencia.Click += asign_turnosEmergencia_Click;
@@ -131,5 +146,6 @@
         private Button salir;
         private Panel panelContenedor;
         private Button asign_turnosEspecialidad;
+        private Button btnUsuarioVentana;
     }
 }

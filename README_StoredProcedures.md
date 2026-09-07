@@ -1113,8 +1113,8 @@ GO
 - **Entidad:** Turno / Prioridad / Sala
 - **Operación:** Listado / Monitor
 - **Tablas:** `Turnos`, `Prioridades`, `Salas`
-- **Forms que lo utilizan:** `FrmListaTurnos`
-- **Acción:** Evento `Load` / `CargarTurnosEmergencia`
+- **Forms que lo utilizan:** `FrmListaTurnos`, `FrmUsuarioVentana`
+- **Acción:** Monitor de guardia / Pantalla pública de emergencias (`dgvEmergencias`)
 - **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
 - **Devuelve:** `Turno`, `Prioridad`, `Hora`, `Estado`, `Sala`.
 
@@ -1479,7 +1479,43 @@ GO
 
 ---
 
-### 6.9 `sp_ObtenerHistoriaClinicaPaciente`
+### 6.9 `sp_ListarTurnosGeneralesPantalla`
+- **Descripción:** Obtiene los turnos programados y de especialidad del día para la grilla general de la pantalla pública de sala de espera (`FrmUsuarioVentana`). Muestra el código de turno, horario, fecha, especialidad médica, estado de atención y consultorio asignado.
+- **Entidad:** Turno / Especialidad / Sala
+- **Operación:** Monitor Público / Consulta Pantalla
+- **Tablas:** `Turnos`, `Especialidades`, `Salas`
+- **Forms que lo utilizan:** `FrmUsuarioVentana`
+- **Acción:** Carga inicial y refresco automático periódico (`dgvGeneral`)
+- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Devuelve:** `Turno`, `Hora`, `Fecha`, `Especialidad`, `Estado`, `Sala`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ListarTurnosGeneralesPantalla
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        t.NroOrden AS Turno,
+        CONVERT(VARCHAR(5), t.Horario, 108) AS Hora,
+        CONVERT(VARCHAR(10), t.Fecha, 103) AS Fecha,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        t.Estado,
+        ISNULL(s.NombreSala, '--') AS Sala
+    FROM Turnos t
+    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    WHERE t.Activo = 1 
+      AND (t.TipoTurno <> 'Emergencia' OR t.TipoTurno IS NULL)
+      AND CAST(t.Fecha AS DATE) = CAST(GETDATE() AS DATE)
+    ORDER BY t.Horario ASC, t.FechaCreacion ASC;
+END;
+GO
+```
+
+---
+
+### 6.10 `sp_ObtenerHistoriaClinicaPaciente`
 - **Descripción:** Permite consultar los antecedentes clínicos completos del paciente ordenados cronológicamente.
 - **Entidad:** HistoriaClinica / Usuario
 - **Operación:** Consulta Histórica
@@ -1522,7 +1558,8 @@ INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
 VALUES 
 ('Administrador', 1, GETDATE()),
 ('Personal médico', 1, GETDATE()),
-('Recepcionista', 1, GETDATE());
+('Recepcionista', 1, GETDATE()),
+('Usuario Ventana', 1, GETDATE());
 GO
 
 -- 2. Catálogo Base de Síntomas para Triage
@@ -1557,6 +1594,18 @@ EXEC sp_InsertarUsuario
     @Telefono = '3794000000', 
     @NroMatricula = '0',
     @IdRol = 1;
+GO
+
+-- 4. Usuario Ventana / Pantalla de Sala de Espera Inicial
+EXEC sp_InsertarUsuario 
+    @Nombre = 'Visor', 
+    @Apellido = 'SalaEspera', 
+    @Correo = 'ventana@consultorio.com', 
+    @Contrasena = '123456', 
+    @Dni = '99999999', 
+    @Telefono = '0000000000', 
+    @NroMatricula = '0',
+    @IdRol = 4;
 GO
 ```
 
@@ -1595,7 +1644,8 @@ GO
 | `sp_RegistrarTurnoEmergencia`| Turno / Triage | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` | `EN USO` |
 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ListarTurnosEmergencia`| Turno | Monitor guardia | `FrmListaTurnos` | Cargar grilla y contadores | `PENDIENTE DE IMPLEMENTACIÓN` |
+| `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Cargar grilla y monitor de emergencias | `PENDIENTE DE IMPLEMENTACIÓN` |
+| `sp_ListarTurnosGeneralesPantalla`| Turno / Especialidad / Sala | Monitor público general | `FrmUsuarioVentana` | Carga y refresco periódico grilla general | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera | `EN USO` |
 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos | `EN USO` |
@@ -1604,7 +1654,7 @@ GO
 | `sp_IniciarAtencionTurno`| Turno | En Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre atención | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` | `EN USO` |
-| `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | Pantalla Sala de Espera | Refresco periódico | `SIN FORM ASOCIADO / PENDIENTE` |
+| `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` / Pantalla TV | Refresco periódico de llamados | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Visor Historia Clínica | Consulta por paciente | `SIN FORM ASOCIADO / PENDIENTE DE VISOR HC` |
 
 ---
@@ -1612,10 +1662,10 @@ GO
 ## 9. Resumen por Formulario
 
 ### `FrmLogin`
-- `sp_ValidarLogin` → Botón "Iniciar Sesión" (`button1_Click`). Valida credenciales activas y obtiene rol del usuario.
+- `sp_ValidarLogin` → Botón "Iniciar Sesión" (`button1_Click`). Valida credenciales activas y obtiene rol del usuario. Incluye ruteo dinámico para el rol `Usuario Ventana` (`IdRol = 4`), abriendo `FrmUsuarioVentana`.
 
 ### `FrmGestionUsuarios`
-- `sp_ListarRoles` → Carga inicial del desplegable de roles (`CargarRolesDesdeBD`).
+- `sp_ListarRoles` → Carga inicial del desplegable de roles (`CargarRolesDesdeBD`). Soporta los 4 roles: Administrador, Personal médico, Recepcionista y Usuario Ventana.
 - `sp_ListarEspecialidades` → Carga inicial del listado de especialidades asignables (`CargarEspecialidadesDesdeBD`).
 - `sp_ObtenerSalas` → Carga inicial del listado de consultorios asignables (`CargarSalasDesdeBD`).
 - `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios activos (`CargarUsuariosDesdeBD`).
@@ -1673,4 +1723,10 @@ GO
 - Sin llamadas directas a SPs (Contenedor MDI médico). Transfiere el contexto de `_usuarioActual` (médico logueado) hacia `MisSalas_PM` y `FrmListaTurnosAtencion`.
 
 ### `FrmRecepcionista`
-- Sin llamadas directas a SPs (Contenedor MDI de recepción). Gestiona apertura de `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos`.
+- Sin llamadas directas a SPs (Contenedor MDI de recepción). Gestiona apertura de `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, y `FrmUsuarioVentana` a través del nuevo botón `btnUsuarioVentana` ("Pantalla Turnos").
+
+### `FrmUsuarioVentana`
+- `sp_ListarTurnosEmergencia` → Carga inicial y auto-refresco periódico de la grilla de emergencias/triage (`dgvEmergencias`).
+- `sp_ListarTurnosGeneralesPantalla` → Carga inicial y auto-refresco periódico de la grilla de turnos generales y consultorios (`dgvGeneral`).
+- `sp_ObtenerTurnosPantallaPublica` → Alternativa de consulta para monitor público de llamados activos.
+- Rol asignado: `Usuario Ventana` (`IdRol = 4`). Puede iniciarse con sesión autenticada o como visor incrustado desde `FrmRecepcionista`.

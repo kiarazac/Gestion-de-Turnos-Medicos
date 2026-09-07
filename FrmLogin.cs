@@ -96,6 +96,10 @@ namespace Gestion_de_Turnos_Medicos
             {
                 formularioDestino = new FrmRecepcionista(usuario);
             }
+            else if (rolNombre.Contains("ventan") || rolNombre.Contains("pantalla") || rolNombre.Contains("visor") || rolNombre.Contains("totem") || usuario.IdRol == 4)
+            {
+                formularioDestino = new FrmUsuarioVentana(usuario);
+            }
             else
             {
                 // Respaldo por ID si la descripción viene vacía
@@ -109,6 +113,9 @@ namespace Gestion_de_Turnos_Medicos
                         break;
                     case 3:
                         formularioDestino = new FrmRecepcionista(usuario);
+                        break;
+                    case 4:
+                        formularioDestino = new FrmUsuarioVentana(usuario);
                         break;
                     default:
                         MessageBox.Show($"El rol '{usuario.NombreRol}' (ID {usuario.IdRol}) no cuenta con una pantalla asignada en el sistema.",

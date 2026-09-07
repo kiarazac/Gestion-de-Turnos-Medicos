@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -58,6 +58,21 @@ namespace Gestion_de_Turnos_Medicos
         private void lista_turnos_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmListaTurnos());
+        }
+
+        private void btnUsuarioVentana_Click(object sender, EventArgs e)
+        {
+            // Permite proyectar la pantalla en ventana independiente (segundo monitor/TV)
+            // manteniendo presionada la tecla Shift o Control, o embebida por defecto.
+            if (ModifierKeys.HasFlag(Keys.Shift) || ModifierKeys.HasFlag(Keys.Control))
+            {
+                FrmUsuarioVentana ventanaIndependiente = new FrmUsuarioVentana();
+                ventanaIndependiente.Show();
+            }
+            else
+            {
+                AbrirFormularioHijo(new FrmUsuarioVentana());
+            }
         }
 
         private void salir_Click(object sender, EventArgs e)

@@ -179,7 +179,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.9 `TurnoEmergenciaDTO`
-- **Uso**: Retorno de `sp_ListarTurnosEmergencia` para monitores y grilla de guardia en `FrmListaTurnos`.
+- **Uso**: Retorno de `sp_ListarTurnosEmergencia` para monitores, grilla de guardia en `FrmListaTurnos` y pantalla de sala de espera en `FrmUsuarioVentana`.
 - **Propiedades**:
   ```csharp
   public string Turno { get; set; }
@@ -236,6 +236,18 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
 - **Propiedades**:
   ```csharp
   public string Horario { get; set; }
+  ```
+
+### 3.14 `TurnoGeneralPantallaDTO`
+- **Uso**: Retorno de `sp_ListarTurnosGeneralesPantalla` para la grilla general de la pantalla pública de sala de espera en `FrmUsuarioVentana`.
+- **Propiedades**:
+  ```csharp
+  public string Turno { get; set; }
+  public string Hora { get; set; }
+  public string Fecha { get; set; }
+  public string Especialidad { get; set; }
+  public string Estado { get; set; }
+  public string Sala { get; set; }
   ```
 
 ---
@@ -389,8 +401,8 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
 | Formulario (Capa UI) | Método BLL invocado | Método DAL subyacente | Stored Procedure (`README_StoredProcedures.md`) |
 | :--- | :--- | :--- | :--- |
-| **`FrmLogin`** | `UsuarioBLL.Login` | `UsuarioDAL.ValidarLogin` | `sp_ValidarLogin` |
-| **`FrmGestionUsuarios`** | `UsuarioBLL.ObtenerRoles` | `UsuarioDAL.ListarRoles` | `sp_ListarRoles` |
+| **`FrmLogin`** | `UsuarioBLL.Login` | `UsuarioDAL.ValidarLogin` | `sp_ValidarLogin` (Rutea a `FrmAdmin`, `Pantalla_Principal_PERSONAL_MEDICO`, `FrmRecepcionista` o `FrmUsuarioVentana` según rol 1, 2, 3 o 4) |
+| **`FrmGestionUsuarios`** | `UsuarioBLL.ObtenerRoles` | `UsuarioDAL.ListarRoles` | `sp_ListarRoles` (Soporta rol Usuario Ventana) |
 | | `EspecialidadBLL.ObtenerEspecialidades` | `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `UsuarioBLL.ObtenerUsuarios` | `UsuarioDAL.ListarUsuarios` | `sp_ListarUsuarios` |
@@ -426,6 +438,9 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`MisSalas_PM`** | `SalaBLL.ObtenerSalas` (`@IdUsuario`) | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.AbrirSala` | `SalaDAL.AbrirSala` | `sp_AbrirSala` |
 | | `SalaBLL.CerrarSala` | `SalaDAL.CerrarSala` | `sp_CerrarSala` |
+| **`FrmRecepcionista`** | *(Navegación UI / Contenedor)* | N/A | Botón `btnUsuarioVentana` ("Pantalla Turnos") para proyectar o incrustar `FrmUsuarioVentana` |
+| **`FrmUsuarioVentana`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` (Refresco cada 5s) |
+| | `TurnoBLL.ObtenerTurnosPantallaGeneral` | `TurnoDAL.ListarTurnosGeneralesPantalla` | `sp_ListarTurnosGeneralesPantalla` (Refresco cada 5s) |
 
 ---
 
