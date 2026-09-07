@@ -23,5 +23,35 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             // Si todo está bien, le pasamos la pelota a la Capa de Datos
             return _usuarioDAL.ValidarLogin(correo, contrasena);
         }
+
+        public List<RolDTO> ObtenerRoles()
+        {
+            return _usuarioDAL.ListarRoles();
+        }
+
+        public List<MedicoDTO> ObtenerPersonalMedico()
+        {
+            return _usuarioDAL.ListarPersonalMedico();
+        }
+
+        public void RegistrarUsuario(string nombre, string apellido, string correo, string contrasena, string dni, string telefono, string nroMatricula, int idRol, List<int> especialidadesIds)
+        {
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido) || string.IsNullOrWhiteSpace(correo) || string.IsNullOrWhiteSpace(dni))
+                throw new ArgumentException("Los campos nombre, apellido, correo y DNI son obligatorios.");
+
+            if (idRol <= 0)
+                throw new ArgumentException("Debe seleccionar un rol válido.");
+
+            // Se asume que la contraseña ya viene hasheada desde la UI o se aplica el método de seguridad aquí
+            int nuevoUsuarioId = _usuarioDAL.InsertarUsuario(nombre, apellido, correo, contrasena, dni, telefono, nroMatricula, idRol);
+
+            if (especialidadesIds != null && especialidadesIds.Count > 0)
+            {
+                foreach (int idEspecialidad in especialidadesIds)
+                {
+                    _usuarioDAL.AsignarEspecialidadMedico(nuevoUsuarioId, idEspecialidad);
+                }
+            }
+        }
     }
 }
