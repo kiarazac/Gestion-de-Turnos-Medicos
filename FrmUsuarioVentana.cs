@@ -56,7 +56,7 @@ namespace Gestion_de_Turnos_Medicos
             ActualizarPieDePagina();
         }
 
-        private void FrmUsuarioVentana_Load(object sender, EventArgs e)
+        private void FrmUsuarioVentana_Load(object? sender, EventArgs e)
         {
             CargarTurnosDesdeBD();
         }
@@ -112,7 +112,7 @@ namespace Gestion_de_Turnos_Medicos
                 ResaltarEstados(dgvGeneral, colEstadoGen.Index, "EN CURSO");
                 ResaltarEstados(dgvGeneral, colEstadoGen.Index, "LLAMADO");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // En una pantalla de sala de espera pública no se interrumpe la visualización
                 // con cuadros modales bloqueantes repetitivos; se actualiza el pie de estado discretamente.

@@ -30,7 +30,7 @@ namespace Gestion_de_Turnos_Medicos
             this.button1.Click += BtnGenerarTurno_Click;
         }
 
-        private void FrmTurnoEmergencia_Load(object sender, EventArgs e)
+        private void FrmTurnoEmergencia_Load(object? sender, EventArgs e)
         {
             Lid_turno.Text = "# --";
             Ldescrip_turno_especialidad.Text = "Emergencia";
@@ -79,7 +79,7 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private void BtnGenerarTurno_Click(object sender, EventArgs e)
+        private void BtnGenerarTurno_Click(object? sender, EventArgs e)
         {
             if (!ValidarDatos())
                 return;

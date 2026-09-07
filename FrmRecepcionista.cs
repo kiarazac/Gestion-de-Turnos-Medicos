@@ -22,7 +22,7 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         // Variable para recordar qué formulario está abierto actualmente
-        private Form formularioActivo = null;
+        private Form? formularioActivo = null;
 
         private void AbrirFormularioHijo(Form formHijo)
         {
@@ -78,10 +78,7 @@ namespace Gestion_de_Turnos_Medicos
         private void salir_Click(object sender, EventArgs e)
         {
             // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
-            if (Application.OpenForms["FrmLogin"] != null)
-            {
-                Application.OpenForms["FrmLogin"].Show();
-            }
+            Application.OpenForms["FrmLogin"]?.Show();
 
             // 2. Cerramos la ventana actual por completo
             this.Close();

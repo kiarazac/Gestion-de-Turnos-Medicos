@@ -21,7 +21,7 @@ namespace Gestion_de_Turnos_Medicos
             this.button1.Click += BtnGenerarTurno_Click;
         }
 
-        private void FrmTurnoEspecialidad_Load(object sender, EventArgs e)
+        private void FrmTurnoEspecialidad_Load(object? sender, EventArgs e)
         {
             calFechaTurno.MinDate = DateTime.Today;
 
@@ -98,8 +98,8 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     foreach (var h in horarios)
                     {
-                        if (!string.IsNullOrWhiteSpace(h))
-                            cmbHorarios.Items.Add(h);
+                        if (!string.IsNullOrWhiteSpace(h.Horario))
+                            cmbHorarios.Items.Add(h.Horario);
                     }
                     cmbHorarios.SelectedIndex = 0;
                 }
@@ -116,7 +116,7 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private void BtnGenerarTurno_Click(object sender, EventArgs e)
+        private void BtnGenerarTurno_Click(object? sender, EventArgs e)
         {
             if (!ValidarDatos())
                 return;

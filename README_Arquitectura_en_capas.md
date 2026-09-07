@@ -250,6 +250,30 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string Sala { get; set; }
   ```
 
+### 3.15 `ResultadoTurnoDTO`
+- **Uso**: Retorno de procedimientos de inserción de turnos (`sp_RegistrarTurnoEmergencia` y `sp_CrearTurnoEspecialidad`) con el ID generado y el número de orden asignado.
+- **Propiedades**:
+  ```csharp
+  public int IdNuevoTurno { get; set; }
+  public string? NroOrden { get; set; }
+  ```
+
+### 3.16 `UsuarioListadoDTO`
+- **Uso**: Retorno de `sp_ListarUsuarios` para la administración de personal y roles en `FrmGestionUsuarios`.
+- **Propiedades**:
+  ```csharp
+  public int IdUsuario { get; set; }
+  public string Nombre { get; set; }
+  public string Apellido { get; set; }
+  public string Correo { get; set; }
+  public string Dni { get; set; }
+  public string Telefono { get; set; }
+  public string Rol { get; set; }
+  public string NroMatricula { get; set; }
+  public string Especialidades { get; set; }
+  public string Salas { get; set; }
+  ```
+
 ---
 
 ## 4. Guía Técnica de Implementación: Capa DAL con Entity Framework Core

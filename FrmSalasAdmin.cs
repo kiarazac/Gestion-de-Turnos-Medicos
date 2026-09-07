@@ -25,7 +25,7 @@ namespace Gestion_de_Turnos_Medicos
             this.Load += FrmSalasAdmin_Load;
         }
 
-        private void FrmSalasAdmin_Load(object sender, EventArgs e)
+        private void FrmSalasAdmin_Load(object? sender, EventArgs e)
         {
             ConfigurarDataGrid();
             CargarEstados();
