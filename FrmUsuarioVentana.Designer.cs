@@ -28,327 +28,316 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
-            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle2 = new System.Windows.Forms.DataGridViewCellStyle();
-            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle3 = new System.Windows.Forms.DataGridViewCellStyle();
-            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle4 = new System.Windows.Forms.DataGridViewCellStyle();
-            this.pnlHeader = new System.Windows.Forms.Panel();
-            this.lblTituloPrincipal = new System.Windows.Forms.Label();
-            this.pnlFooter = new System.Windows.Forms.Panel();
-            this.lblFooter = new System.Windows.Forms.Label();
-            this.pnlContenido = new System.Windows.Forms.Panel();
-            this.pnlGeneral = new System.Windows.Forms.Panel();
-            this.dgvGeneral = new System.Windows.Forms.DataGridView();
-            this.colTurnoGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colHoraGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFechaGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colEspecialidadGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colEstadoGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colSalaGen = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.lblTituloGeneral = new System.Windows.Forms.Label();
-            this.pnlEmergencias = new System.Windows.Forms.Panel();
-            this.dgvEmergencias = new System.Windows.Forms.DataGridView();
-            this.colTurnoEmer = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colPrioridadEmer = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colHoraEmer = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colEstadoEmer = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colSalaEmer = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.lblTituloEmergencias = new System.Windows.Forms.Label();
-            this.timerReloj = new System.Windows.Forms.Timer(this.components);
-            this.pnlHeader.SuspendLayout();
-            this.pnlFooter.SuspendLayout();
-            this.pnlContenido.SuspendLayout();
-            this.pnlGeneral.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.dgvGeneral)).BeginInit();
-            this.pnlEmergencias.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.dgvEmergencias)).BeginInit();
-            this.SuspendLayout();
-            //
+            components = new System.ComponentModel.Container();
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
+            pnlHeader = new Panel();
+            lblTituloPrincipal = new Label();
+            pnlFooter = new Panel();
+            lblFooter = new Label();
+            pnlContenido = new Panel();
+            pnlGeneral = new Panel();
+            dgvGeneral = new DataGridView();
+            colTurnoGen = new DataGridViewTextBoxColumn();
+            colHoraGen = new DataGridViewTextBoxColumn();
+            colFechaGen = new DataGridViewTextBoxColumn();
+            colEspecialidadGen = new DataGridViewTextBoxColumn();
+            colEstadoGen = new DataGridViewTextBoxColumn();
+            colSalaGen = new DataGridViewTextBoxColumn();
+            lblTituloGeneral = new Label();
+            pnlEmergencias = new Panel();
+            dgvEmergencias = new DataGridView();
+            colTurnoEmer = new DataGridViewTextBoxColumn();
+            colPrioridadEmer = new DataGridViewTextBoxColumn();
+            colHoraEmer = new DataGridViewTextBoxColumn();
+            colEstadoEmer = new DataGridViewTextBoxColumn();
+            colSalaEmer = new DataGridViewTextBoxColumn();
+            lblTituloEmergencias = new Label();
+            timerReloj = new System.Windows.Forms.Timer(components);
+            pnlHeader.SuspendLayout();
+            pnlFooter.SuspendLayout();
+            pnlContenido.SuspendLayout();
+            pnlGeneral.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvGeneral).BeginInit();
+            pnlEmergencias.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvEmergencias).BeginInit();
+            SuspendLayout();
+            // 
             // pnlHeader
-            //
-            this.pnlHeader.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(87)))), ((int)(((byte)(153)))));
-            this.pnlHeader.Controls.Add(this.lblTituloPrincipal);
-            this.pnlHeader.Dock = System.Windows.Forms.DockStyle.Top;
-            this.pnlHeader.Location = new System.Drawing.Point(0, 0);
-            this.pnlHeader.Name = "pnlHeader";
-            this.pnlHeader.Size = new System.Drawing.Size(1024, 60);
-            this.pnlHeader.TabIndex = 0;
-            //
+            // 
+            pnlHeader.BackColor = Color.FromArgb(20, 87, 153);
+            pnlHeader.Controls.Add(lblTituloPrincipal);
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Location = new Point(0, 0);
+            pnlHeader.Name = "pnlHeader";
+            pnlHeader.Size = new Size(1024, 60);
+            pnlHeader.TabIndex = 0;
+            // 
             // lblTituloPrincipal
-            //
-            this.lblTituloPrincipal.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.lblTituloPrincipal.Font = new System.Drawing.Font("Segoe UI", 18F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblTituloPrincipal.ForeColor = System.Drawing.Color.White;
-            this.lblTituloPrincipal.Location = new System.Drawing.Point(0, 0);
-            this.lblTituloPrincipal.Name = "lblTituloPrincipal";
-            this.lblTituloPrincipal.Size = new System.Drawing.Size(1024, 60);
-            this.lblTituloPrincipal.TabIndex = 0;
-            this.lblTituloPrincipal.Text = "Lista de Turnos";
-            this.lblTituloPrincipal.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
+            lblTituloPrincipal.Dock = DockStyle.Fill;
+            lblTituloPrincipal.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
+            lblTituloPrincipal.ForeColor = Color.White;
+            lblTituloPrincipal.Location = new Point(0, 0);
+            lblTituloPrincipal.Name = "lblTituloPrincipal";
+            lblTituloPrincipal.Size = new Size(1024, 60);
+            lblTituloPrincipal.TabIndex = 0;
+            lblTituloPrincipal.Text = "Lista de Turnos";
+            lblTituloPrincipal.TextAlign = ContentAlignment.MiddleCenter;
+            // 
             // pnlFooter
-            //
-            this.pnlFooter.BackColor = System.Drawing.Color.White;
-            this.pnlFooter.Controls.Add(this.lblFooter);
-            this.pnlFooter.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.pnlFooter.Location = new System.Drawing.Point(0, 588);
-            this.pnlFooter.Name = "pnlFooter";
-            this.pnlFooter.Size = new System.Drawing.Size(1024, 32);
-            this.pnlFooter.TabIndex = 1;
-            //
+            // 
+            pnlFooter.BackColor = Color.White;
+            pnlFooter.Controls.Add(lblFooter);
+            pnlFooter.Dock = DockStyle.Bottom;
+            pnlFooter.Location = new Point(0, 588);
+            pnlFooter.Name = "pnlFooter";
+            pnlFooter.Size = new Size(1024, 32);
+            pnlFooter.TabIndex = 1;
+            // 
             // lblFooter
-            //
-            this.lblFooter.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.lblFooter.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-            this.lblFooter.ForeColor = System.Drawing.Color.DimGray;
-            this.lblFooter.Location = new System.Drawing.Point(0, 0);
-            this.lblFooter.Name = "lblFooter";
-            this.lblFooter.Padding = new System.Windows.Forms.Padding(0, 0, 12, 0);
-            this.lblFooter.Size = new System.Drawing.Size(1024, 32);
-            this.lblFooter.TabIndex = 0;
-            this.lblFooter.Text = "Clínica contacto: -";
-            this.lblFooter.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            //
+            // 
+            lblFooter.Dock = DockStyle.Fill;
+            lblFooter.Font = new Font("Segoe UI", 9F);
+            lblFooter.ForeColor = Color.DimGray;
+            lblFooter.Location = new Point(0, 0);
+            lblFooter.Name = "lblFooter";
+            lblFooter.Padding = new Padding(0, 0, 12, 0);
+            lblFooter.Size = new Size(1024, 32);
+            lblFooter.TabIndex = 0;
+            lblFooter.Text = "Clínica contacto: -";
+            lblFooter.TextAlign = ContentAlignment.MiddleRight;
+            // 
             // pnlContenido
-            //
-            this.pnlContenido.BackColor = System.Drawing.Color.White;
-            this.pnlContenido.Controls.Add(this.pnlGeneral);
-            this.pnlContenido.Controls.Add(this.pnlEmergencias);
-            this.pnlContenido.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.pnlContenido.Location = new System.Drawing.Point(0, 60);
-            this.pnlContenido.Name = "pnlContenido";
-            this.pnlContenido.Size = new System.Drawing.Size(1024, 528);
-            this.pnlContenido.TabIndex = 2;
-            //
+            // 
+            pnlContenido.BackColor = Color.White;
+            pnlContenido.Controls.Add(pnlGeneral);
+            pnlContenido.Controls.Add(pnlEmergencias);
+            pnlContenido.Dock = DockStyle.Fill;
+            pnlContenido.Location = new Point(0, 60);
+            pnlContenido.Name = "pnlContenido";
+            pnlContenido.Size = new Size(1024, 528);
+            pnlContenido.TabIndex = 2;
+            // 
             // pnlGeneral
-            //
-            this.pnlGeneral.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Right))));
-            this.pnlGeneral.BackColor = System.Drawing.Color.White;
-            this.pnlGeneral.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pnlGeneral.Controls.Add(this.dgvGeneral);
-            this.pnlGeneral.Controls.Add(this.lblTituloGeneral);
-            this.pnlGeneral.Location = new System.Drawing.Point(519, 15);
-            this.pnlGeneral.Name = "pnlGeneral";
-            this.pnlGeneral.Size = new System.Drawing.Size(490, 498);
-            this.pnlGeneral.TabIndex = 1;
-            //
+            // 
+            pnlGeneral.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            pnlGeneral.BackColor = Color.White;
+            pnlGeneral.BorderStyle = BorderStyle.FixedSingle;
+            pnlGeneral.Controls.Add(dgvGeneral);
+            pnlGeneral.Controls.Add(lblTituloGeneral);
+            pnlGeneral.Location = new Point(519, 15);
+            pnlGeneral.Name = "pnlGeneral";
+            pnlGeneral.Size = new Size(490, 498);
+            pnlGeneral.TabIndex = 1;
+            // 
             // dgvGeneral
-            //
-            this.dgvGeneral.AllowUserToAddRows = false;
-            this.dgvGeneral.AllowUserToDeleteRows = false;
-            this.dgvGeneral.AllowUserToResizeColumns = false;
-            this.dgvGeneral.AllowUserToResizeRows = false;
-            this.dgvGeneral.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
-            this.dgvGeneral.BackgroundColor = System.Drawing.Color.White;
-            this.dgvGeneral.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.dgvGeneral.ColumnHeadersBorderStyle = System.Windows.Forms.DataGridViewHeaderBorderStyle.Single;
-            dataGridViewCellStyle1.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle1.BackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle1.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            dataGridViewCellStyle1.ForeColor = System.Drawing.Color.Black;
-            this.dgvGeneral.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
-            this.dgvGeneral.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            this.dgvGeneral.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.colTurnoGen,
-            this.colHoraGen,
-            this.colFechaGen,
-            this.colEspecialidadGen,
-            this.colEstadoGen,
-            this.colSalaGen});
-            dataGridViewCellStyle2.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle2.BackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle2.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-            dataGridViewCellStyle2.ForeColor = System.Drawing.Color.Black;
-            dataGridViewCellStyle2.SelectionBackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle2.SelectionForeColor = System.Drawing.Color.Black;
-            this.dgvGeneral.DefaultCellStyle = dataGridViewCellStyle2;
-            this.dgvGeneral.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.dgvGeneral.EnableHeadersVisualStyles = false;
-            this.dgvGeneral.GridColor = System.Drawing.Color.FromArgb(((int)(((byte)(225)))), ((int)(((byte)(225)))), ((int)(((byte)(225)))));
-            this.dgvGeneral.Location = new System.Drawing.Point(0, 45);
-            this.dgvGeneral.MultiSelect = false;
-            this.dgvGeneral.Name = "dgvGeneral";
-            this.dgvGeneral.ReadOnly = true;
-            this.dgvGeneral.RowHeadersVisible = false;
-            this.dgvGeneral.RowHeadersWidthSizeMode = System.Windows.Forms.DataGridViewRowHeadersWidthSizeMode.DisableResizing;
-            this.dgvGeneral.RowTemplate.Height = 32;
-            this.dgvGeneral.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvGeneral.Size = new System.Drawing.Size(488, 451);
-            this.dgvGeneral.TabIndex = 1;
-            //
+            // 
+            dgvGeneral.AllowUserToAddRows = false;
+            dgvGeneral.AllowUserToDeleteRows = false;
+            dgvGeneral.AllowUserToResizeColumns = false;
+            dgvGeneral.AllowUserToResizeRows = false;
+            dgvGeneral.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvGeneral.BackgroundColor = Color.White;
+            dgvGeneral.BorderStyle = BorderStyle.None;
+            dgvGeneral.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle1.BackColor = Color.White;
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            dataGridViewCellStyle1.ForeColor = Color.Black;
+            dgvGeneral.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            dgvGeneral.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvGeneral.Columns.AddRange(new DataGridViewColumn[] { colTurnoGen, colHoraGen, colFechaGen, colEspecialidadGen, colEstadoGen, colSalaGen });
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle2.BackColor = Color.White;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 9.75F);
+            dataGridViewCellStyle2.ForeColor = Color.Black;
+            dataGridViewCellStyle2.SelectionBackColor = Color.White;
+            dataGridViewCellStyle2.SelectionForeColor = Color.Black;
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.False;
+            dgvGeneral.DefaultCellStyle = dataGridViewCellStyle2;
+            dgvGeneral.Dock = DockStyle.Fill;
+            dgvGeneral.EnableHeadersVisualStyles = false;
+            dgvGeneral.GridColor = Color.FromArgb(225, 225, 225);
+            dgvGeneral.Location = new Point(0, 45);
+            dgvGeneral.MultiSelect = false;
+            dgvGeneral.Name = "dgvGeneral";
+            dgvGeneral.ReadOnly = true;
+            dgvGeneral.RowHeadersVisible = false;
+            dgvGeneral.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
+            dgvGeneral.RowTemplate.Height = 32;
+            dgvGeneral.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvGeneral.Size = new Size(488, 451);
+            dgvGeneral.TabIndex = 1;
+            // 
             // colTurnoGen
-            //
-            this.colTurnoGen.HeaderText = "Turno";
-            this.colTurnoGen.Name = "colTurnoGen";
-            this.colTurnoGen.ReadOnly = true;
-            //
+            // 
+            colTurnoGen.HeaderText = "Turno";
+            colTurnoGen.Name = "colTurnoGen";
+            colTurnoGen.ReadOnly = true;
+            // 
             // colHoraGen
-            //
-            this.colHoraGen.HeaderText = "Hora";
-            this.colHoraGen.Name = "colHoraGen";
-            this.colHoraGen.ReadOnly = true;
-            //
+            // 
+            colHoraGen.HeaderText = "Hora";
+            colHoraGen.Name = "colHoraGen";
+            colHoraGen.ReadOnly = true;
+            // 
             // colFechaGen
-            //
-            this.colFechaGen.HeaderText = "Fecha";
-            this.colFechaGen.Name = "colFechaGen";
-            this.colFechaGen.ReadOnly = true;
-            //
+            // 
+            colFechaGen.HeaderText = "Fecha";
+            colFechaGen.Name = "colFechaGen";
+            colFechaGen.ReadOnly = true;
+            // 
             // colEspecialidadGen
-            //
-            this.colEspecialidadGen.HeaderText = "Especialidad";
-            this.colEspecialidadGen.Name = "colEspecialidadGen";
-            this.colEspecialidadGen.ReadOnly = true;
-            //
+            // 
+            colEspecialidadGen.HeaderText = "Especialidad";
+            colEspecialidadGen.Name = "colEspecialidadGen";
+            colEspecialidadGen.ReadOnly = true;
+            // 
             // colEstadoGen
-            //
-            this.colEstadoGen.HeaderText = "Estado";
-            this.colEstadoGen.Name = "colEstadoGen";
-            this.colEstadoGen.ReadOnly = true;
-            //
+            // 
+            colEstadoGen.HeaderText = "Estado";
+            colEstadoGen.Name = "colEstadoGen";
+            colEstadoGen.ReadOnly = true;
+            // 
             // colSalaGen
-            //
-            this.colSalaGen.HeaderText = "Sala";
-            this.colSalaGen.Name = "colSalaGen";
-            this.colSalaGen.ReadOnly = true;
-            //
+            // 
+            colSalaGen.HeaderText = "Sala";
+            colSalaGen.Name = "colSalaGen";
+            colSalaGen.ReadOnly = true;
+            // 
             // lblTituloGeneral
-            //
-            this.lblTituloGeneral.Dock = System.Windows.Forms.DockStyle.Top;
-            this.lblTituloGeneral.Font = new System.Drawing.Font("Segoe UI", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblTituloGeneral.Location = new System.Drawing.Point(0, 0);
-            this.lblTituloGeneral.Name = "lblTituloGeneral";
-            this.lblTituloGeneral.Size = new System.Drawing.Size(488, 45);
-            this.lblTituloGeneral.TabIndex = 0;
-            this.lblTituloGeneral.Text = "GENERAL";
-            this.lblTituloGeneral.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
+            lblTituloGeneral.Dock = DockStyle.Top;
+            lblTituloGeneral.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            lblTituloGeneral.Location = new Point(0, 0);
+            lblTituloGeneral.Name = "lblTituloGeneral";
+            lblTituloGeneral.Size = new Size(488, 45);
+            lblTituloGeneral.TabIndex = 0;
+            lblTituloGeneral.Text = "GENERAL";
+            lblTituloGeneral.TextAlign = ContentAlignment.MiddleCenter;
+            // 
             // pnlEmergencias
-            //
-            this.pnlEmergencias.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left))));
-            this.pnlEmergencias.BackColor = System.Drawing.Color.White;
-            this.pnlEmergencias.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pnlEmergencias.Controls.Add(this.dgvEmergencias);
-            this.pnlEmergencias.Controls.Add(this.lblTituloEmergencias);
-            this.pnlEmergencias.Location = new System.Drawing.Point(15, 15);
-            this.pnlEmergencias.Name = "pnlEmergencias";
-            this.pnlEmergencias.Size = new System.Drawing.Size(490, 498);
-            this.pnlEmergencias.TabIndex = 0;
-            //
+            // 
+            pnlEmergencias.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
+            pnlEmergencias.BackColor = Color.White;
+            pnlEmergencias.BorderStyle = BorderStyle.FixedSingle;
+            pnlEmergencias.Controls.Add(dgvEmergencias);
+            pnlEmergencias.Controls.Add(lblTituloEmergencias);
+            pnlEmergencias.Location = new Point(15, 15);
+            pnlEmergencias.Name = "pnlEmergencias";
+            pnlEmergencias.Size = new Size(490, 498);
+            pnlEmergencias.TabIndex = 0;
+            // 
             // dgvEmergencias
-            //
-            this.dgvEmergencias.AllowUserToAddRows = false;
-            this.dgvEmergencias.AllowUserToDeleteRows = false;
-            this.dgvEmergencias.AllowUserToResizeColumns = false;
-            this.dgvEmergencias.AllowUserToResizeRows = false;
-            this.dgvEmergencias.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
-            this.dgvEmergencias.BackgroundColor = System.Drawing.Color.White;
-            this.dgvEmergencias.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.dgvEmergencias.ColumnHeadersBorderStyle = System.Windows.Forms.DataGridViewHeaderBorderStyle.Single;
-            dataGridViewCellStyle3.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle3.BackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle3.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            dataGridViewCellStyle3.ForeColor = System.Drawing.Color.Black;
-            this.dgvEmergencias.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle3;
-            this.dgvEmergencias.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            this.dgvEmergencias.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.colTurnoEmer,
-            this.colPrioridadEmer,
-            this.colHoraEmer,
-            this.colEstadoEmer,
-            this.colSalaEmer});
-            dataGridViewCellStyle4.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle4.BackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle4.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-            dataGridViewCellStyle4.ForeColor = System.Drawing.Color.Black;
-            dataGridViewCellStyle4.SelectionBackColor = System.Drawing.Color.White;
-            dataGridViewCellStyle4.SelectionForeColor = System.Drawing.Color.Black;
-            this.dgvEmergencias.DefaultCellStyle = dataGridViewCellStyle4;
-            this.dgvEmergencias.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.dgvEmergencias.EnableHeadersVisualStyles = false;
-            this.dgvEmergencias.GridColor = System.Drawing.Color.FromArgb(((int)(((byte)(225)))), ((int)(((byte)(225)))), ((int)(((byte)(225)))));
-            this.dgvEmergencias.Location = new System.Drawing.Point(0, 45);
-            this.dgvEmergencias.MultiSelect = false;
-            this.dgvEmergencias.Name = "dgvEmergencias";
-            this.dgvEmergencias.ReadOnly = true;
-            this.dgvEmergencias.RowHeadersVisible = false;
-            this.dgvEmergencias.RowHeadersWidthSizeMode = System.Windows.Forms.DataGridViewRowHeadersWidthSizeMode.DisableResizing;
-            this.dgvEmergencias.RowTemplate.Height = 32;
-            this.dgvEmergencias.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvEmergencias.Size = new System.Drawing.Size(488, 451);
-            this.dgvEmergencias.TabIndex = 1;
-            //
+            // 
+            dgvEmergencias.AllowUserToAddRows = false;
+            dgvEmergencias.AllowUserToDeleteRows = false;
+            dgvEmergencias.AllowUserToResizeColumns = false;
+            dgvEmergencias.AllowUserToResizeRows = false;
+            dgvEmergencias.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvEmergencias.BackgroundColor = Color.White;
+            dgvEmergencias.BorderStyle = BorderStyle.None;
+            dgvEmergencias.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+            dataGridViewCellStyle3.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle3.BackColor = Color.White;
+            dataGridViewCellStyle3.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            dataGridViewCellStyle3.ForeColor = Color.Black;
+            dgvEmergencias.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle3;
+            dgvEmergencias.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvEmergencias.Columns.AddRange(new DataGridViewColumn[] { colTurnoEmer, colPrioridadEmer, colHoraEmer, colEstadoEmer, colSalaEmer });
+            dataGridViewCellStyle4.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle4.BackColor = Color.White;
+            dataGridViewCellStyle4.Font = new Font("Segoe UI", 9.75F);
+            dataGridViewCellStyle4.ForeColor = Color.Black;
+            dataGridViewCellStyle4.SelectionBackColor = Color.White;
+            dataGridViewCellStyle4.SelectionForeColor = Color.Black;
+            dataGridViewCellStyle4.WrapMode = DataGridViewTriState.False;
+            dgvEmergencias.DefaultCellStyle = dataGridViewCellStyle4;
+            dgvEmergencias.Dock = DockStyle.Fill;
+            dgvEmergencias.EnableHeadersVisualStyles = false;
+            dgvEmergencias.GridColor = Color.FromArgb(225, 225, 225);
+            dgvEmergencias.Location = new Point(0, 45);
+            dgvEmergencias.MultiSelect = false;
+            dgvEmergencias.Name = "dgvEmergencias";
+            dgvEmergencias.ReadOnly = true;
+            dgvEmergencias.RowHeadersVisible = false;
+            dgvEmergencias.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
+            dgvEmergencias.RowTemplate.Height = 32;
+            dgvEmergencias.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvEmergencias.Size = new Size(488, 451);
+            dgvEmergencias.TabIndex = 1;
+            // 
             // colTurnoEmer
-            //
-            this.colTurnoEmer.HeaderText = "Turno";
-            this.colTurnoEmer.Name = "colTurnoEmer";
-            this.colTurnoEmer.ReadOnly = true;
-            //
+            // 
+            colTurnoEmer.HeaderText = "Turno";
+            colTurnoEmer.Name = "colTurnoEmer";
+            colTurnoEmer.ReadOnly = true;
+            // 
             // colPrioridadEmer
-            //
-            this.colPrioridadEmer.HeaderText = "Prioridad";
-            this.colPrioridadEmer.Name = "colPrioridadEmer";
-            this.colPrioridadEmer.ReadOnly = true;
-            //
+            // 
+            colPrioridadEmer.HeaderText = "Prioridad";
+            colPrioridadEmer.Name = "colPrioridadEmer";
+            colPrioridadEmer.ReadOnly = true;
+            // 
             // colHoraEmer
-            //
-            this.colHoraEmer.HeaderText = "Hora";
-            this.colHoraEmer.Name = "colHoraEmer";
-            this.colHoraEmer.ReadOnly = true;
-            //
+            // 
+            colHoraEmer.HeaderText = "Hora";
+            colHoraEmer.Name = "colHoraEmer";
+            colHoraEmer.ReadOnly = true;
+            // 
             // colEstadoEmer
-            //
-            this.colEstadoEmer.HeaderText = "Estado";
-            this.colEstadoEmer.Name = "colEstadoEmer";
-            this.colEstadoEmer.ReadOnly = true;
-            //
+            // 
+            colEstadoEmer.HeaderText = "Estado";
+            colEstadoEmer.Name = "colEstadoEmer";
+            colEstadoEmer.ReadOnly = true;
+            // 
             // colSalaEmer
-            //
-            this.colSalaEmer.HeaderText = "Sala";
-            this.colSalaEmer.Name = "colSalaEmer";
-            this.colSalaEmer.ReadOnly = true;
-            //
+            // 
+            colSalaEmer.HeaderText = "Sala";
+            colSalaEmer.Name = "colSalaEmer";
+            colSalaEmer.ReadOnly = true;
+            // 
             // lblTituloEmergencias
-            //
-            this.lblTituloEmergencias.Dock = System.Windows.Forms.DockStyle.Top;
-            this.lblTituloEmergencias.Font = new System.Drawing.Font("Segoe UI", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblTituloEmergencias.Location = new System.Drawing.Point(0, 0);
-            this.lblTituloEmergencias.Name = "lblTituloEmergencias";
-            this.lblTituloEmergencias.Size = new System.Drawing.Size(488, 45);
-            this.lblTituloEmergencias.TabIndex = 0;
-            this.lblTituloEmergencias.Text = "EMERGENCIAS";
-            this.lblTituloEmergencias.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
+            lblTituloEmergencias.Dock = DockStyle.Top;
+            lblTituloEmergencias.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            lblTituloEmergencias.Location = new Point(0, 0);
+            lblTituloEmergencias.Name = "lblTituloEmergencias";
+            lblTituloEmergencias.Size = new Size(488, 45);
+            lblTituloEmergencias.TabIndex = 0;
+            lblTituloEmergencias.Text = "EMERGENCIAS";
+            lblTituloEmergencias.TextAlign = ContentAlignment.MiddleCenter;
+            // 
             // timerReloj
-            //
-            this.timerReloj.Enabled = true;
-            this.timerReloj.Interval = 1000;
-            this.timerReloj.Tick += new System.EventHandler(this.timerReloj_Tick);
-            //
+            // 
+            timerReloj.Enabled = true;
+            timerReloj.Interval = 1000;
+            timerReloj.Tick += timerReloj_Tick;
+            // 
             // FrmUsuarioVentana
-            //
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(1024, 620);
-            this.Controls.Add(this.pnlContenido);
-            this.Controls.Add(this.pnlFooter);
-            this.Controls.Add(this.pnlHeader);
-            this.MinimumSize = new System.Drawing.Size(800, 500);
-            this.Name = "FrmUsuarioVentana";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Visualizador de Turnos - Pacientes";
-            this.pnlHeader.ResumeLayout(false);
-            this.pnlFooter.ResumeLayout(false);
-            this.pnlContenido.ResumeLayout(false);
-            this.pnlGeneral.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.dgvGeneral)).EndInit();
-            this.pnlEmergencias.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.dgvEmergencias)).EndInit();
-            this.ResumeLayout(false);
+            // 
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Color.White;
+            ClientSize = new Size(1024, 620);
+            Controls.Add(pnlContenido);
+            Controls.Add(pnlFooter);
+            Controls.Add(pnlHeader);
+            MinimumSize = new Size(800, 500);
+            Name = "FrmUsuarioVentana";
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "Visualizador de Turnos - Pacientes";
+            pnlHeader.ResumeLayout(false);
+            pnlFooter.ResumeLayout(false);
+            pnlContenido.ResumeLayout(false);
+            pnlGeneral.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvGeneral).EndInit();
+            pnlEmergencias.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvEmergencias).EndInit();
+            ResumeLayout(false);
 
         }
 

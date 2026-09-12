@@ -115,7 +115,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // panelContenedor
             // 
-            panelContenedor.BackgroundImage = Properties.Resources.fondo_recepcionista;
+            panelContenedor.BackgroundImage = Properties.Resources.fondo_recepcionista1;
             panelContenedor.BackgroundImageLayout = ImageLayout.Stretch;
             panelContenedor.Dock = DockStyle.Fill;
             panelContenedor.Location = new Point(161, 0);

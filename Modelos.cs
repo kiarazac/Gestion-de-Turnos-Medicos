@@ -214,9 +214,9 @@ namespace Gestion_de_Turnos_Medicos
         public string NombreSala { get; set; }
         public string EstadoSala { get; set; }
 
-        public ICollection<Turno> Turnos { get; set; }
-
-        public ICollection<DetalleSala> DetallesSala { get; set; }
+        // Inicializar las listas previene errores en tiempo de ejecución al consultar salas vacías
+        public ICollection<Turno> Turnos { get; set; } = new List<Turno>();
+        public ICollection<DetalleSala> DetallesSala { get; set; } = new List<DetalleSala>();
     }
 
     public class DetalleSala : EntidadAuditable

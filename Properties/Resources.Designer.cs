@@ -113,6 +113,16 @@ namespace Gestion_de_Turnos_Medicos.Properties {
         /// <summary>
         ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap fondo_recepcionista1 {
+            get {
+                object obj = ResourceManager.GetObject("fondo_recepcionista1", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Busca un recurso adaptado de tipo System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap lista_turnos {
             get {
                 object obj = ResourceManager.GetObject("lista_turnos", resourceCulture);

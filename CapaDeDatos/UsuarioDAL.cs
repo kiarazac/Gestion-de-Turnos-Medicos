@@ -1,10 +1,11 @@
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using ResultadosSQL;
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System.Linq;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
+using System.Text;
 
 namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 {
@@ -60,11 +61,15 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pMatricula = new SqlParameter("@NroMatricula", (object)nroMatricula ?? DBNull.Value);
                 var pIdRol = new SqlParameter("@IdRol", idRol);
 
-                return context.Database
-                    .SqlQueryRaw<int>("EXEC sp_InsertarUsuario @Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol",
+                // Ahora mapeamos el resultado contra el DTO que tiene el nombre de columna correcto
+                var resultado = context.Database
+                    .SqlQueryRaw<NuevoUsuarioIdDTO>("EXEC sp_InsertarUsuario @Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol",
                         pNombre, pApellido, pCorreo, pContrasena, pDni, pTelefono, pMatricula, pIdRol)
                     .AsEnumerable()
                     .FirstOrDefault();
+
+                // Extraemos el ID real generado, o devolvemos 0 si algo falló
+                return resultado != null ? resultado.IdNuevoUsuario : 0;
             }
         }
 

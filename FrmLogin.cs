@@ -76,23 +76,23 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Instancia y muestra el Form principal correspondiente según el rol del usuario autenticado.
-        /// Evalúa tanto NombreRol como IdRol para compatibilidad total con la base de datos.
+        /// Evalúa tanto NombreRol como IdRol asegurando compatibilidad con la base de datos (1=Médico, 2=Recep, 3=Admin, 4=Ventana).
         /// </summary>
         private void AbrirFormularioSegunRol(UsuarioLoginResult usuario)
         {
             Form formularioDestino = null;
             string rolNombre = usuario.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
 
-            // Enrutamiento seguro: se prioriza la descripción del rol (NombreRol) y se contempla IdRol como respaldo
-            if (rolNombre.Contains("admin") || usuario.IdRol == 1 || usuario.IdRol == 3 && rolNombre.Contains("admin"))
+            // Enrutamiento seguro corrigiendo los IDs según la tabla Roles de la BD actual
+            if (rolNombre.Contains("admin") || usuario.IdRol == 3)
             {
                 formularioDestino = new FrmAdmin(usuario);
             }
-            else if (rolNombre.Contains("médic") || rolNombre.Contains("medic") || usuario.IdRol == 2)
+            else if (rolNombre.Contains("médic") || rolNombre.Contains("medic") || usuario.IdRol == 1)
             {
                 formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO(usuario);
             }
-            else if (rolNombre.Contains("recep") || usuario.IdRol == 3)
+            else if (rolNombre.Contains("recep") || usuario.IdRol == 2)
             {
                 formularioDestino = new FrmRecepcionista(usuario);
             }
@@ -102,17 +102,17 @@ namespace Gestion_de_Turnos_Medicos
             }
             else
             {
-                // Respaldo por ID si la descripción viene vacía
+                // Respaldo por ID reordenado para evitar cruce de pantallas
                 switch (usuario.IdRol)
                 {
                     case 1:
-                        formularioDestino = new FrmAdmin(usuario);
-                        break;
-                    case 2:
                         formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO(usuario);
                         break;
-                    case 3:
+                    case 2:
                         formularioDestino = new FrmRecepcionista(usuario);
+                        break;
+                    case 3:
+                        formularioDestino = new FrmAdmin(usuario);
                         break;
                     case 4:
                         formularioDestino = new FrmUsuarioVentana(usuario);
