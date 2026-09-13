@@ -59,13 +59,14 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pNombreSala = new SqlParameter("@NombreSala", nombreSala);
                 var pEstadoSala = new SqlParameter("@EstadoSala", estadoSala);
 
-                return context.Database
-                    .SqlQueryRaw<int>("EXEC sp_InsertarSala @NombreSala, @EstadoSala", pNombreSala, pEstadoSala)
+                var resultado = context.Database
+                    .SqlQueryRaw<NuevaSalaIdDTO>("EXEC sp_InsertarSala @NombreSala, @EstadoSala", pNombreSala, pEstadoSala)
                     .AsEnumerable()
                     .FirstOrDefault();
+
+                return resultado != null ? resultado.IdNuevaSala : 0;
             }
         }
-
         public void EliminarSala(int idSala)
         {
             using (var context = new dbTurnosMedicos())

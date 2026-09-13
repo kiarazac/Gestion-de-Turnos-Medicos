@@ -89,44 +89,30 @@ namespace Gestion_de_Turnos_Medicos
             string dni = txtDNI.Text.Trim();
             string obraSocial = txtObraSocial.Text.Trim();
 
-            // Identificar síntoma principal y secundarios
+            // 1. Extraemos directamente una lista única con todos los IDs de síntomas seleccionados
             var seleccionados = ObtenerSintomasSeleccionados();
-            int idSintomaPrincipal = seleccionados.Count > 0 ? seleccionados[0].IdSintoma : 1;
-            string estadoClinico = "Ingreso por guardia";
-
-            List<int> sintomasSecundarios = new List<int>();
-            for (int i = 1; i < seleccionados.Count; i++)
+            List<int> idsSintomas = new List<int>();
+            foreach (var item in seleccionados)
             {
-                sintomasSecundarios.Add(seleccionados[i].IdSintoma);
+                idsSintomas.Add(item.IdSintoma);
             }
 
             try
             {
-                // 1. Registrar / recuperar paciente en Capa BLL (sp_GuardarPaciente / sp_InsertarPaciente)
+                // 2. Registramos o recuperamos al paciente
                 int idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
 
-                // 2. Generar ticket correlativo provisto desde UI
-                string nroTicket = $"E-{new Random().Next(100, 999)}";
+                // 3. Recibimos el número de orden real devuelto por la BLL
+                string nroOrdenFinal = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas);
 
-                // 3. Registrar turno de urgencia en Capa BLL (sp_RegistrarTurnoEmergencia y sp_RegistrarTurnoSintoma)
-                var resultadoTurno = _turnoBLL.RegistrarTurnoEmergencia(
-                    nroTicket,
-                    idPaciente,
-                    idSintomaPrincipal,
-                    estadoClinico,
-                    sintomasSecundarios
-                );
-
-                string nroOrdenFinal = resultadoTurno.NroOrden ?? nroTicket;
                 string prioridad = CalcularPrioridadTexto();
 
-                // 4. Actualizar interfaz gráfica
+                // 4. Actualizamos la interfaz gráfica con el código real (ej: E-008)
                 MostrarTurnoGenerado(nroOrdenFinal, prioridad);
 
                 MessageBox.Show(
                     $"¡Turno de urgencia generado con éxito!\n\n" +
                     $"Paciente: {apellido}, {nombre}\n" +
-                    $"N° de Orden: {nroOrdenFinal}\n" +
                     $"Prioridad Triage: {prioridad}",
                     "Turno Generado",
                     MessageBoxButtons.OK,
@@ -235,7 +221,7 @@ namespace Gestion_de_Turnos_Medicos
         private void MostrarTurnoGenerado(string nroOrden, string prioridad)
         {
             Lid_turno.Text = $"# {nroOrden}";
-            Ldescrip_turno_especialidad.Text = $"Guardia ({prioridad})";
+            Ldescrip_turno_especialidad.Text = $"Prioridad ({prioridad})";
 
             switch (prioridad)
             {

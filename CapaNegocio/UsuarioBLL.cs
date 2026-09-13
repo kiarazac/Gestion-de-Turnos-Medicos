@@ -80,6 +80,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             {
                 foreach (int idSala in salasIds)
                 {
+                    // Verificar que el orden de envío coincida con la firma del método en la DAL
                     _usuarioDAL.AsignarSalaMedico(idSala, nuevoUsuarioId, notaSala);
                 }
             }

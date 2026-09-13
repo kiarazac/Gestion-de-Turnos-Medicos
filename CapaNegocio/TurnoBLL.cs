@@ -14,40 +14,36 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return _turnoDAL.ObtenerSintomas();
         }
 
-        // Registra un turno de urgencia y devuelve el DTO con el Id y NroOrden generado
-        public ResultadoTurnoDTO RegistrarTurnoEmergencia(string nroOrden, int idPaciente, int idSintomaPrincipal, string estadoActual, List<int>? sintomasSecundarios = null)
+     
+
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas)
         {
-            if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nroOrden))
-                throw new ArgumentException("Datos del paciente o número de orden inválidos.");
-
-            if (idSintomaPrincipal <= 0)
-                throw new ArgumentException("Debe registrar al menos un síntoma principal.");
-
-            var resultado = _turnoDAL.RegistrarTurnoEmergencia(nroOrden, idPaciente, idSintomaPrincipal, estadoActual);
-
-            if (sintomasSecundarios != null && sintomasSecundarios.Count > 0 && resultado.IdNuevoTurno > 0)
-            {
-                foreach (int idSintomaSec in sintomasSecundarios)
-                {
-                    _turnoDAL.RegistrarTurnoSintoma(resultado.IdNuevoTurno, idSintomaSec, estadoActual);
-                }
-            }
-
-            return resultado;
-        }
-
-        // Adaptado para enviar el NroOrden y separar el síntoma principal del resto[cite: 3].
-        public void CrearTurnoEmergenciaConSintomas(string nroOrden, int idPaciente, List<int> idsSintomas, string estadoActual)
-        {
-            if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nroOrden))
-                throw new ArgumentException("Datos del paciente o número de orden inválidos.");
+            if (idPaciente <= 0)
+                throw new ArgumentException("El ID del paciente es inválido.");
 
             if (idsSintomas == null || idsSintomas.Count == 0)
-                throw new ArgumentException("Debe registrar al menos un síntoma para que el sistema determine la prioridad.");
+                throw new ArgumentException("Debe registrar al menos un síntoma para determinar la prioridad del turno.");
 
-            int sintomaPrincipal = idsSintomas[0];
-            var sintomasSecundarios = idsSintomas.GetRange(1, idsSintomas.Count - 1);
-            RegistrarTurnoEmergencia(nroOrden, idPaciente, sintomaPrincipal, estadoActual, sintomasSecundarios);
+            // 1. Inicializamos con la menor urgencia posible (Ej: 3 = Verde/Baja)
+            int prioridadDeterminada = 3;
+            foreach (int idSintoma in idsSintomas)
+            {
+                int gravedadSintoma = _turnoDAL.ObtenerGravedadDeSintoma(idSintoma);
+                if (gravedadSintoma < prioridadDeterminada) prioridadDeterminada = gravedadSintoma;
+            }
+
+            // Obtenemos el DTO con el ID y el NroOrden (ej: E-008)
+            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada);
+
+            if (resultadoTurno.IdNuevoTurno <= 0)
+                throw new Exception("Error al generar el turno.");
+
+            foreach (int idSintoma in idsSintomas)
+            {
+                _turnoDAL.GuardarTurnoSintoma(resultadoTurno.IdNuevoTurno, idSintoma);
+            }
+
+            return resultadoTurno.NroOrden; // Devolvemos el texto real a la UI
         }
 
         // Actualizado para usar la información descriptiva en lugar del IdSala[cite: 3].
@@ -76,13 +72,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("No se pueden registrar turnos en fechas pasadas.");
 
             return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado);
-        }
-
-        public void CrearTurnoProgramado(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario)
-        {
-            CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, "En Espera");
-        }
-        
+        }  
         public List<TurnoEmergenciaDTO> ListarTurnosEmergencia()
         {
             return _turnoDAL.ListarTurnosEmergencia();
@@ -111,11 +101,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return _turnoDAL.ListarTurnosAtencion();
         }
 
-        public List<TurnoAtencionDTO> ObtenerTurnosAtencion()
-        {
-            return ListarTurnosAtencion();
-        }
-
+  
         public void IniciarAtencionTurno(int idTurno)
         {
             if (idTurno <= 0)

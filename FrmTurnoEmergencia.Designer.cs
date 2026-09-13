@@ -34,6 +34,8 @@
             LNuevoPaciente = new Label();
             LNuevoPaciente2 = new Label();
             panel2 = new Panel();
+            txtObraSocial = new TextBox();
+            LObraSocial = new Label();
             Condicionales = new GroupBox();
             button1 = new Button();
             checkBox1 = new CheckBox();
@@ -49,8 +51,6 @@
             label2 = new Label();
             txtNombre = new TextBox();
             label1 = new Label();
-            txtObraSocial = new TextBox();
-            LObraSocial = new Label();
             LdescripTurno = new Label();
             panel3 = new Panel();
             Ldescrip_turno_especialidad = new Label();
@@ -118,6 +118,24 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(740, 494);
             panel2.TabIndex = 7;
+            // 
+            // txtObraSocial
+            // 
+            txtObraSocial.Location = new Point(373, 110);
+            txtObraSocial.Name = "txtObraSocial";
+            txtObraSocial.Size = new Size(326, 23);
+            txtObraSocial.TabIndex = 12;
+            // 
+            // LObraSocial
+            // 
+            LObraSocial.AutoSize = true;
+            LObraSocial.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            LObraSocial.ForeColor = SystemColors.InactiveCaptionText;
+            LObraSocial.Location = new Point(373, 76);
+            LObraSocial.Name = "LObraSocial";
+            LObraSocial.Size = new Size(97, 21);
+            LObraSocial.TabIndex = 11;
+            LObraSocial.Text = "Obra Social";
             // 
             // Condicionales
             // 
@@ -281,24 +299,6 @@
             label1.TabIndex = 3;
             label1.Text = "Nombre";
             // 
-            // txtObraSocial
-            // 
-            txtObraSocial.Location = new Point(373, 110);
-            txtObraSocial.Name = "txtObraSocial";
-            txtObraSocial.Size = new Size(326, 23);
-            txtObraSocial.TabIndex = 12;
-            // 
-            // LObraSocial
-            // 
-            LObraSocial.AutoSize = true;
-            LObraSocial.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            LObraSocial.ForeColor = SystemColors.InactiveCaptionText;
-            LObraSocial.Location = new Point(373, 76);
-            LObraSocial.Name = "LObraSocial";
-            LObraSocial.Size = new Size(97, 21);
-            LObraSocial.TabIndex = 11;
-            LObraSocial.Text = "Obra Social";
-            // 
             // LdescripTurno
             // 
             LdescripTurno.AutoSize = true;
@@ -337,11 +337,11 @@
             Lid_turno.AutoSize = true;
             Lid_turno.Font = new Font("Segoe UI", 32F, FontStyle.Bold);
             Lid_turno.ForeColor = SystemColors.ControlText;
-            Lid_turno.Location = new Point(137, 56);
+            Lid_turno.Location = new Point(74, 58);
             Lid_turno.Name = "Lid_turno";
-            Lid_turno.Size = new Size(96, 59);
+            Lid_turno.Size = new Size(198, 59);
             Lid_turno.TabIndex = 18;
-            Lid_turno.Text = "# --";
+            Lid_turno.Text = "# --------";
             // 
             // FrmTurnoEmergencia
             // 

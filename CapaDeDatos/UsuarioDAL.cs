@@ -84,18 +84,19 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        public void AsignarSalaMedico(int idUsuario, int idSala, string? notaSala = null)
+        public void AsignarSalaMedico(int idSala, int idUsuario, string descripcionAtencion)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
-                var pDesc = new SqlParameter("@DescripcionAtencion", (object?)notaSala ?? DBNull.Value);
+                var pDesc = new SqlParameter("@DescripcionAtencion", (object)descripcionAtencion ?? DBNull.Value);
 
-                context.Database.ExecuteSqlRaw("EXEC sp_AsignarSalaMedico @IdSala, @IdUsuario, @DescripcionAtencion", pIdSala, pIdUsuario, pDesc);
+                // El orden de las variables al final (pIdSala, pIdUsuario) debe ser idéntico al de los @parámetros en el texto
+                context.Database.ExecuteSqlRaw("EXEC sp_AsignarSalaMedico @IdSala, @IdUsuario, @DescripcionAtencion",
+                    pIdSala, pIdUsuario, pDesc);
             }
         }
-
         public List<UsuarioListadoDTO> ListarUsuarios()
         {
             using (var context = new dbTurnosMedicos())

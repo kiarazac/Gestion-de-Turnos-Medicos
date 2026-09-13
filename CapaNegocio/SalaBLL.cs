@@ -39,24 +39,27 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             _salaDAL.CerrarSala(idSala);
         }
 
-        public void RegistrarSala(string nombreSala, string estadoSala, List<int>? idsMedicos = null)
+        public void RegistrarSala(string nombreSala, string estadoSala, List<int> idsMedicosSeleccionados)
         {
             if (string.IsNullOrWhiteSpace(nombreSala))
                 throw new ArgumentException("El nombre de la sala es obligatorio.");
 
             if (string.IsNullOrWhiteSpace(estadoSala))
-                estadoSala = "Cerrada"; // Estado por defecto
+                throw new ArgumentException("El estado de la sala es obligatorio.");
 
-            int idSala = _salaDAL.InsertarSala(nombreSala.Trim(), estadoSala);
-            if (idsMedicos != null && idSala > 0)
+            // 1. Guarda la sala y atrapa el ID real usando el nuevo DTO
+            int nuevaSalaId = _salaDAL.InsertarSala(nombreSala, estadoSala);
+
+            // 2. Si se marcaron médicos en el formulario, los asigna uno por uno
+            if (idsMedicosSeleccionados != null && idsMedicosSeleccionados.Count > 0)
             {
-                foreach (var idMed in idsMedicos)
+                foreach (int idUsuario in idsMedicosSeleccionados)
                 {
-                    _salaDAL.AsignarSalaMedico(idSala, idMed);
+                    // El orden clave: 1° ID de Sala, 2° ID de Usuario
+                    _salaDAL.AsignarSalaMedico(nuevaSalaId, idUsuario, string.Empty);
                 }
             }
         }
-
         public void RegistrarSala(string nombreSala, string estadoSala)
         {
             RegistrarSala(nombreSala, estadoSala, null);

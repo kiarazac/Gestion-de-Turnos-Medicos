@@ -190,7 +190,7 @@ namespace Gestion_de_Turnos_Medicos
             try
             {
                 // BLL delega en TurnoDAL -> sp_ListarTurnosAtencion
-                var turnosAtencion = _turnoBLL.ObtenerTurnosAtencion();
+                var turnosAtencion = _turnoBLL.ListarTurnosAtencion();
 
                 if (turnosAtencion != null)
                 {
