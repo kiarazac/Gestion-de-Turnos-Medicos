@@ -23,6 +23,9 @@ namespace Gestion_de_Turnos_Medicos
             public override string ToString() => Texto;
         }
 
+        // Variable para almacenar el ID del usuario seleccionado actualmente para modificar (0 si no hay selección)
+        private int _idUsuarioSeleccionado = 0;
+
         public FrmGestionUsuarios()
         {
             InitializeComponent();
@@ -51,16 +54,21 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvPersonal.MultiSelect = false;
 
+            // 1. Columnas no editables directamente por texto libre (claves primarias o relaciones foráneas complejas):
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "IdUsuario", HeaderText = "ID", ReadOnly = true, Width = 60 });
+
+            // 2. Columnas editables directamente en la celda (inline editing con CellEndEdit):
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nombre", HeaderText = "Nombre", Width = 100 });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Apellido", HeaderText = "Apellido", Width = 100 });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Correo", HeaderText = "Correo", Width = 150 });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Dni", HeaderText = "DNI", Width = 90 });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Telefono", HeaderText = "Teléfono", Width = 100 });
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Rol", HeaderText = "Rol", Width = 120 });
+
+            // 3. Columnas relacionales protegidas (se modifican seleccionando la fila y usando los selectores del formulario):
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Rol", HeaderText = "Rol", ReadOnly = true, Width = 120 });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "NroMatricula", HeaderText = "Matrícula", Width = 90 });
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Especialidades", HeaderText = "Especialidades", Width = 150 });
-            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Salas", HeaderText = "Salas", Width = 120 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Especialidades", HeaderText = "Especialidades", ReadOnly = true, Width = 150 });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Salas", HeaderText = "Salas", ReadOnly = true, Width = 120 });
         }
 
         // ---------------------------------------------------------------
@@ -315,6 +323,7 @@ namespace Gestion_de_Turnos_Medicos
                     "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 CargarUsuariosDesdeBD();
+                LimpiarCampos();
             }
             catch (Exception ex)
             {
@@ -323,16 +332,201 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private bool ValidarCampos()
+        /// <summary>
+        /// Evento disparado al hacer clic en el botón 'Modificar'.
+        /// Lee los valores corregidos en las cajas de texto y combos, valida los datos y los envía a la Capa de Negocio (BLL).
+        /// </summary>
+        private void btnModificar_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtNombre.Text) ||
-                string.IsNullOrWhiteSpace(txtApellido.Text) ||
-                string.IsNullOrWhiteSpace(txtCorreo.Text) ||
-                string.IsNullOrWhiteSpace(txtContrasena.Text) ||
-                string.IsNullOrWhiteSpace(txtDNI.Text))
+            // 1. Verificamos que previamente se haya seleccionado una fila de la grilla
+            if (_idUsuarioSeleccionado <= 0)
             {
-                MessageBox.Show("Completá al menos Nombre, Apellido, Correo, Contraseña y DNI.",
-                    "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, hacé clic sobre el usuario que deseás modificar en la tabla inferior.",
+                    "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 2. Validamos los campos ingresados (indicando esModificacion: true para no exigir contraseña obligatoria)
+            if (!ValidarCampos(esModificacion: true))
+                return;
+
+            string nombre = txtNombre.Text.Trim();
+            string apellido = txtApellido.Text.Trim();
+            string correo = txtCorreo.Text.Trim();
+            string dni = txtDNI.Text.Trim();
+            string telefono = txtTelefono.Text.Trim();
+            var rolSeleccionado = (ItemConId)cmbRol.SelectedItem!;
+            bool esPersonalMedico = EsPersonalMedico();
+            string matricula = esPersonalMedico ? txtMatricula.Text.Trim() : string.Empty;
+
+            // 3. Confirmación del usuario antes de persistir los cambios
+            var confirmacion = MessageBox.Show($"¿Deseás guardar las modificaciones para el usuario '{nombre} {apellido}'?",
+                "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            try
+            {
+                // 4. Invocamos a la Capa BLL -> DAL -> sp_ModificarUsuario
+                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono, matricula, rolSeleccionado.Id);
+
+                MessageBox.Show($"El usuario '{nombre} {apellido}' fue modificado correctamente.",
+                    "Usuario Modificado", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // 5. Recargamos la grilla y limpiamos los campos
+                CargarUsuariosDesdeBD();
+                LimpiarCampos();
+            }
+            catch (ArgumentException argEx)
+            {
+                MessageBox.Show(argEx.Message, "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al modificar el usuario:\n" + ex.Message,
+                    "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Evento disparado al hacer clic en el botón 'Limpiar'.
+        /// Deselecciona cualquier usuario activo y restablece el formulario al modo de alta.
+        /// </summary>
+        private void btnLimpiar_Click(object? sender, EventArgs e)
+        {
+            LimpiarCampos();
+        }
+
+        /// <summary>
+        /// Evento disparado al hacer clic en una fila del DataGridView.
+        /// Vuelca la información del usuario seleccionado en los campos del formulario para facilitar su edición.
+        /// </summary>
+        private void dgvPersonal_CellClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            // Validamos que el índice sea una fila de datos y no el encabezado
+            if (e.RowIndex < 0 || e.RowIndex >= dgvPersonal.Rows.Count)
+                return;
+
+            DataGridViewRow fila = dgvPersonal.Rows[e.RowIndex];
+            if (fila.Cells["IdUsuario"].Value == null || !int.TryParse(fila.Cells["IdUsuario"].Value?.ToString(), out int idUsuario))
+                return;
+
+            // Guardamos el ID del usuario seleccionado
+            _idUsuarioSeleccionado = idUsuario;
+
+            // Poblamos los campos de texto
+            txtNombre.Text = fila.Cells["Nombre"].Value?.ToString() ?? string.Empty;
+            txtApellido.Text = fila.Cells["Apellido"].Value?.ToString() ?? string.Empty;
+            txtCorreo.Text = fila.Cells["Correo"].Value?.ToString() ?? string.Empty;
+            txtDNI.Text = fila.Cells["Dni"].Value?.ToString() ?? string.Empty;
+            txtTelefono.Text = fila.Cells["Telefono"].Value?.ToString() ?? string.Empty;
+
+            // La contraseña no se muestra por seguridad; se deja limpia a menos que el usuario desee cambiarla
+            txtContrasena.Clear();
+
+            // Sincronizamos el ComboBox de roles según el texto del rol del usuario
+            string rolNombre = fila.Cells["Rol"].Value?.ToString() ?? string.Empty;
+            for (int i = 0; i < cmbRol.Items.Count; i++)
+            {
+                if (cmbRol.Items[i] is ItemConId item && item.Texto.Equals(rolNombre, StringComparison.OrdinalIgnoreCase))
+                {
+                    cmbRol.SelectedIndex = i;
+                    break;
+                }
+            }
+
+            // Si es personal médico, cargamos la matrícula
+            txtMatricula.Text = fila.Cells["NroMatricula"].Value?.ToString() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Evento disparado al finalizar la edición de una celda directamente en la grilla (inline editing).
+        /// Valida el dato cambiado y lo persiste de inmediato en la base de datos a través de la Capa BLL.
+        /// </summary>
+        private void dgvPersonal_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
+        {
+            // Validamos que sea una fila válida
+            if (e.RowIndex < 0 || e.RowIndex >= dgvPersonal.Rows.Count)
+                return;
+
+            DataGridViewRow fila = dgvPersonal.Rows[e.RowIndex];
+            if (fila.Cells["IdUsuario"].Value == null || !int.TryParse(fila.Cells["IdUsuario"].Value?.ToString(), out int idUsuario))
+                return;
+
+            // Leemos los valores actuales de la fila editada
+            string nombre = fila.Cells["Nombre"].Value?.ToString()?.Trim() ?? string.Empty;
+            string apellido = fila.Cells["Apellido"].Value?.ToString()?.Trim() ?? string.Empty;
+            string correo = fila.Cells["Correo"].Value?.ToString()?.Trim() ?? string.Empty;
+            string dni = fila.Cells["Dni"].Value?.ToString()?.Trim() ?? string.Empty;
+            string telefono = fila.Cells["Telefono"].Value?.ToString()?.Trim() ?? string.Empty;
+            string matricula = fila.Cells["NroMatricula"].Value?.ToString()?.Trim() ?? string.Empty;
+
+            // Validaciones básicas de campos obligatorios
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido) ||
+                string.IsNullOrWhiteSpace(correo) || string.IsNullOrWhiteSpace(dni))
+            {
+                MessageBox.Show("Los campos Nombre, Apellido, Correo y DNI no pueden quedar vacíos.",
+                    "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarUsuariosDesdeBD(); // Revertimos la grilla a su estado anterior
+                return;
+            }
+
+            // Validación de DNI (7 a 8 dígitos)
+            if (!Regex.IsMatch(dni, @"^\d{7,8}$"))
+            {
+                MessageBox.Show("El DNI debe tener entre 7 y 8 números sin puntos.",
+                    "DNI Inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarUsuariosDesdeBD();
+                return;
+            }
+
+            // Validación de formato de correo
+            if (!Regex.IsMatch(correo, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            {
+                MessageBox.Show("El correo no tiene un formato válido.",
+                    "Correo Inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarUsuariosDesdeBD();
+                return;
+            }
+
+            try
+            {
+                // Persistimos los cambios a través de la Capa BLL (idRol = null conserva el rol actual en SQL)
+                _usuarioBLL.ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, null);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al guardar la edición de la celda:\n" + ex.Message,
+                    "Error al Guardar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                CargarUsuariosDesdeBD(); // Revertimos ante cualquier excepción
+            }
+        }
+
+        /// <summary>
+        /// Valida los campos obligatorios del formulario y sus formatos requeridos.
+        /// </summary>
+        /// <param name="esModificacion">Indica si se trata de una modificación (en cuyo caso la contraseña no es obligatoria).</param>
+        private bool ValidarCampos(bool esModificacion = false)
+        {
+            bool camposBasicosIncompletos = string.IsNullOrWhiteSpace(txtNombre.Text) ||
+                                            string.IsNullOrWhiteSpace(txtApellido.Text) ||
+                                            string.IsNullOrWhiteSpace(txtCorreo.Text) ||
+                                            string.IsNullOrWhiteSpace(txtDNI.Text);
+
+            // Al crear un nuevo usuario, la contraseña es estrictamente obligatoria
+            if (!esModificacion && string.IsNullOrWhiteSpace(txtContrasena.Text))
+            {
+                camposBasicosIncompletos = true;
+            }
+
+            if (camposBasicosIncompletos)
+            {
+                string mensaje = esModificacion
+                    ? "Completá al menos Nombre, Apellido, Correo y DNI."
+                    : "Completá al menos Nombre, Apellido, Correo, Contraseña y DNI.";
+
+                MessageBox.Show(mensaje, "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -360,7 +554,7 @@ namespace Gestion_de_Turnos_Medicos
                 return false;
             }
 
-            if (EsPersonalMedico() && clbEspecialidades.CheckedItems.Count == 0)
+            if (EsPersonalMedico() && clbEspecialidades.CheckedItems.Count == 0 && !esModificacion)
             {
                 MessageBox.Show("El personal médico debe tener al menos una especialidad seleccionada.",
                     "Falta un dato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -370,19 +564,32 @@ namespace Gestion_de_Turnos_Medicos
             return true;
         }
 
+        /// <summary>
+        /// Limpia los campos del formulario y deselecciona al usuario activo para permitir un nuevo registro.
+        /// </summary>
         private void LimpiarCampos()
         {
+            _idUsuarioSeleccionado = 0; // Deseleccionamos el usuario en modificación
+
             txtNombre.Clear();
             txtApellido.Clear();
             txtCorreo.Clear();
             txtContrasena.Clear();
             txtDNI.Clear();
             txtTelefono.Clear();
+            txtMatricula.Clear();
             txtNotaSala.Clear();
 
             if (cmbRol.Items.Count > 0)
                 cmbRol.SelectedIndex = 0;
 
+            for (int i = 0; i < clbEspecialidades.Items.Count; i++)
+                clbEspecialidades.SetItemChecked(i, false);
+
+            for (int i = 0; i < clbSala.Items.Count; i++)
+                clbSala.SetItemChecked(i, false);
+
+            dgvPersonal.ClearSelection();
             txtNombre.Focus();
         }
     }

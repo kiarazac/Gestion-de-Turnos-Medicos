@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmGestionUsuarios
     {
@@ -55,7 +55,9 @@
             lblTelefono = new Label();
             txtTelefono = new TextBox();
             btnGuardar = new Button();
+            btnModificar = new Button();
             btnEliminar = new Button();
+            btnLimpiar = new Button();
             dgvPersonal = new DataGridView();
             pnlDatos.SuspendLayout();
             pnlDatosMedicos.SuspendLayout();
@@ -83,7 +85,9 @@
             pnlDatos.Controls.Add(lblTelefono);
             pnlDatos.Controls.Add(txtTelefono);
             pnlDatos.Controls.Add(btnGuardar);
+            pnlDatos.Controls.Add(btnModificar);
             pnlDatos.Controls.Add(btnEliminar);
+            pnlDatos.Controls.Add(btnLimpiar);
             pnlDatos.Dock = DockStyle.Top;
             pnlDatos.Location = new Point(0, 0);
             pnlDatos.Name = "pnlDatos";
@@ -350,15 +354,35 @@
             btnGuardar.UseVisualStyleBackColor = true;
             btnGuardar.Click += btnGuardar_Click;
             // 
+            // btnModificar
+            // 
+            btnModificar.Location = new Point(789, 193);
+            btnModificar.Name = "btnModificar";
+            btnModificar.Size = new Size(95, 28);
+            btnModificar.TabIndex = 13;
+            btnModificar.Text = "Modificar";
+            btnModificar.UseVisualStyleBackColor = true;
+            btnModificar.Click += btnModificar_Click;
+            // 
             // btnEliminar
             // 
-            btnEliminar.Location = new Point(898, 193);
+            btnEliminar.Location = new Point(894, 193);
             btnEliminar.Name = "btnEliminar";
             btnEliminar.Size = new Size(90, 28);
-            btnEliminar.TabIndex = 13;
+            btnEliminar.TabIndex = 14;
             btnEliminar.Text = "Desactivar";
             btnEliminar.UseVisualStyleBackColor = true;
             btnEliminar.Click += btnEliminar_Click;
+            // 
+            // btnLimpiar
+            // 
+            btnLimpiar.Location = new Point(994, 193);
+            btnLimpiar.Name = "btnLimpiar";
+            btnLimpiar.Size = new Size(90, 28);
+            btnLimpiar.TabIndex = 15;
+            btnLimpiar.Text = "Limpiar";
+            btnLimpiar.UseVisualStyleBackColor = true;
+            btnLimpiar.Click += btnLimpiar_Click;
             // 
             // dgvPersonal
             // 
@@ -369,7 +393,9 @@
             dgvPersonal.Name = "dgvPersonal";
             dgvPersonal.RowHeadersWidth = 25;
             dgvPersonal.Size = new Size(1133, 165);
-            dgvPersonal.TabIndex = 14;
+            dgvPersonal.TabIndex = 16;
+            dgvPersonal.CellClick += dgvPersonal_CellClick;
+            dgvPersonal.CellEndEdit += dgvPersonal_CellEndEdit;
             // 
             // FrmGestionUsuarios
             // 
@@ -407,7 +433,9 @@
         private System.Windows.Forms.Label lblTelefono;
         private System.Windows.Forms.TextBox txtTelefono;
         private System.Windows.Forms.Button btnGuardar;
+        private System.Windows.Forms.Button btnModificar;
         private System.Windows.Forms.Button btnEliminar;
+        private System.Windows.Forms.Button btnLimpiar;
         private System.Windows.Forms.DataGridView dgvPersonal;
 
         // --- Rol y sección exclusiva de Personal Médico ---

@@ -84,5 +84,35 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 }
             }
         }
+
+        /// <summary>
+        /// Modifica los datos de un usuario existente aplicando validaciones de dominio y delegando la persistencia en UsuarioDAL.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario a modificar.</param>
+        /// <param name="nombre">Nombre actualizado del usuario.</param>
+        /// <param name="apellido">Apellido actualizado del usuario.</param>
+        /// <param name="correo">Correo electrónico actualizado del usuario.</param>
+        /// <param name="dni">DNI actualizado del usuario.</param>
+        /// <param name="telefono">Teléfono actualizado de contacto.</param>
+        /// <param name="matricula">Matrícula médica actualizada (aplica a personal médico).</param>
+        /// <param name="idRol">ID del rol asignado (opcional si es nulo o menor o igual a 0).</param>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol)
+        {
+            // 1. Validaciones de negocio fundamentales
+            if (idUsuario <= 0)
+                throw new ArgumentException("El ID de usuario proporcionado no es válido.");
+
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido))
+                throw new ArgumentException("El nombre y el apellido son campos obligatorios.");
+
+            if (string.IsNullOrWhiteSpace(correo))
+                throw new ArgumentException("El correo electrónico es un campo obligatorio.");
+
+            if (string.IsNullOrWhiteSpace(dni))
+                throw new ArgumentException("El DNI es un campo obligatorio.");
+
+            // 2. Si las reglas de validación se cumplen, delegamos la persistencia a la Capa de Datos
+            _usuarioDAL.ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol);
+        }
     }
 }
