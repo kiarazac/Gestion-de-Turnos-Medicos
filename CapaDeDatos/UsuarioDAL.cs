@@ -115,5 +115,46 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 context.Database.ExecuteSqlRaw("EXEC sp_EliminarUsuario @IdUsuario", pIdUsuario);
             }
         }
+
+        /// <summary>
+        /// Modifica los datos de un usuario existente en la base de datos a través de sp_ModificarUsuario.
+        /// Aplica parámetros parametrizados para proteger contra Inyección SQL y soporta fallback de compatibilidad.
+        /// </summary>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? nroMatricula, int? idRol)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                // 1. Preparación de parámetros con protección contra Inyección SQL
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                var pNombre = new SqlParameter("@Nombre", nombre);
+                var pApellido = new SqlParameter("@Apellido", apellido);
+                var pCorreo = new SqlParameter("@Correo", correo);
+                var pTelefono = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+                var pDni = new SqlParameter("@Dni", (object?)dni ?? DBNull.Value);
+                var pMatricula = new SqlParameter("@NroMatricula", (object?)nroMatricula ?? DBNull.Value);
+                var pIdRol = new SqlParameter("@IdRol", idRol.HasValue && idRol.Value > 0 ? (object)idRol.Value : DBNull.Value);
+
+                try
+                {
+                    // 2. Intentamos ejecutar la versión completa de sp_ModificarUsuario (con DNI, Matrícula y Rol)
+                    context.Database.ExecuteSqlRaw(
+                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol",
+                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol);
+                }
+                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Demasiados argumentos si el SP sólo tenía 5 parámetros
+                {
+                    // 3. Fallback de compatibilidad: Si la base de datos tiene la versión previa de 5 parámetros
+                    var pIdUsuarioOld = new SqlParameter("@IdUsuario", idUsuario);
+                    var pNombreOld = new SqlParameter("@Nombre", nombre);
+                    var pApellidoOld = new SqlParameter("@Apellido", apellido);
+                    var pCorreoOld = new SqlParameter("@Correo", correo);
+                    var pTelefonoOld = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+
+                    context.Database.ExecuteSqlRaw(
+                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono",
+                        pIdUsuarioOld, pNombreOld, pApellidoOld, pCorreoOld, pTelefonoOld);
+                }
+            }
+        }
     }
 }

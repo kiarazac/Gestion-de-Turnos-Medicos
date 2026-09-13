@@ -220,13 +220,13 @@ GO
 ---
 
 ### 1.6 `sp_ModificarUsuario`
-- **Descripción:** Actualiza los datos de filiación y contacto de un usuario existente.
+- **Descripción:** Actualiza los datos de filiación, contacto, identificación y rol de un usuario existente para corregir errores de carga.
 - **Entidad:** Usuario
 - **Operación:** Modificación
 - **Tablas:** `Usuarios`
-- **Forms que lo utilizan:** Ninguno actualmente (preparado para edición de perfil).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO`
+- **Forms que lo utilizan:** `FrmGestionUsuarios`
+- **Acción:** Botón `btnModificar` y edición directa de celda en DataGridView (`dgvPersonal_CellEndEdit`)
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -235,6 +235,9 @@ GO
   | `@Apellido` | `NVARCHAR(100)` | IN | Nuevo apellido. |
   | `@Correo` | `NVARCHAR(150)` | IN | Nuevo correo electrónico. |
   | `@Telefono` | `NVARCHAR(20)` | IN | Nuevo teléfono. |
+  | `@Dni` | `NVARCHAR(20)` | IN | Nuevo número de DNI (opcional, conserva anterior si es NULL). |
+  | `@NroMatricula` | `NVARCHAR(50)` | IN | Nueva matrícula médica (opcional). |
+  | `@IdRol` | `INT` | IN | Nuevo rol asignado (opcional, conserva anterior si es NULL). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarUsuario
@@ -242,7 +245,10 @@ CREATE OR ALTER PROCEDURE sp_ModificarUsuario
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Correo NVARCHAR(150),
-    @Telefono NVARCHAR(20)
+    @Telefono NVARCHAR(20),
+    @Dni NVARCHAR(20) = NULL,
+    @NroMatricula NVARCHAR(50) = NULL,
+    @IdRol INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -252,6 +258,9 @@ BEGIN
         Apellido = @Apellido,
         Correo = @Correo,
         Telefono = @Telefono,
+        Dni = ISNULL(@Dni, Dni),
+        NroMatricula = @NroMatricula,
+        IdRol = ISNULL(@IdRol, IdRol),
         FechaModificacion = GETDATE()
     WHERE IdUsuario = @IdUsuario;
 END;
@@ -1620,7 +1629,7 @@ GO
 | `sp_InsertarRol` | Rol | Alta | Ninguno | Script inicial de seeds | `NO UTILIZADO` |
 | `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios` | Cargar grilla de usuarios | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_InsertarUsuario` | Usuario | Alta | `FrmGestionUsuarios` | Botón `btnGuardar` | `EN USO` |
-| `sp_ModificarUsuario` | Usuario | Modificación | Ninguno | Preparado para edición de perfil | `NO UTILIZADO` |
+| `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios` | Botón `btnModificar` y celda DataGrid | `EN USO` |
 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios` | Botón `btnEliminar` | `EN USO` |
 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` | `EN USO` |
@@ -1670,6 +1679,7 @@ GO
 - `sp_ObtenerSalas` → Carga inicial del listado de consultorios asignables (`CargarSalasDesdeBD`).
 - `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios activos (`CargarUsuariosDesdeBD`).
 - `sp_InsertarUsuario` → Botón "Guardar" (`btnGuardar_Click`). Da de alta el usuario y devuelve su ID.
+- `sp_ModificarUsuario` → Botón "Modificar" (`btnModificar_Click`) y edición directa de celdas en el DataGrid (`dgvPersonal_CellEndEdit`). Modifica los datos del usuario.
 - `sp_AsignarEspecialidadMedico` → Botón "Guardar". Asocia cada especialidad tildada al usuario creado.
 - `sp_AsignarSalaMedico` → Botón "Guardar". Asocia cada sala tildada al usuario creado.
 - `sp_EliminarUsuario` → Botón "Eliminar" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario seleccionado.
