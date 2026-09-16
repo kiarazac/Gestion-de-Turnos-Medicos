@@ -250,10 +250,19 @@ namespace Gestion_de_Turnos_Medicos
         private void RefrescarListado()
         {
             string servicio = cboServicio.SelectedItem?.ToString() ?? string.Empty;
-            bool esEmergencia = servicio == "Emergencias / Guardia";
 
-            var filtrados = _todosLosTurnos.Where(t => (t.Especialidad?.Nombre ?? string.Empty) == servicio && t.Estado == "En Espera");
+            // 1. Identificamos si el filtro activo es de Guardia / Emergencias
+            bool esEmergencia = servicio.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase);
 
+            // 2. Filtramos los turnos en espera: para emergencias admitimos tanto 'Emergencia' como 'Emergencias / Guardia'
+            var filtrados = _todosLosTurnos.Where(t =>
+                t.Estado == "En Espera" &&
+                (esEmergencia
+                    ? (t.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true)
+                    : (t.Especialidad?.Nombre ?? string.Empty).Equals(servicio, StringComparison.OrdinalIgnoreCase))
+            );
+
+            // 3. Ordenamos: emergencias según gravedad de triage y orden de llegada; especialidades según fecha y hora
             IEnumerable<Turno> ordenados;
             if (esEmergencia)
             {

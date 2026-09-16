@@ -63,60 +63,86 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Obtiene y proyecta los turnos en tiempo real invocando a la Capa de Negocio (TurnoBLL).
-        /// Reemplaza completamente los datos de prueba y se ejecuta tanto en la carga inicial
-        /// como de forma periódica mediante el Timer.
+        /// Carga de manera aislada e independiente el sector de Emergencias (panel izquierdo)
+        /// y el sector de Consultorio General (panel derecho), garantizando que un fallo o demora
+        /// en un sector no bloquee la visualización del otro.
         /// </summary>
         public void CargarTurnosDesdeBD()
         {
+            // =========================================================================
+            // 1. Carga del Sector de Emergencias / Guardia (Panel Izquierdo)
+            // =========================================================================
             try
             {
-                // 1. Carga de Turnos de Guardia / Emergencias
-                // Invoca TurnoBLL.ListarTurnosEmergencia() -> sp_ListarTurnosEmergencia
                 dgvEmergencias.Rows.Clear();
+
+                // Invoca TurnoBLL.ListarTurnosEmergencia() -> TurnoDAL -> sp_ListarTurnosEmergencia
                 var turnosEmergencia = _turnoBLL.ListarTurnosEmergencia();
 
                 if (turnosEmergencia != null)
                 {
                     foreach (var t in turnosEmergencia)
                     {
-                        dgvEmergencias.Rows.Add(
-                            t.Turno ?? string.Empty,
-                            t.Prioridad ?? "MEDIA",
-                            t.Hora ?? string.Empty,
-                            t.Estado ?? "ESPERANDO",
-                            t.Sala ?? "--"
-                        );
+                        // Mapeamos los datos de cada turno de guardia con valores por defecto defensivos
+                        string codigoTurno = !string.IsNullOrWhiteSpace(t.Turno) 
+                            ? t.Turno 
+                            : (!string.IsNullOrWhiteSpace(t.NroOrden) ? t.NroOrden : $"E-{t.IdTurno:D3}");
+
+                        string prioridad = !string.IsNullOrWhiteSpace(t.Prioridad) 
+                            ? t.Prioridad 
+                            : (!string.IsNullOrWhiteSpace(t.Triage) ? t.Triage : "MEDIA");
+
+                        string hora = !string.IsNullOrWhiteSpace(t.Hora) ? t.Hora : "--:--";
+                        string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "En Espera";
+                        string sala = !string.IsNullOrWhiteSpace(t.Sala) ? t.Sala : "--";
+
+                        dgvEmergencias.Rows.Add(codigoTurno, prioridad, hora, estado, sala);
                     }
                 }
-                ResaltarEstados(dgvEmergencias, colEstadoEmer.Index, "LLAMADO");
 
-                // 2. Carga de Turnos de Consultorio / Especialidades Generales
-                // Invoca TurnoBLL.ObtenerTurnosPantallaGeneral() -> sp_ListarTurnosGeneralesPantalla
+                // Resaltamos visualmente los pacientes llamados por guardia
+                ResaltarEstados(dgvEmergencias, colEstadoEmer.Index, "LLAMADO");
+            }
+            catch (Exception ex)
+            {
+                // Registramos o informamos en el pie de página sin interrumpir la experiencia de sala de espera
+                lblFooter.Text = $"[Guardia] Error de sincronización: {ex.Message}";
+            }
+
+            // =========================================================================
+            // 2. Carga del Sector de Consultorios / General (Panel Derecho)
+            // =========================================================================
+            try
+            {
                 dgvGeneral.Rows.Clear();
+
+                // Invoca TurnoBLL.ObtenerTurnosPantallaGeneral() -> TurnoDAL -> sp_ListarTurnosGeneralesPantalla
                 var turnosGenerales = _turnoBLL.ObtenerTurnosPantallaGeneral();
 
                 if (turnosGenerales != null)
                 {
                     foreach (var g in turnosGenerales)
                     {
-                        dgvGeneral.Rows.Add(
-                            g.Turno ?? string.Empty,
-                            g.Hora ?? string.Empty,
-                            g.Fecha ?? string.Empty,
-                            g.Especialidad ?? "General",
-                            g.Estado ?? "ESPERANDO",
-                            g.Sala ?? "--"
-                        );
+                        // Mapeamos los datos de los turnos programados para las diferentes especialidades
+                        string codigoTurno = !string.IsNullOrWhiteSpace(g.Turno) ? g.Turno : "--";
+                        string hora = !string.IsNullOrWhiteSpace(g.Hora) ? g.Hora : "--:--";
+                        string fecha = !string.IsNullOrWhiteSpace(g.Fecha) ? g.Fecha : "--/--/----";
+                        string especialidad = !string.IsNullOrWhiteSpace(g.Especialidad) ? g.Especialidad : "General";
+                        string estado = !string.IsNullOrWhiteSpace(g.Estado) ? g.Estado : "En Espera";
+                        string sala = !string.IsNullOrWhiteSpace(g.Sala) ? g.Sala : "--";
+
+                        dgvGeneral.Rows.Add(codigoTurno, hora, fecha, especialidad, estado, sala);
                     }
                 }
+
+                // Resaltamos estados activos en consultorios
                 ResaltarEstados(dgvGeneral, colEstadoGen.Index, "EN CURSO");
                 ResaltarEstados(dgvGeneral, colEstadoGen.Index, "LLAMADO");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // En una pantalla de sala de espera pública no se interrumpe la visualización
-                // con cuadros modales bloqueantes repetitivos; se actualiza el pie de estado discretamente.
-                lblFooter.Text = $"[Aviso de sincronización] {DateTime.Now:HH:mm:ss} - Reintentando conexión con servidor...";
+                // Registramos en el pie de página sin bloquear la interfaz
+                lblFooter.Text = $"[Consultorios] Error de sincronización: {ex.Message}";
             }
         }
 

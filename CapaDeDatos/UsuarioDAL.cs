@@ -118,9 +118,20 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Modifica los datos de un usuario existente en la base de datos a través de sp_ModificarUsuario.
-        /// Aplica parámetros parametrizados para proteger contra Inyección SQL y soporta fallback de compatibilidad.
+        /// Permite actualizar datos personales, documento, matrícula profesional médica y la sala asignada en DetallesSalas.
+        /// Aplica parámetros parametrizados para proteger contra Inyección SQL y transacciones atómicas.
         /// </summary>
-        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? nroMatricula, int? idRol)
+        /// <param name="idUsuario">ID del usuario a modificar.</param>
+        /// <param name="nombre">Nombre actualizado.</param>
+        /// <param name="apellido">Apellido actualizado.</param>
+        /// <param name="correo">Correo electrónico actualizado.</param>
+        /// <param name="dni">DNI actualizado.</param>
+        /// <param name="telefono">Teléfono actualizado.</param>
+        /// <param name="nroMatricula">Matrícula médica actualizada (si es médico).</param>
+        /// <param name="idRol">Rol asignado.</param>
+        /// <param name="idSala">ID de la nueva sala asignada (NULL = no tocar salas, 0 = desasignar, >0 = reasignar sala).</param>
+        /// <param name="descripcionAtencion">Notas u observaciones sobre la atención en la sala.</param>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? nroMatricula, int? idRol, int? idSala = null, string? descripcionAtencion = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -133,26 +144,47 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pDni = new SqlParameter("@Dni", (object?)dni ?? DBNull.Value);
                 var pMatricula = new SqlParameter("@NroMatricula", (object?)nroMatricula ?? DBNull.Value);
                 var pIdRol = new SqlParameter("@IdRol", idRol.HasValue && idRol.Value > 0 ? (object)idRol.Value : DBNull.Value);
+                var pIdSala = new SqlParameter("@IdSala", idSala.HasValue ? (object)idSala.Value : DBNull.Value);
+                var pDescripcion = new SqlParameter("@DescripcionAtencion", (object?)descripcionAtencion ?? DBNull.Value);
 
                 try
                 {
-                    // 2. Intentamos ejecutar la versión completa de sp_ModificarUsuario (con DNI, Matrícula y Rol)
+                    // 2. Ejecutamos la versión unificada de sp_ModificarUsuario (con datos personales, matrícula y sala)
                     context.Database.ExecuteSqlRaw(
-                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol",
-                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol);
+                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol, @IdSala, @DescripcionAtencion",
+                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol, pIdSala, pDescripcion);
                 }
-                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Demasiados argumentos si el SP sólo tenía 5 parámetros
+                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Demasiados argumentos si el SP tuviera menos parámetros en otra base
                 {
-                    // 3. Fallback de compatibilidad: Si la base de datos tiene la versión previa de 5 parámetros
-                    var pIdUsuarioOld = new SqlParameter("@IdUsuario", idUsuario);
-                    var pNombreOld = new SqlParameter("@Nombre", nombre);
-                    var pApellidoOld = new SqlParameter("@Apellido", apellido);
-                    var pCorreoOld = new SqlParameter("@Correo", correo);
-                    var pTelefonoOld = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+                    // 3. Fallback de compatibilidad intermedia (versión de 8 parámetros sin sala)
+                    var pIdUsuario8 = new SqlParameter("@IdUsuario", idUsuario);
+                    var pNombre8 = new SqlParameter("@Nombre", nombre);
+                    var pApellido8 = new SqlParameter("@Apellido", apellido);
+                    var pCorreo8 = new SqlParameter("@Correo", correo);
+                    var pTelefono8 = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+                    var pDni8 = new SqlParameter("@Dni", (object?)dni ?? DBNull.Value);
+                    var pMatricula8 = new SqlParameter("@NroMatricula", (object?)nroMatricula ?? DBNull.Value);
+                    var pIdRol8 = new SqlParameter("@IdRol", idRol.HasValue && idRol.Value > 0 ? (object)idRol.Value : DBNull.Value);
 
-                    context.Database.ExecuteSqlRaw(
-                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono",
-                        pIdUsuarioOld, pNombreOld, pApellidoOld, pCorreoOld, pTelefonoOld);
+                    try
+                    {
+                        context.Database.ExecuteSqlRaw(
+                            "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol",
+                            pIdUsuario8, pNombre8, pApellido8, pCorreo8, pTelefono8, pDni8, pMatricula8, pIdRol8);
+                    }
+                    catch (SqlException ex2) when (ex2.Number == 8144)
+                    {
+                        // 4. Fallback base histórica (versión de 5 parámetros)
+                        var pIdUsuarioOld = new SqlParameter("@IdUsuario", idUsuario);
+                        var pNombreOld = new SqlParameter("@Nombre", nombre);
+                        var pApellidoOld = new SqlParameter("@Apellido", apellido);
+                        var pCorreoOld = new SqlParameter("@Correo", correo);
+                        var pTelefonoOld = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+
+                        context.Database.ExecuteSqlRaw(
+                            "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono",
+                            pIdUsuarioOld, pNombreOld, pApellidoOld, pCorreoOld, pTelefonoOld);
+                    }
                 }
             }
         }

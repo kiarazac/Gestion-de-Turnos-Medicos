@@ -335,6 +335,7 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>
         /// Evento disparado al hacer clic en el botón 'Modificar'.
         /// Lee los valores corregidos en las cajas de texto y combos, valida los datos y los envía a la Capa de Negocio (BLL).
+        /// Permite actualizar datos personales, matrícula médica y la reasignación de sala.
         /// </summary>
         private void btnModificar_Click(object? sender, EventArgs e)
         {
@@ -358,8 +359,26 @@ namespace Gestion_de_Turnos_Medicos
             var rolSeleccionado = (ItemConId)cmbRol.SelectedItem!;
             bool esPersonalMedico = EsPersonalMedico();
             string matricula = esPersonalMedico ? txtMatricula.Text.Trim() : string.Empty;
+            string notaSala = txtNotaSala.Text.Trim();
 
-            // 3. Confirmación del usuario antes de persistir los cambios
+            // 3. Determinamos la sala a enviar al procedimiento almacenado sp_ModificarUsuario
+            // Si es personal médico, tomamos la sala tildada (o 0 para desasignarla si se destildaron todas)
+            // Si no es médico, enviamos null para no tocar la tabla DetallesSalas
+            int? idSalaParaModificar = null;
+            if (esPersonalMedico)
+            {
+                if (clbSala.CheckedItems.Count > 0 && clbSala.CheckedItems[0] is ItemConId salaSeleccionada)
+                {
+                    idSalaParaModificar = salaSeleccionada.Id;
+                }
+                else
+                {
+                    // 0 indica a sp_ModificarUsuario que desasigne la sala activa previa
+                    idSalaParaModificar = 0;
+                }
+            }
+
+            // 4. Confirmación del usuario antes de persistir los cambios
             var confirmacion = MessageBox.Show($"¿Deseás guardar las modificaciones para el usuario '{nombre} {apellido}'?",
                 "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
@@ -368,13 +387,13 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // 4. Invocamos a la Capa BLL -> DAL -> sp_ModificarUsuario
-                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono, matricula, rolSeleccionado.Id);
+                // 5. Invocamos a la Capa BLL -> DAL -> sp_ModificarUsuario (incluye matrícula, sala y descripción)
+                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono, matricula, rolSeleccionado.Id, idSalaParaModificar, notaSala);
 
                 MessageBox.Show($"El usuario '{nombre} {apellido}' fue modificado correctamente.",
                     "Usuario Modificado", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                // 5. Recargamos la grilla y limpiamos los campos
+                // 6. Recargamos la grilla y limpiamos los campos del formulario
                 CargarUsuariosDesdeBD();
                 LimpiarCampos();
             }
@@ -400,7 +419,8 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Evento disparado al hacer clic en una fila del DataGridView.
-        /// Vuelca la información del usuario seleccionado en los campos del formulario para facilitar su edición.
+        /// Vuelca la información del usuario seleccionado en los campos del formulario para facilitar su edición,
+        /// incluyendo matrícula médica y sincronización de checkboxes de salas y especialidades.
         /// </summary>
         private void dgvPersonal_CellClick(object? sender, DataGridViewCellEventArgs e)
         {
@@ -436,8 +456,37 @@ namespace Gestion_de_Turnos_Medicos
                 }
             }
 
-            // Si es personal médico, cargamos la matrícula
+            // Si es personal médico, cargamos la matrícula y sincronizamos las salas y especialidades asignadas
             txtMatricula.Text = fila.Cells["NroMatricula"].Value?.ToString() ?? string.Empty;
+
+            if (EsPersonalMedico())
+            {
+                // Sincronizamos la selección de salas en clbSala según los datos de la fila seleccionada
+                string salasTexto = fila.Cells["Salas"].Value?.ToString() ?? string.Empty;
+                var salasAsignadas = salasTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < clbSala.Items.Count; i++)
+                {
+                    if (clbSala.Items[i] is ItemConId salaItem)
+                    {
+                        bool estaAsignada = salasAsignadas.Any(s => s.Equals(salaItem.Texto, StringComparison.OrdinalIgnoreCase));
+                        clbSala.SetItemChecked(i, estaAsignada);
+                    }
+                }
+
+                // Sincronizamos la selección de especialidades en clbEspecialidades según la fila
+                string espTexto = fila.Cells["Especialidades"].Value?.ToString() ?? string.Empty;
+                var espAsignadas = espTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < clbEspecialidades.Items.Count; i++)
+                {
+                    if (clbEspecialidades.Items[i] is ItemConId espItem)
+                    {
+                        bool estaAsignada = espAsignadas.Any(e => e.Equals(espItem.Texto, StringComparison.OrdinalIgnoreCase));
+                        clbEspecialidades.SetItemChecked(i, estaAsignada);
+                    }
+                }
+            }
         }
 
         /// <summary>

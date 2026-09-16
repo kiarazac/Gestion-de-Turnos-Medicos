@@ -220,10 +220,10 @@ GO
 ---
 
 ### 1.6 `sp_ModificarUsuario`
-- **Descripción:** Actualiza los datos de filiación, contacto, identificación y rol de un usuario existente para corregir errores de carga.
-- **Entidad:** Usuario
-- **Operación:** Modificación
-- **Tablas:** `Usuarios`
+- **Descripción:** Actualiza los datos de filiación, contacto, identificación, matrícula profesional y rol de un usuario existente. Si se especifica una sala (`@IdSala`), gestiona de forma atómica y con borrado lógico la asignación del médico en la tabla `DetallesSalas`.
+- **Entidad:** Usuario / DetalleSala
+- **Operación:** Modificación / Reasignación de Sala
+- **Tablas:** `Usuarios`, `DetallesSalas`
 - **Forms que lo utilizan:** `FrmGestionUsuarios`
 - **Acción:** Botón `btnModificar` y edición directa de celda en DataGridView (`dgvPersonal_CellEndEdit`)
 - **Estado:** `EN USO`
@@ -236,8 +236,10 @@ GO
   | `@Correo` | `NVARCHAR(150)` | IN | Nuevo correo electrónico. |
   | `@Telefono` | `NVARCHAR(20)` | IN | Nuevo teléfono. |
   | `@Dni` | `NVARCHAR(20)` | IN | Nuevo número de DNI (opcional, conserva anterior si es NULL). |
-  | `@NroMatricula` | `NVARCHAR(50)` | IN | Nueva matrícula médica (opcional). |
+  | `@NroMatricula` | `NVARCHAR(50)` | IN | Nueva matrícula médica (opcional/médicos). |
   | `@IdRol` | `INT` | IN | Nuevo rol asignado (opcional, conserva anterior si es NULL). |
+  | `@IdSala` | `INT` | IN | Nueva sala asignada (opcional: NULL = no tocar salas, 0 = desasignar, >0 = reasignar sala). |
+  | `@DescripcionAtencion` | `NVARCHAR(255)` | IN | Observaciones o notas de atención en la sala (opcional). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarUsuario
@@ -248,21 +250,63 @@ CREATE OR ALTER PROCEDURE sp_ModificarUsuario
     @Telefono NVARCHAR(20),
     @Dni NVARCHAR(20) = NULL,
     @NroMatricula NVARCHAR(50) = NULL,
-    @IdRol INT = NULL
+    @IdRol INT = NULL,
+    @IdSala INT = NULL,
+    @DescripcionAtencion NVARCHAR(255) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Usuarios
-    SET Nombre = @Nombre,
-        Apellido = @Apellido,
-        Correo = @Correo,
-        Telefono = @Telefono,
-        Dni = ISNULL(@Dni, Dni),
-        NroMatricula = @NroMatricula,
-        IdRol = ISNULL(@IdRol, IdRol),
-        FechaModificacion = GETDATE()
-    WHERE IdUsuario = @IdUsuario;
+    -- Usamos un bloque TRY...CATCH para garantizar atomicidad e integridad referencial
+    BEGIN TRY
+        -- Iniciamos una transacción explícita: o se aplican todos los cambios o ninguno
+        BEGIN TRANSACTION;
+
+        -- 1. Actualizamos los datos personales, contacto, identificación y matrícula en la tabla Usuarios
+        UPDATE Usuarios
+        SET Nombre = @Nombre,
+            Apellido = @Apellido,
+            Correo = @Correo,
+            Telefono = @Telefono,
+            Dni = ISNULL(@Dni, Dni),
+            NroMatricula = @NroMatricula,
+            IdRol = ISNULL(@IdRol, IdRol),
+            FechaModificacion = GETDATE()
+        WHERE IdUsuario = @IdUsuario;
+
+        -- 2. Gestión de salas en la tabla DetallesSalas (solo si @IdSala no es NULL)
+        -- Si @IdSala es NULL, no se modifican las salas existentes del usuario
+        IF (@IdSala IS NOT NULL)
+        BEGIN
+            -- Desactivamos lógicamente cualquier asignación previa activa para este usuario
+            UPDATE DetallesSalas
+            SET Activo = 0,
+                FechaBaja = GETDATE(),
+                FechaModificacion = GETDATE()
+            WHERE IdUsuario = @IdUsuario 
+              AND Activo = 1;
+
+            -- Si se envió un ID de sala mayor a 0, insertamos la nueva asignación activa
+            -- Si es 0, simplemente queda desasignado de cualquier sala
+            -- Se utiliza ISNULL ya que la columna DescripcionAtencion no admite valores NULL
+            IF (@IdSala > 0)
+            BEGIN
+                INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
+                VALUES (@IdSala, @IdUsuario, ISNULL(@DescripcionAtencion, ''), GETDATE(), 1);
+            END
+        END
+
+        -- Si no ocurrieron errores, confirmamos todos los cambios en la base de datos
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- Si ocurre cualquier falla, revertimos los cambios para evitar datos inconsistentes
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        -- Relanzamos el error hacia la capa C#
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -1118,14 +1162,14 @@ GO
 ---
 
 ### 5.7 `sp_ListarTurnosEmergencia`
-- **Descripción:** Obtiene los turnos del sector de emergencia de la jornada para el monitor de recepción y cálculo de contadores de prioridad.
-- **Entidad:** Turno / Prioridad / Sala
+- **Descripción:** Obtiene los turnos activos de guardia y del día para el monitor de recepción, triages y contadores de prioridad. Mapea todas las propiedades de `TurnoEmergenciaDTO`, incluyendo la columna `Edad` requerida por Entity Framework Core.
+- **Entidad:** Turno / Prioridad / Sala / Paciente
 - **Operación:** Listado / Monitor
-- **Tablas:** `Turnos`, `Prioridades`, `Salas`
+- **Tablas:** `Turnos`, `Prioridades`, `Salas`, `Pacientes`
 - **Forms que lo utilizan:** `FrmListaTurnos`, `FrmUsuarioVentana`
 - **Acción:** Monitor de guardia / Pantalla pública de emergencias (`dgvEmergencias`)
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Devuelve:** `Turno`, `Prioridad`, `Hora`, `Estado`, `Sala`.
+- **Estado:** `EN USO`
+- **Devuelve:** `IdTurno`, `NroOrden`, `Turno`, `Prioridad`, `Triage`, `Hora`, `Estado`, `Sala`, `TipoTurno`, `Fecha`, `IdPrioridad`, `IdPaciente`, `IdEspecialidad`, `Paciente`, `Edad`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarTurnosEmergencia
@@ -1134,18 +1178,38 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT 
+        t.IdTurno,
+        t.NroOrden,
         t.NroOrden AS Turno,
         ISNULL(p.Descripcion, 'MEDIA') AS Prioridad,
-        CONVERT(VARCHAR(5), t.Fecha, 108) AS Hora,
+        ISNULL(p.Descripcion, 'MEDIA') AS Triage,
+        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
         t.Estado,
-        ISNULL(s.NombreSala, '--') AS Sala
+        ISNULL(s.NombreSala, '--') AS Sala,
+        t.TipoTurno,
+        t.Fecha,
+        t.IdPrioridad,
+        t.IdPaciente,
+        t.IdEspecialidad,
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
+        CAST(NULL AS INT) AS Edad
     FROM Turnos t
+    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Emergencia'
-      AND CAST(t.FechaCreacion AS DATE) = CAST(GETDATE() AS DATE)
-    ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+      AND (t.Estado IN ('En Espera', 'Llamado', 'En Consulta') 
+           OR CAST(t.FechaCreacion AS DATE) = CAST(GETDATE() AS DATE))
+    ORDER BY 
+        CASE 
+            WHEN t.Estado = 'En Espera' THEN 1 
+            WHEN t.Estado = 'Llamado' THEN 2 
+            WHEN t.Estado = 'En Consulta' THEN 3 
+            ELSE 4 
+        END ASC,
+        t.IdPrioridad ASC, 
+        t.FechaCreacion ASC;
 END;
 GO
 ```
@@ -1153,18 +1217,18 @@ GO
 ---
 
 ### 5.8 `sp_ListarTurnosEspecialidad`
-- **Descripción:** Obtiene los turnos registrados para una especialidad seleccionada.
+- **Descripción:** Obtiene los turnos registrados para una especialidad médica determinada en consultorios externos (`TipoTurno = 'Consulta'`), incluyendo fecha y horario combinados, prioridad y descripción de especialidad.
 - **Entidad:** Turno / Especialidad
 - **Operación:** Consulta por Filtro
-- **Tablas:** `Turnos`, `Especialidades`, `Salas`
+- **Tablas:** `Turnos`, `Especialidades`, `Prioridades`
 - **Forms que lo utilizan:** `FrmListaTurnos`
 - **Acción:** Cambio de especialidad (`cmbEspecialidades_SelectedIndexChanged`)
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@NombreEspecialidad` | `NVARCHAR(100)` | IN | Nombre de la especialidad consultada. |
-- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`.
+- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarTurnosEspecialidad
@@ -1178,14 +1242,56 @@ BEGIN
         t.NroOrden,
         t.Estado,
         t.TipoTurno,
-        t.Fecha
+        CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS Fecha,
+        e.Nombre AS NombreEspecialidad,
+        ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
+        t.IdPrioridad
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
     WHERE t.Activo = 1 
-      AND e.Nombre = @NombreEspecialidad
-    ORDER BY t.Fecha ASC;
+      AND t.TipoTurno = 'Consulta'
+      AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
+    ORDER BY t.Fecha ASC, t.Horario ASC;
 END;
 GO
+```
+
+---
+
+### 5.9 `sp_ListarTurnosGeneralesPantalla`
+- **Descripción:** Obtiene el listado de turnos de consultorio y especialidades generales para ser proyectados en la pantalla pública de sala de espera (`FrmUsuarioVentana`).
+- **Entidad:** Turno / Especialidad / Sala
+- **Operación:** Listado / Pantalla Pública
+- **Tablas:** `Turnos`, `Especialidades`, `Salas`
+- **Forms que lo utilizan:** `FrmUsuarioVentana`
+- **Acción:** Carga inicial y auto-refresco de `dgvGeneral`
+- **Estado:** `EN USO`
+- **Parámetros:** Ninguno.
+- **Devuelve:** `Turno`, `Hora`, `Fecha`, `Especialidad`, `Estado`, `Sala`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ListarTurnosGeneralesPantalla
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        t.NroOrden AS Turno,
+        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+        CONVERT(VARCHAR(10), t.Fecha, 103) AS Fecha,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        t.Estado,
+        ISNULL(s.NombreSala, '--') AS Sala
+    FROM Turnos t
+    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    WHERE t.Activo = 1 
+      AND t.TipoTurno = 'Consulta'
+    ORDER BY t.Fecha ASC, t.Horario ASC;
+END;
+GO
+```
 ```
 
 ---

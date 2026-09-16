@@ -34,21 +34,30 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a TurnoDAL -> sp_ListarTurnosEmergencia
+                // 1. Invocamos a la Capa BLL -> TurnoDAL -> sp_ListarTurnosEmergencia
                 var turnosEmergencia = _turnoBLL.ListarTurnosEmergencia();
 
                 if (turnosEmergencia != null)
                 {
+                    // 2. Iteramos los turnos de guardia mapeando cada celda con fallbacks defensivos
                     foreach (var t in turnosEmergencia)
                     {
-                        string turno = !string.IsNullOrWhiteSpace(t.Turno) ? t.Turno : "--";
-                        string prioridad = !string.IsNullOrWhiteSpace(t.Prioridad) ? t.Prioridad : "--";
-                        string hora = !string.IsNullOrWhiteSpace(t.Hora) ? t.Hora : "--";
-                        string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "--";
+                        string turno = !string.IsNullOrWhiteSpace(t.Turno) 
+                            ? t.Turno 
+                            : (!string.IsNullOrWhiteSpace(t.NroOrden) ? t.NroOrden : $"E-{t.IdTurno:D3}");
+
+                        string prioridad = !string.IsNullOrWhiteSpace(t.Prioridad) 
+                            ? t.Prioridad 
+                            : (!string.IsNullOrWhiteSpace(t.Triage) ? t.Triage : "MEDIA");
+
+                        string hora = !string.IsNullOrWhiteSpace(t.Hora) ? t.Hora : "--:--";
+                        string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "En Espera";
                         string sala = !string.IsNullOrWhiteSpace(t.Sala) ? t.Sala : "--";
 
+                        // 3. Agregamos la fila a la grilla de recepción
                         dataGridView1.Rows.Add(turno, prioridad, hora, estado, sala);
 
+                        // 4. Acumulamos el contador según el nivel de urgencia
                         if (prioridad.Equals("ALTA", StringComparison.OrdinalIgnoreCase))
                             cantAlta++;
                         else if (prioridad.Equals("MEDIA", StringComparison.OrdinalIgnoreCase))
@@ -71,7 +80,9 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Obtiene las especialidades desde la Capa de Negocio (BLL) sin listas fijas de contingencia.
+        /// Obtiene las especialidades médicas de consultorio desde la Capa de Negocio (BLL).
+        /// Excluye explícitamente "Emergencia" para que las atenciones de guardia solo se muestren
+        /// en el sector izquierdo y el selector de la derecha contenga únicamente especialidades clínicas.
         /// </summary>
         private void CargarEspecialidades()
         {
@@ -80,7 +91,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a EspecialidadDAL -> sp_ObtenerEspecialidades
+                // 1. Invocamos a la Capa BLL -> EspecialidadDAL -> sp_ObtenerEspecialidades
                 var especialidades = _especialidadBLL.ObtenerEspecialidades();
 
                 if (especialidades != null)
@@ -88,7 +99,14 @@ namespace Gestion_de_Turnos_Medicos
                     foreach (var esp in especialidades)
                     {
                         if (!string.IsNullOrWhiteSpace(esp.Nombre))
+                        {
+                            // 2. Filtro de exclusión: Las emergencias no son especialidades de consultorio programado.
+                            // Se gestionan por triage y se visualizan exclusivamente en el sector izquierdo (Guardia/Emergencia).
+                            if (esp.Nombre.StartsWith("Emergenc", StringComparison.OrdinalIgnoreCase))
+                                continue;
+
                             cmbEspecialidades.Items.Add(esp.Nombre);
+                        }
                     }
                 }
             }
