@@ -59,14 +59,17 @@ namespace Gestion_de_Turnos_Medicos
             btnEliminar = new Button();
             btnLimpiar = new Button();
             dgvPersonal = new DataGridView();
+            groupBox1 = new GroupBox();
             pnlDatos.SuspendLayout();
             pnlDatosMedicos.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).BeginInit();
+            groupBox1.SuspendLayout();
             SuspendLayout();
             // 
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
+            pnlDatos.Controls.Add(groupBox1);
             pnlDatos.Controls.Add(lblRol);
             pnlDatos.Controls.Add(cmbRol);
             pnlDatos.Controls.Add(lblInfoMedico);
@@ -76,10 +79,6 @@ namespace Gestion_de_Turnos_Medicos
             pnlDatos.Controls.Add(txtNombre);
             pnlDatos.Controls.Add(lblApellido);
             pnlDatos.Controls.Add(txtApellido);
-            pnlDatos.Controls.Add(lblCorreo);
-            pnlDatos.Controls.Add(txtCorreo);
-            pnlDatos.Controls.Add(lblContrasena);
-            pnlDatos.Controls.Add(txtContrasena);
             pnlDatos.Controls.Add(lblDNI);
             pnlDatos.Controls.Add(txtDNI);
             pnlDatos.Controls.Add(lblTelefono);
@@ -98,7 +97,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblRol.AutoSize = true;
             lblRol.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblRol.Location = new Point(545, 18);
+            lblRol.Location = new Point(592, 9);
             lblRol.Name = "lblRol";
             lblRol.Size = new Size(28, 15);
             lblRol.TabIndex = 20;
@@ -106,11 +105,9 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // cmbRol
             // 
-            // Los ítems se cargan en tiempo de ejecución desde sp_ListarRoles
-            // (ver FrmGestionUsuarios.cs -> CargarRolesDesdeBD). No se harcodea nada acá.
             cmbRol.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbRol.FormattingEnabled = true;
-            cmbRol.Location = new Point(595, 15);
+            cmbRol.Location = new Point(642, 6);
             cmbRol.Name = "cmbRol";
             cmbRol.Size = new Size(180, 23);
             cmbRol.TabIndex = 6;
@@ -121,7 +118,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoMedico.BackColor = Color.FromArgb(225, 242, 240);
             lblInfoMedico.BorderStyle = BorderStyle.FixedSingle;
             lblInfoMedico.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
-            lblInfoMedico.Location = new Point(545, 50);
+            lblInfoMedico.Location = new Point(592, 41);
             lblInfoMedico.Name = "lblInfoMedico";
             lblInfoMedico.Size = new Size(470, 135);
             lblInfoMedico.TabIndex = 21;
@@ -141,7 +138,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlDatosMedicos.Controls.Add(txtMatricula);
             pnlDatosMedicos.Controls.Add(lblNotaSala);
             pnlDatosMedicos.Controls.Add(txtNotaSala);
-            pnlDatosMedicos.Location = new Point(545, 50);
+            pnlDatosMedicos.Location = new Point(592, 41);
             pnlDatosMedicos.Name = "pnlDatosMedicos";
             pnlDatosMedicos.Size = new Size(470, 135);
             pnlDatosMedicos.TabIndex = 22;
@@ -169,7 +166,6 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // clbEspecialidades
             // 
-            // Los ítems se cargan desde sp_ListarEspecialidades (ver CargarEspecialidadesDesdeBD).
             clbEspecialidades.FormattingEnabled = true;
             clbEspecialidades.Location = new Point(12, 51);
             clbEspecialidades.Name = "clbEspecialidades";
@@ -188,7 +184,6 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // clbSala
             // 
-            // Los ítems se cargan desde sp_ListarSalas (ver CargarSalasDesdeBD).
             clbSala.FormattingEnabled = true;
             clbSala.Location = new Point(165, 51);
             clbSala.Name = "clbSala";
@@ -218,13 +213,12 @@ namespace Gestion_de_Turnos_Medicos
             lblNotaSala.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblNotaSala.Location = new Point(268, 78);
             lblNotaSala.Name = "lblNotaSala";
-            lblNotaSala.Size = new Size(120, 15);
+            lblNotaSala.Size = new Size(114, 15);
             lblNotaSala.TabIndex = 7;
             lblNotaSala.Text = "Nota sala (opcional)";
             // 
             // txtNotaSala
             // 
-            // Se guarda como DetalleSala.DescripcionAtencion para cada sala marcada.
             txtNotaSala.Location = new Point(268, 95);
             txtNotaSala.Name = "txtNotaSala";
             txtNotaSala.Size = new Size(150, 23);
@@ -237,15 +231,15 @@ namespace Gestion_de_Turnos_Medicos
             lblTitulo.ForeColor = Color.Black;
             lblTitulo.Location = new Point(20, 12);
             lblTitulo.Name = "lblTitulo";
-            lblTitulo.Size = new Size(113, 32);
+            lblTitulo.Size = new Size(242, 32);
             lblTitulo.TabIndex = 0;
-            lblTitulo.Text = "Usuarios";
+            lblTitulo.Text = "Gestión de Usuarios";
             // 
             // lblNombre
             // 
             lblNombre.AutoSize = true;
             lblNombre.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblNombre.Location = new Point(24, 70);
+            lblNombre.Location = new Point(28, 123);
             lblNombre.Name = "lblNombre";
             lblNombre.Size = new Size(56, 15);
             lblNombre.TabIndex = 1;
@@ -253,16 +247,16 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtNombre
             // 
-            txtNombre.Location = new Point(110, 66);
+            txtNombre.Location = new Point(114, 119);
             txtNombre.Name = "txtNombre";
-            txtNombre.Size = new Size(130, 23);
+            txtNombre.Size = new Size(169, 23);
             txtNombre.TabIndex = 0;
             // 
             // lblApellido
             // 
             lblApellido.AutoSize = true;
             lblApellido.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblApellido.Location = new Point(20, 100);
+            lblApellido.Location = new Point(24, 153);
             lblApellido.Name = "lblApellido";
             lblApellido.Size = new Size(55, 15);
             lblApellido.TabIndex = 3;
@@ -270,24 +264,24 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtApellido
             // 
-            txtApellido.Location = new Point(110, 96);
+            txtApellido.Location = new Point(114, 149);
             txtApellido.Name = "txtApellido";
-            txtApellido.Size = new Size(130, 23);
+            txtApellido.Size = new Size(169, 23);
             txtApellido.TabIndex = 1;
             // 
             // lblCorreo
             // 
             lblCorreo.AutoSize = true;
             lblCorreo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblCorreo.Location = new Point(28, 130);
+            lblCorreo.Location = new Point(23, 33);
             lblCorreo.Name = "lblCorreo";
-            lblCorreo.Size = new Size(50, 15);
+            lblCorreo.Size = new Size(48, 15);
             lblCorreo.TabIndex = 5;
             lblCorreo.Text = "Correo:";
             // 
             // txtCorreo
             // 
-            txtCorreo.Location = new Point(110, 126);
+            txtCorreo.Location = new Point(105, 29);
             txtCorreo.Name = "txtCorreo";
             txtCorreo.Size = new Size(130, 23);
             txtCorreo.TabIndex = 2;
@@ -296,7 +290,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblContrasena.AutoSize = true;
             lblContrasena.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblContrasena.Location = new Point(5, 160);
+            lblContrasena.Location = new Point(0, 63);
             lblContrasena.Name = "lblContrasena";
             lblContrasena.Size = new Size(72, 15);
             lblContrasena.TabIndex = 7;
@@ -304,7 +298,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtContrasena
             // 
-            txtContrasena.Location = new Point(110, 156);
+            txtContrasena.Location = new Point(105, 59);
             txtContrasena.Name = "txtContrasena";
             txtContrasena.PasswordChar = '*';
             txtContrasena.Size = new Size(130, 23);
@@ -314,7 +308,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblDNI.AutoSize = true;
             lblDNI.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblDNI.Location = new Point(270, 70);
+            lblDNI.Location = new Point(50, 185);
             lblDNI.Name = "lblDNI";
             lblDNI.Size = new Size(32, 15);
             lblDNI.TabIndex = 11;
@@ -322,16 +316,16 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtDNI
             // 
-            txtDNI.Location = new Point(334, 70);
+            txtDNI.Location = new Point(114, 185);
             txtDNI.Name = "txtDNI";
-            txtDNI.Size = new Size(130, 23);
+            txtDNI.Size = new Size(169, 23);
             txtDNI.TabIndex = 5;
             // 
             // lblTelefono
             // 
             lblTelefono.AutoSize = true;
             lblTelefono.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblTelefono.Location = new Point(255, 103);
+            lblTelefono.Location = new Point(35, 218);
             lblTelefono.Name = "lblTelefono";
             lblTelefono.Size = new Size(59, 15);
             lblTelefono.TabIndex = 17;
@@ -339,9 +333,9 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtTelefono
             // 
-            txtTelefono.Location = new Point(334, 100);
+            txtTelefono.Location = new Point(114, 215);
             txtTelefono.Name = "txtTelefono";
-            txtTelefono.Size = new Size(150, 23);
+            txtTelefono.Size = new Size(169, 23);
             txtTelefono.TabIndex = 8;
             // 
             // btnGuardar
@@ -397,6 +391,19 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.CellClick += dgvPersonal_CellClick;
             dgvPersonal.CellEndEdit += dgvPersonal_CellEndEdit;
             // 
+            // groupBox1
+            // 
+            groupBox1.Controls.Add(lblCorreo);
+            groupBox1.Controls.Add(txtCorreo);
+            groupBox1.Controls.Add(lblContrasena);
+            groupBox1.Controls.Add(txtContrasena);
+            groupBox1.Location = new Point(289, 94);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(268, 111);
+            groupBox1.TabIndex = 23;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "groupBox1";
+            // 
             // FrmGestionUsuarios
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -412,6 +419,8 @@ namespace Gestion_de_Turnos_Medicos
             pnlDatosMedicos.ResumeLayout(false);
             pnlDatosMedicos.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).EndInit();
+            groupBox1.ResumeLayout(false);
+            groupBox1.PerformLayout();
             ResumeLayout(false);
 
         }
@@ -452,5 +461,6 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtMatricula;
         private Label lblNotaSala;
         private TextBox txtNotaSala;
+        private GroupBox groupBox1;
     }
 }
