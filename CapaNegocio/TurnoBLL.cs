@@ -14,36 +14,54 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return _turnoDAL.ObtenerSintomas();
         }
 
-     
 
-        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas)
+
+        public PacienteDTO BuscarPacientePorDNI(string dni)
+        {
+            if (string.IsNullOrWhiteSpace(dni))
+                throw new ArgumentException("Debe ingresar un DNI válido para la búsqueda.");
+
+            return _turnoDAL.BuscarPacientePorDNI(dni.Trim());
+        }
+
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado)
         {
             if (idPaciente <= 0)
-                throw new ArgumentException("El ID del paciente es inválido.");
+                throw new ArgumentException("El ID del paciente es inválido o no ha sido registrado/cargado.");
 
-            if (idsSintomas == null || idsSintomas.Count == 0)
-                throw new ArgumentException("Debe registrar al menos un síntoma para determinar la prioridad del turno.");
+            int prioridadDeterminada = 3; // Por defecto o si selecciona "Otro"
 
-            // 1. Inicializamos con la menor urgencia posible (Ej: 3 = Verde/Baja)
-            int prioridadDeterminada = 3;
-            foreach (int idSintoma in idsSintomas)
+            if (esOtroSeleccionado)
             {
-                int gravedadSintoma = _turnoDAL.ObtenerGravedadDeSintoma(idSintoma);
-                if (gravedadSintoma < prioridadDeterminada) prioridadDeterminada = gravedadSintoma;
+                prioridadDeterminada = 3; // Baja
+            }
+            else
+            {
+                if (idsSintomas == null || idsSintomas.Count == 0)
+                    throw new ArgumentException("Debe registrar al menos un síntoma o marcar la opción 'Otro'.");
+
+                foreach (int idSintoma in idsSintomas)
+                {
+                    int gravedadSintoma = _turnoDAL.ObtenerGravedadDeSintoma(idSintoma);
+                    if (gravedadSintoma < prioridadDeterminada)
+                        prioridadDeterminada = gravedadSintoma;
+                }
             }
 
-            // Obtenemos el DTO con el ID y el NroOrden (ej: E-008)
             var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada);
 
             if (resultadoTurno.IdNuevoTurno <= 0)
-                throw new Exception("Error al generar el turno.");
+                throw new Exception("Error al generar el turno en la base de datos.");
 
-            foreach (int idSintoma in idsSintomas)
+            if (!esOtroSeleccionado && idsSintomas != null)
             {
-                _turnoDAL.GuardarTurnoSintoma(resultadoTurno.IdNuevoTurno, idSintoma);
+                foreach (int idSintoma in idsSintomas)
+                {
+                    _turnoDAL.GuardarTurnoSintoma(resultadoTurno.IdNuevoTurno, idSintoma);
+                }
             }
 
-            return resultadoTurno.NroOrden; // Devolvemos el texto real a la UI
+            return resultadoTurno.NroOrden;
         }
 
         // Actualizado para usar la información descriptiva en lugar del IdSala[cite: 3].

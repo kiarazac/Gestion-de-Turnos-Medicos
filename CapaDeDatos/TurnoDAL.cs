@@ -218,5 +218,21 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     .ToList();
             }
         }
+
+        public PacienteDTO BuscarPacientePorDNI(string dni)
+        {
+            if (string.IsNullOrWhiteSpace(dni))
+                throw new ArgumentException("Debe indicar un DNI válido para la búsqueda.");
+
+            // Ejecutamos el Stored Procedure mapeando directamente el resultado al DTO
+            string query = "EXEC sp_BuscarPacientePorDNI @DNI";
+            var parametro = new Microsoft.Data.SqlClient.SqlParameter("@DNI", dni);
+
+            using (var context = new dbTurnosMedicos())
+            {
+                var resultado = context.Database.SqlQueryRaw<PacienteDTO>(query, parametro).AsEnumerable().FirstOrDefault();
+                return resultado ?? new PacienteDTO();
+            }
+        }
     }
 }

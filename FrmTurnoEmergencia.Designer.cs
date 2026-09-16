@@ -38,12 +38,10 @@
             LObraSocial = new Label();
             Condicionales = new GroupBox();
             button1 = new Button();
-            checkBox1 = new CheckBox();
-            checkedListBox3 = new CheckedListBox();
-            checkedListBox2 = new CheckedListBox();
-            checkedListBox1 = new CheckedListBox();
+            checkBoxBaja = new CheckBox();
+            checkedListMedia = new CheckedListBox();
+            checkedListAlta = new CheckedListBox();
             label6 = new Label();
-            label5 = new Label();
             label4 = new Label();
             txtDNI = new TextBox();
             label3 = new Label();
@@ -140,12 +138,10 @@
             // Condicionales
             // 
             Condicionales.Controls.Add(button1);
-            Condicionales.Controls.Add(checkBox1);
-            Condicionales.Controls.Add(checkedListBox3);
-            Condicionales.Controls.Add(checkedListBox2);
-            Condicionales.Controls.Add(checkedListBox1);
+            Condicionales.Controls.Add(checkBoxBaja);
+            Condicionales.Controls.Add(checkedListMedia);
+            Condicionales.Controls.Add(checkedListAlta);
             Condicionales.Controls.Add(label6);
-            Condicionales.Controls.Add(label5);
             Condicionales.Controls.Add(label4);
             Condicionales.Location = new Point(31, 158);
             Condicionales.Name = "Condicionales";
@@ -166,50 +162,39 @@
             button1.Text = "GENERAR TURNO";
             button1.UseVisualStyleBackColor = false;
             // 
-            // checkBox1
+            // checkBoxBaja
             // 
-            checkBox1.AutoSize = true;
-            checkBox1.BackColor = Color.MediumTurquoise;
-            checkBox1.ForeColor = SystemColors.ActiveCaptionText;
-            checkBox1.Location = new Point(126, 295);
-            checkBox1.Name = "checkBox1";
-            checkBox1.Size = new Size(159, 19);
-            checkBox1.TabIndex = 11;
-            checkBox1.Text = "Otro (No es de gravedad)";
-            checkBox1.UseVisualStyleBackColor = false;
+            checkBoxBaja.AutoSize = true;
+            checkBoxBaja.BackColor = Color.MediumTurquoise;
+            checkBoxBaja.ForeColor = SystemColors.ActiveCaptionText;
+            checkBoxBaja.Location = new Point(477, 132);
+            checkBoxBaja.Name = "checkBoxBaja";
+            checkBoxBaja.Size = new Size(159, 19);
+            checkBoxBaja.TabIndex = 11;
+            checkBoxBaja.Text = "Otro (No es de gravedad)";
+            checkBoxBaja.UseVisualStyleBackColor = false;
             // 
-            // checkedListBox3
+            // checkedListMedia
             // 
-            checkedListBox3.BackColor = Color.LightCyan;
-            checkedListBox3.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            checkedListBox3.FormattingEnabled = true;
-            checkedListBox3.Items.AddRange(new object[] { "Discapacidad", "Adulto Mayor", "Embarazadas " });
-            checkedListBox3.Location = new Point(436, 117);
-            checkedListBox3.Name = "checkedListBox3";
-            checkedListBox3.Size = new Size(232, 76);
-            checkedListBox3.TabIndex = 13;
+            checkedListMedia.BackColor = Color.Moccasin;
+            checkedListMedia.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            checkedListMedia.FormattingEnabled = true;
+            checkedListMedia.Items.AddRange(new object[] { "Fiebre Alta (MEDIA)", "Dolores de Cabeza Intensos (MEDIA)", "Dolores Abdominales (MEDIA)", "Nauseas/Vómitos (MEDIA)" });
+            checkedListMedia.Location = new Point(28, 199);
+            checkedListMedia.Name = "checkedListMedia";
+            checkedListMedia.Size = new Size(389, 76);
+            checkedListMedia.TabIndex = 12;
             // 
-            // checkedListBox2
+            // checkedListAlta
             // 
-            checkedListBox2.BackColor = Color.Moccasin;
-            checkedListBox2.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            checkedListBox2.FormattingEnabled = true;
-            checkedListBox2.Items.AddRange(new object[] { "Fiebre Alta (MEDIA)", "Dolores de Cabeza Intensos (MEDIA)", "Dolores Abdominales (MEDIA)", "Nauseas/Vómitos (MEDIA)" });
-            checkedListBox2.Location = new Point(28, 199);
-            checkedListBox2.Name = "checkedListBox2";
-            checkedListBox2.Size = new Size(389, 76);
-            checkedListBox2.TabIndex = 12;
-            // 
-            // checkedListBox1
-            // 
-            checkedListBox1.BackColor = Color.MistyRose;
-            checkedListBox1.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            checkedListBox1.FormattingEnabled = true;
-            checkedListBox1.Items.AddRange(new object[] { "Dolor de Pecho (ALTA)", "Dificultad Para Respirar (ALTA)", "Sangrado (ALTA)", "Lesión Expuesta (ALTA)" });
-            checkedListBox1.Location = new Point(28, 117);
-            checkedListBox1.Name = "checkedListBox1";
-            checkedListBox1.Size = new Size(389, 76);
-            checkedListBox1.TabIndex = 11;
+            checkedListAlta.BackColor = Color.MistyRose;
+            checkedListAlta.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            checkedListAlta.FormattingEnabled = true;
+            checkedListAlta.Items.AddRange(new object[] { "Dolor de Pecho (ALTA)", "Dificultad Para Respirar (ALTA)", "Sangrado (ALTA)", "Lesión Expuesta (ALTA)" });
+            checkedListAlta.Location = new Point(28, 117);
+            checkedListAlta.Name = "checkedListAlta";
+            checkedListAlta.Size = new Size(389, 76);
+            checkedListAlta.TabIndex = 11;
             // 
             // label6
             // 
@@ -222,17 +207,6 @@
             label6.Size = new Size(318, 38);
             label6.TabIndex = 4;
             label6.Text = "Seleccione uno o más síntomas del paciente (Solo se muestran síntomas de prioridad MEDIA o ALTA)";
-            // 
-            // label5
-            // 
-            label5.AutoSize = true;
-            label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            label5.ForeColor = SystemColors.ControlText;
-            label5.Location = new Point(482, 34);
-            label5.Name = "label5";
-            label5.Size = new Size(154, 21);
-            label5.TabIndex = 10;
-            label5.Text = "Condición Especial";
             // 
             // label4
             // 
@@ -247,7 +221,7 @@
             // 
             // txtDNI
             // 
-            txtDNI.Location = new Point(33, 110);
+            txtDNI.Location = new Point(33, 50);
             txtDNI.Name = "txtDNI";
             txtDNI.Size = new Size(326, 23);
             txtDNI.TabIndex = 8;
@@ -257,7 +231,7 @@
             label3.AutoSize = true;
             label3.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label3.ForeColor = SystemColors.InactiveCaptionText;
-            label3.Location = new Point(33, 76);
+            label3.Location = new Point(43, 16);
             label3.Name = "label3";
             label3.Size = new Size(40, 21);
             label3.TabIndex = 7;
@@ -283,7 +257,7 @@
             // 
             // txtNombre
             // 
-            txtNombre.Location = new Point(33, 50);
+            txtNombre.Location = new Point(31, 110);
             txtNombre.Name = "txtNombre";
             txtNombre.Size = new Size(326, 23);
             txtNombre.TabIndex = 4;
@@ -293,7 +267,7 @@
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label1.ForeColor = SystemColors.ControlText;
-            label1.Location = new Point(33, 16);
+            label1.Location = new Point(33, 86);
             label1.Name = "label1";
             label1.Size = new Size(73, 21);
             label1.TabIndex = 3;
@@ -381,12 +355,10 @@
         private Panel panel2;
         private GroupBox Condicionales;
         private Button button1;
-        private CheckBox checkBox1;
-        private CheckedListBox checkedListBox3;
-        private CheckedListBox checkedListBox2;
-        private CheckedListBox checkedListBox1;
+        private CheckBox checkBoxBaja;
+        private CheckedListBox checkedListMedia;
+        private CheckedListBox checkedListAlta;
         private Label label6;
-        private Label label5;
         private Label label4;
         private TextBox txtDNI;
         private Label label3;
