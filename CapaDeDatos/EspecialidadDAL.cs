@@ -42,5 +42,16 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 context.Database.ExecuteSqlRaw("EXEC sp_EliminarEspecialidad @IdEspecialidad", pIdEspecialidad);
             }
         }
+
+        public List<EspecialidadDTO> ObtenerEspecialidadesPorMedico(int idUsuario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var parametro = new Microsoft.Data.SqlClient.SqlParameter("@IdUsuario", idUsuario);
+                return context.Database
+                    .SqlQueryRaw<EspecialidadDTO>("EXEC sp_ObtenerEspecialidadesPorMedico @IdUsuario", parametro)
+                    .ToList();
+            }
+        }
     }
 }

@@ -35,5 +35,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             _especialidadDAL.EliminarEspecialidad(idEspecialidad);
         }
+
+        public List<EspecialidadDTO> ObtenerEspecialidadesPorMedico(int idUsuario)
+        {
+            if (idUsuario <= 0)
+                throw new ArgumentException("El ID del usuario médico no es válido.");
+
+            return _especialidadDAL.ObtenerEspecialidadesPorMedico(idUsuario);
+        }
     }
 }

@@ -59,30 +59,25 @@ namespace Gestion_de_Turnos_Medicos
             btnEliminar = new Button();
             btnLimpiar = new Button();
             dgvPersonal = new DataGridView();
-            groupBox1 = new GroupBox();
+            groupBoxDatosUsuario = new GroupBox();
+            groupBoxDatosPersona = new GroupBox();
             pnlDatos.SuspendLayout();
             pnlDatosMedicos.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).BeginInit();
-            groupBox1.SuspendLayout();
+            groupBoxDatosUsuario.SuspendLayout();
+            groupBoxDatosPersona.SuspendLayout();
             SuspendLayout();
             // 
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
-            pnlDatos.Controls.Add(groupBox1);
+            pnlDatos.Controls.Add(groupBoxDatosPersona);
+            pnlDatos.Controls.Add(groupBoxDatosUsuario);
             pnlDatos.Controls.Add(lblRol);
             pnlDatos.Controls.Add(cmbRol);
             pnlDatos.Controls.Add(lblInfoMedico);
             pnlDatos.Controls.Add(pnlDatosMedicos);
             pnlDatos.Controls.Add(lblTitulo);
-            pnlDatos.Controls.Add(lblNombre);
-            pnlDatos.Controls.Add(txtNombre);
-            pnlDatos.Controls.Add(lblApellido);
-            pnlDatos.Controls.Add(txtApellido);
-            pnlDatos.Controls.Add(lblDNI);
-            pnlDatos.Controls.Add(txtDNI);
-            pnlDatos.Controls.Add(lblTelefono);
-            pnlDatos.Controls.Add(txtTelefono);
             pnlDatos.Controls.Add(btnGuardar);
             pnlDatos.Controls.Add(btnModificar);
             pnlDatos.Controls.Add(btnEliminar);
@@ -239,7 +234,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblNombre.AutoSize = true;
             lblNombre.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblNombre.Location = new Point(28, 123);
+            lblNombre.Location = new Point(15, 29);
             lblNombre.Name = "lblNombre";
             lblNombre.Size = new Size(56, 15);
             lblNombre.TabIndex = 1;
@@ -247,7 +242,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtNombre
             // 
-            txtNombre.Location = new Point(114, 119);
+            txtNombre.Location = new Point(101, 25);
             txtNombre.Name = "txtNombre";
             txtNombre.Size = new Size(169, 23);
             txtNombre.TabIndex = 0;
@@ -256,7 +251,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblApellido.AutoSize = true;
             lblApellido.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblApellido.Location = new Point(24, 153);
+            lblApellido.Location = new Point(11, 59);
             lblApellido.Name = "lblApellido";
             lblApellido.Size = new Size(55, 15);
             lblApellido.TabIndex = 3;
@@ -264,7 +259,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtApellido
             // 
-            txtApellido.Location = new Point(114, 149);
+            txtApellido.Location = new Point(101, 55);
             txtApellido.Name = "txtApellido";
             txtApellido.Size = new Size(169, 23);
             txtApellido.TabIndex = 1;
@@ -290,7 +285,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblContrasena.AutoSize = true;
             lblContrasena.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblContrasena.Location = new Point(0, 63);
+            lblContrasena.Location = new Point(23, 67);
             lblContrasena.Name = "lblContrasena";
             lblContrasena.Size = new Size(72, 15);
             lblContrasena.TabIndex = 7;
@@ -308,7 +303,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblDNI.AutoSize = true;
             lblDNI.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblDNI.Location = new Point(50, 185);
+            lblDNI.Location = new Point(37, 91);
             lblDNI.Name = "lblDNI";
             lblDNI.Size = new Size(32, 15);
             lblDNI.TabIndex = 11;
@@ -316,7 +311,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtDNI
             // 
-            txtDNI.Location = new Point(114, 185);
+            txtDNI.Location = new Point(101, 91);
             txtDNI.Name = "txtDNI";
             txtDNI.Size = new Size(169, 23);
             txtDNI.TabIndex = 5;
@@ -325,7 +320,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblTelefono.AutoSize = true;
             lblTelefono.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblTelefono.Location = new Point(35, 218);
+            lblTelefono.Location = new Point(22, 124);
             lblTelefono.Name = "lblTelefono";
             lblTelefono.Size = new Size(59, 15);
             lblTelefono.TabIndex = 17;
@@ -333,7 +328,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // txtTelefono
             // 
-            txtTelefono.Location = new Point(114, 215);
+            txtTelefono.Location = new Point(101, 121);
             txtTelefono.Name = "txtTelefono";
             txtTelefono.Size = new Size(169, 23);
             txtTelefono.TabIndex = 8;
@@ -391,18 +386,36 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.CellClick += dgvPersonal_CellClick;
             dgvPersonal.CellEndEdit += dgvPersonal_CellEndEdit;
             // 
-            // groupBox1
+            // groupBoxDatosUsuario
             // 
-            groupBox1.Controls.Add(lblCorreo);
-            groupBox1.Controls.Add(txtCorreo);
-            groupBox1.Controls.Add(lblContrasena);
-            groupBox1.Controls.Add(txtContrasena);
-            groupBox1.Location = new Point(289, 94);
-            groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(268, 111);
-            groupBox1.TabIndex = 23;
-            groupBox1.TabStop = false;
-            groupBox1.Text = "groupBox1";
+            groupBoxDatosUsuario.Controls.Add(lblCorreo);
+            groupBoxDatosUsuario.Controls.Add(txtCorreo);
+            groupBoxDatosUsuario.Controls.Add(lblContrasena);
+            groupBoxDatosUsuario.Controls.Add(txtContrasena);
+            groupBoxDatosUsuario.ForeColor = SystemColors.ActiveCaptionText;
+            groupBoxDatosUsuario.Location = new Point(305, 65);
+            groupBoxDatosUsuario.Name = "groupBoxDatosUsuario";
+            groupBoxDatosUsuario.Size = new Size(268, 111);
+            groupBoxDatosUsuario.TabIndex = 23;
+            groupBoxDatosUsuario.TabStop = false;
+            groupBoxDatosUsuario.Text = "Datos del Usuario";
+            // 
+            // groupBoxDatosPersona
+            // 
+            groupBoxDatosPersona.Controls.Add(lblNombre);
+            groupBoxDatosPersona.Controls.Add(txtNombre);
+            groupBoxDatosPersona.Controls.Add(lblApellido);
+            groupBoxDatosPersona.Controls.Add(txtApellido);
+            groupBoxDatosPersona.Controls.Add(lblDNI);
+            groupBoxDatosPersona.Controls.Add(txtDNI);
+            groupBoxDatosPersona.Controls.Add(lblTelefono);
+            groupBoxDatosPersona.Controls.Add(txtTelefono);
+            groupBoxDatosPersona.Location = new Point(12, 65);
+            groupBoxDatosPersona.Name = "groupBoxDatosPersona";
+            groupBoxDatosPersona.Size = new Size(275, 165);
+            groupBoxDatosPersona.TabIndex = 24;
+            groupBoxDatosPersona.TabStop = false;
+            groupBoxDatosPersona.Text = "Datos de la Persona";
             // 
             // FrmGestionUsuarios
             // 
@@ -419,8 +432,10 @@ namespace Gestion_de_Turnos_Medicos
             pnlDatosMedicos.ResumeLayout(false);
             pnlDatosMedicos.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).EndInit();
-            groupBox1.ResumeLayout(false);
-            groupBox1.PerformLayout();
+            groupBoxDatosUsuario.ResumeLayout(false);
+            groupBoxDatosUsuario.PerformLayout();
+            groupBoxDatosPersona.ResumeLayout(false);
+            groupBoxDatosPersona.PerformLayout();
             ResumeLayout(false);
 
         }
@@ -461,6 +476,7 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtMatricula;
         private Label lblNotaSala;
         private TextBox txtNotaSala;
-        private GroupBox groupBox1;
+        private GroupBox groupBoxDatosUsuario;
+        private GroupBox groupBoxDatosPersona;
     }
 }

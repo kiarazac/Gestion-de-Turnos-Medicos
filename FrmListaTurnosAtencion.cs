@@ -151,24 +151,43 @@ namespace Gestion_de_Turnos_Medicos
         {
             cboServicio.Items.Clear();
 
-            // Opción fija siempre disponible para guardia
+            // Opción fija siempre disponible para guardia/emergencias
             cboServicio.Items.Add("Emergencias / Guardia");
 
             try
             {
-                var especialidades = _especialidadBLL.ObtenerEspecialidades();
-                if (especialidades != null)
+                // Si tenemos un usuario logueado y es un médico (puedes validar por IdRol o simplemente si _usuarioActual no es nulo)
+                if (_usuarioActual != null)
                 {
-                    foreach (var esp in especialidades)
+                    // Consultamos solo las especialidades asignadas a este médico en la BD
+                    var especialidadesMedico = _especialidadBLL.ObtenerEspecialidadesPorMedico(_usuarioActual.IdUsuario);
+
+                    if (especialidadesMedico != null)
                     {
-                        if (!string.IsNullOrWhiteSpace(esp.Nombre))
-                            cboServicio.Items.Add(esp.Nombre);
+                        foreach (var esp in especialidadesMedico)
+                        {
+                            if (!string.IsNullOrWhiteSpace(esp.Nombre))
+                                cboServicio.Items.Add(esp.Nombre);
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback por si entra sin sesión (modo pruebas): Carga todas
+                    var especialidades = _especialidadBLL.ObtenerEspecialidades();
+                    if (especialidades != null)
+                    {
+                        foreach (var esp in especialidades)
+                        {
+                            if (!string.IsNullOrWhiteSpace(esp.Nombre))
+                                cboServicio.Items.Add(esp.Nombre);
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron cargar los servicios médicos:\n" + ex.Message,
+                MessageBox.Show("No se pudieron cargar los servicios médicos del profesional:\n" + ex.Message,
                     "Error de Servicios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
