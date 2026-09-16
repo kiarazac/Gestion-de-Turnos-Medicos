@@ -3,13 +3,13 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
 namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmTurnoEmergencia : Form
     {
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
+        private readonly PacienteBLL _pacienteBLL = new PacienteBLL(); // Instanciamos para guardar pacientes nuevos
         private int? idPacienteActual = null; // Almacena el ID si el paciente ya existe en la BD
 
         public FrmTurnoEmergencia()
@@ -53,24 +53,29 @@ namespace Gestion_de_Turnos_Medicos
                 var paciente = _turnoBLL.BuscarPacientePorDNI(dniBuscado);
                 if (paciente != null)
                 {
+                    // CASO 1: El paciente YA existe en la base de datos
                     idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
                     txtObraSocial.Text = paciente.ObraSocial;
 
-                    // Bloqueamos edición de nombre y apellido si ya está registrado
+                    // Bloqueamos edición para evitar modificar registros existentes por error
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
+                    txtObraSocial.ReadOnly = true;
                 }
                 else
                 {
-                    // Si no existe, permitimos cargar sus datos nuevos
+                    // CASO 2: El paciente NO existe. Permitimos cargar sus datos desde cero.
                     idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
                     txtObraSocial.Clear();
+
                     txtNombre.ReadOnly = false;
                     txtApellido.ReadOnly = false;
+                    txtObraSocial.ReadOnly = false;
+                    txtNombre.Focus();
                 }
             }
             catch (Exception ex)
@@ -83,11 +88,28 @@ namespace Gestion_de_Turnos_Medicos
         {
             try
             {
-                // Validación estricta de existencia de paciente
+                string nombre = txtNombre.Text.Trim();
+                string apellido = txtApellido.Text.Trim();
+                string dni = txtDNI.Text.Trim();
+                string obraSocial = txtObraSocial.Text.Trim();
+
+                if (string.IsNullOrEmpty(dni) || string.IsNullOrEmpty(nombre) || string.IsNullOrEmpty(apellido))
+                {
+                    MessageBox.Show("Por favor, complete los datos obligatorios del paciente (DNI, Nombre y Apellido).", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                int idPacienteFinal;
+
+                // Si el paciente no estaba registrado, lo guardamos automáticamente en la BD antes de crear el turno
                 if (!idPacienteActual.HasValue)
                 {
-                    MessageBox.Show("El DNI ingresado no corresponde a un paciente registrado en la base de datos o falta cargar sus datos.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
+                    idPacienteActual = idPacienteFinal; // Actualizamos la referencia local
+                }
+                else
+                {
+                    idPacienteFinal = idPacienteActual.Value;
                 }
 
                 bool esOtro = checkBoxBaja.Checked;
@@ -96,17 +118,14 @@ namespace Gestion_de_Turnos_Medicos
                 // Si no marcó "Otro", evaluamos los síntomas de los CheckedListBox
                 if (!esOtro)
                 {
-                    // Nota: Asegúrate de que los ítems en tus CheckedListBox guarden relación o mapeen a sus IDs correspondientes en la BD.
-                    // Aquí simulamos la recolección de los IDs según los índices o valores seleccionados.
                     foreach (var item in checkedListAlta.CheckedItems)
                     {
-                        // Lógica para obtener el IdSintoma correspondiente a checkedListAlta (Alta)
-                        // Ejemplo: si manejas objetos o índices, adáptalo a tu mapeo de DAL.
+                        // Lógica de mapeo de ID de síntoma si aplica en tu DAL
                     }
 
                     foreach (var item in checkedListMedia.CheckedItems)
                     {
-                        // Lógica para obtener el IdSintoma correspondiente a checkedListMedia (Media)
+                        // Lógica de mapeo de ID de síntoma si aplica en tu DAL
                     }
 
                     if (checkedListAlta.CheckedItems.Count == 0 && checkedListMedia.CheckedItems.Count == 0)
@@ -116,14 +135,14 @@ namespace Gestion_de_Turnos_Medicos
                     }
                 }
 
-                // Llamada a la Capa de Negocio pasando el estado de "Otro" y los síntomas
-                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteActual.Value, sintomasSeleccionados, esOtro);
+                // Llamada a la Capa de Negocio pasando el ID del paciente final, los síntomas y el estado de "Otro"
+                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro);
 
                 // Mostramos el resultado visual en pantalla
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = "Emergencia";
 
-                MessageBox.Show($"¡Turno generado correctamente!\nNúmero de Orden: {nroOrden}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"¡Turno de emergencia generado correctamente!\nNúmero de Orden: {nroOrden}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 LimpiarFormulario();
             }
@@ -140,13 +159,18 @@ namespace Gestion_de_Turnos_Medicos
             txtNombre.Clear();
             txtApellido.Clear();
             txtObraSocial.Clear();
+
             txtNombre.ReadOnly = false;
             txtApellido.ReadOnly = false;
+            txtObraSocial.ReadOnly = false;
+
             idPacienteActual = null;
             checkBoxBaja.Checked = false;
 
             for (int i = 0; i < checkedListAlta.Items.Count; i++) checkedListAlta.SetItemChecked(i, false);
             for (int i = 0; i < checkedListMedia.Items.Count; i++) checkedListMedia.SetItemChecked(i, false);
+
+            txtDNI.Focus();
         }
     }
 }

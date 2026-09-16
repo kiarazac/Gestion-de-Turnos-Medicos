@@ -231,7 +231,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             using (var context = new dbTurnosMedicos())
             {
                 var resultado = context.Database.SqlQueryRaw<PacienteDTO>(query, parametro).AsEnumerable().FirstOrDefault();
-                return resultado ?? new PacienteDTO();
+                return resultado;
             }
         }
     }

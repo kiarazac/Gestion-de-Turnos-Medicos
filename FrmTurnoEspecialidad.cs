@@ -3,15 +3,17 @@ using System.Drawing;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
     public partial class FrmTurnoEspecialidad : Form
     {
-        // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL();
+
+        private int? idPacienteActual = null;
 
         public FrmTurnoEspecialidad()
         {
@@ -19,21 +21,75 @@ namespace Gestion_de_Turnos_Medicos
 
             this.Load += FrmTurnoEspecialidad_Load;
             this.button1.Click += BtnGenerarTurno_Click;
+
+            txtDNI.Leave += TxtDNI_Leave;
+            txtDNI.KeyDown += TxtDNI_KeyDown;
         }
 
         private void FrmTurnoEspecialidad_Load(object? sender, EventArgs e)
         {
             calFechaTurno.MinDate = DateTime.Today;
-
             CargarEspecialidades();
 
             Lid_turno.Text = "# --";
             Ldescrip_turno_especialidad.Text = "Especialidad";
         }
 
-        /// <summary>
-        /// Obtiene las especialidades activas desde la Capa de Negocio (BLL), sin datos simulados.
-        /// </summary>
+        private void TxtDNI_Leave(object sender, EventArgs e)
+        {
+            BuscarYAutocompletarPaciente();
+        }
+
+        private void TxtDNI_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                BuscarYAutocompletarPaciente();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        }
+
+        private void BuscarYAutocompletarPaciente()
+        {
+            string dniBuscado = txtDNI.Text.Trim();
+            if (string.IsNullOrEmpty(dniBuscado)) return;
+
+            try
+            {
+                var paciente = _turnoBLL.BuscarPacientePorDNI(dniBuscado);
+                if (paciente != null)
+                {
+                    // CASO 1: Paciente existente -> Autocompleta y bloquea edición
+                    idPacienteActual = paciente.IdPaciente;
+                    txtNombre.Text = paciente.Nombre;
+                    txtApellido.Text = paciente.Apellido;
+                    txtObraSocial.Text = paciente.ObraSocial;
+
+                    txtNombre.ReadOnly = true;
+                    txtApellido.ReadOnly = true;
+                    txtObraSocial.ReadOnly = true;
+                }
+                else
+                {
+                    // CASO 2: Paciente nuevo -> Limpia y habilita los campos para el registro
+                    idPacienteActual = null;
+                    txtNombre.Clear();
+                    txtApellido.Clear();
+                    txtObraSocial.Clear();
+
+                    txtNombre.ReadOnly = false;
+                    txtApellido.ReadOnly = false;
+                    txtObraSocial.ReadOnly = false;
+                    txtNombre.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al buscar el paciente:\n{ex.Message}", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         private void CargarEspecialidades()
         {
             cmbEspecialidad.Items.Clear();
@@ -41,9 +97,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a EspecialidadDAL -> sp_ObtenerEspecialidades / sp_ListarEspecialidades
                 var especialidades = _especialidadBLL.ObtenerEspecialidades();
-
                 if (especialidades != null)
                 {
                     foreach (var esp in especialidades)
@@ -55,8 +109,7 @@ namespace Gestion_de_Turnos_Medicos
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron cargar las especialidades médicas:\n" + ex.Message,
-                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("No se pudieron cargar las especialidades médicas:\n" + ex.Message, "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             cmbEspecialidad.SelectedIndex = 0;
@@ -81,8 +134,7 @@ namespace Gestion_de_Turnos_Medicos
 
             if (cmbEspecialidad.SelectedIndex <= 0)
             {
-                MessageBox.Show("Por favor, seleccione una especialidad antes de elegir la fecha.",
-                    "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, seleccione una especialidad antes de elegir la fecha.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -91,7 +143,6 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a TurnoDAL -> sp_ObtenerHorariosDisponibles (sin listas hardcodeadas en catch)
                 var horarios = _turnoBLL.ObtenerHorariosDisponibles(especialidad, fechaElegida);
 
                 if (horarios != null && horarios.Count > 0)
@@ -105,14 +156,12 @@ namespace Gestion_de_Turnos_Medicos
                 }
                 else
                 {
-                    MessageBox.Show("No hay turnos disponibles para esta fecha y especialidad.",
-                        "Sin disponibilidad", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("No hay turnos disponibles para esta fecha y especialidad.", "Sin disponibilidad", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron consultar los horarios disponibles:\n" + ex.Message,
-                    "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudieron consultar los horarios disponibles:\n" + ex.Message, "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -131,15 +180,23 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // 1. Guardar o recuperar paciente mediante PacienteBLL
-                int idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
+                int idPaciente;
 
-                // 2. Registrar turno de especialidad mediante TurnoBLL (sp_CrearTurnoEspecialidad / sp_InsertarTurno)
+                // Si el paciente ya existe usamos su ID; si es nuevo, lo guardamos automáticamente en la BD
+                if (idPacienteActual.HasValue)
+                {
+                    idPaciente = idPacienteActual.Value;
+                }
+                else
+                {
+                    idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
+                    idPacienteActual = idPaciente;
+                }
+
+                // Registro del turno con la nueva inicial dinámica en el SP
                 var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera");
-
                 string nroOrden = resultadoTurno.NroOrden ?? $"T-{resultadoTurno.IdNuevoTurno:D3}";
 
-                // 3. Actualizar interfaz visual
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
 
@@ -162,8 +219,7 @@ namespace Gestion_de_Turnos_Medicos
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al registrar el turno de especialidad:\n" + ex.Message,
-                    "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Ocurrió un error al registrar el turno de especialidad:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -174,47 +230,41 @@ namespace Gestion_de_Turnos_Medicos
                 string.IsNullOrWhiteSpace(txtDNI.Text) ||
                 string.IsNullOrWhiteSpace(txtObraSocial.Text))
             {
-                MessageBox.Show("Por favor, complete todos los datos del paciente.",
-                    "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, complete todos los datos del paciente.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
             if (!Validaciones.EsNombreValido(txtNombre.Text.Trim()))
             {
-                MessageBox.Show("El Nombre contiene caracteres inválidos. Solo se admiten letras.",
-                    "Nombre inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El Nombre contiene caracteres inválidos. Solo se admiten letras.", "Nombre inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtNombre.Focus();
                 return false;
             }
 
             if (!Validaciones.EsNombreValido(txtApellido.Text.Trim()))
             {
-                MessageBox.Show("El Apellido contiene caracteres inválidos. Solo se admiten letras.",
-                    "Apellido inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El Apellido contiene caracteres inválidos. Solo se admiten letras.", "Apellido inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtApellido.Focus();
                 return false;
             }
 
             if (!Regex.IsMatch(txtDNI.Text.Trim(), @"^\d{7,8}$"))
             {
-                MessageBox.Show("El DNI debe tener entre 7 y 8 números.",
-                    "DNI inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("El DNI debe tener entre 7 y 8 números.", "DNI inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtDNI.Focus();
                 return false;
             }
 
             if (cmbEspecialidad.SelectedIndex <= 0)
             {
-                MessageBox.Show("Por favor, seleccione una especialidad.",
-                    "Falta especialidad", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, seleccione una especialidad.", "Falta especialidad", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cmbEspecialidad.Focus();
                 return false;
             }
 
             if (cmbHorarios.SelectedItem == null || string.IsNullOrWhiteSpace(cmbHorarios.SelectedItem.ToString()))
             {
-                MessageBox.Show("Por favor, seleccione un horario para el turno.",
-                    "Falta horario", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, seleccione un horario para el turno.", "Falta horario", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cmbHorarios.Focus();
                 return false;
             }
@@ -228,9 +278,15 @@ namespace Gestion_de_Turnos_Medicos
             txtApellido.Clear();
             txtDNI.Clear();
             txtObraSocial.Clear();
+
+            txtNombre.ReadOnly = false;
+            txtApellido.ReadOnly = false;
+            txtObraSocial.ReadOnly = false;
+
+            idPacienteActual = null;
             cmbEspecialidad.SelectedIndex = 0;
             cmbHorarios.Items.Clear();
-            txtNombre.Focus();
+            txtDNI.Focus();
         }
     }
 }
