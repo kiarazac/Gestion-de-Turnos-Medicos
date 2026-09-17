@@ -220,9 +220,9 @@ GO
 ---
 
 ### 1.6 `sp_ModificarUsuario`
-- **Descripción:** Actualiza los datos de filiación, contacto, identificación, matrícula profesional y rol de un usuario existente. Si se especifica una sala (`@IdSala`), gestiona de forma atómica y con borrado lógico la asignación del médico en la tabla `DetallesSalas`.
+- **Descripción:** Actualiza los datos de filiación, contacto, identificación, matrícula profesional y rol de un usuario existente. Permite la asignación y modificación de una o **múltiples salas simultáneas** mediante `@SalasIds` (o compatibilidad con `@IdSala`), gestionando de forma atómica y con borrado lógico la relación en la tabla `DetallesSalas`.
 - **Entidad:** Usuario / DetalleSala
-- **Operación:** Modificación / Reasignación de Sala
+- **Operación:** Modificación / Reasignación de Múltiples Salas
 - **Tablas:** `Usuarios`, `DetallesSalas`
 - **Forms que lo utilizan:** `FrmGestionUsuarios`
 - **Acción:** Botón `btnModificar` y edición directa de celda en DataGridView (`dgvPersonal_CellEndEdit`)
@@ -238,8 +238,9 @@ GO
   | `@Dni` | `NVARCHAR(20)` | IN | Nuevo número de DNI (opcional, conserva anterior si es NULL). |
   | `@NroMatricula` | `NVARCHAR(50)` | IN | Nueva matrícula médica (opcional/médicos). |
   | `@IdRol` | `INT` | IN | Nuevo rol asignado (opcional, conserva anterior si es NULL). |
-  | `@IdSala` | `INT` | IN | Nueva sala asignada (opcional: NULL = no tocar salas, 0 = desasignar, >0 = reasignar sala). |
+  | `@IdSala` | `INT` | IN | Sala única asignada (soporte legado: NULL = no tocar salas, 0 = desasignar, >0 = reasignar sala). |
   | `@DescripcionAtencion` | `NVARCHAR(255)` | IN | Observaciones o notas de atención en la sala (opcional). |
+  | `@SalasIds` | `NVARCHAR(MAX)` | IN | Lista de IDs de salas separadas por coma (ej: '1,3,5'). Permite asignar múltiples salas simultáneas. Si es '' (cadena vacía), desasigna todas las salas. Si es NULL, respeta `@IdSala`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarUsuario
@@ -252,17 +253,16 @@ CREATE OR ALTER PROCEDURE sp_ModificarUsuario
     @NroMatricula NVARCHAR(50) = NULL,
     @IdRol INT = NULL,
     @IdSala INT = NULL,
-    @DescripcionAtencion NVARCHAR(255) = NULL
+    @DescripcionAtencion NVARCHAR(255) = NULL,
+    @SalasIds NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Usamos un bloque TRY...CATCH para garantizar atomicidad e integridad referencial
     BEGIN TRY
-        -- Iniciamos una transacción explícita: o se aplican todos los cambios o ninguno
         BEGIN TRANSACTION;
 
-        -- 1. Actualizamos los datos personales, contacto, identificación y matrícula en la tabla Usuarios
+        -- 1. Actualizamos datos personales y rol en Usuarios
         UPDATE Usuarios
         SET Nombre = @Nombre,
             Apellido = @Apellido,
@@ -274,11 +274,10 @@ BEGIN
             FechaModificacion = GETDATE()
         WHERE IdUsuario = @IdUsuario;
 
-        -- 2. Gestión de salas en la tabla DetallesSalas (solo si @IdSala no es NULL)
-        -- Si @IdSala es NULL, no se modifican las salas existentes del usuario
-        IF (@IdSala IS NOT NULL)
+        -- 2. Gestión de múltiples salas mediante @SalasIds
+        IF (@SalasIds IS NOT NULL)
         BEGIN
-            -- Desactivamos lógicamente cualquier asignación previa activa para este usuario
+            -- Baja lógica de asignaciones activas previas del usuario
             UPDATE DetallesSalas
             SET Activo = 0,
                 FechaBaja = GETDATE(),
@@ -286,9 +285,27 @@ BEGIN
             WHERE IdUsuario = @IdUsuario 
               AND Activo = 1;
 
-            -- Si se envió un ID de sala mayor a 0, insertamos la nueva asignación activa
-            -- Si es 0, simplemente queda desasignado de cualquier sala
-            -- Se utiliza ISNULL ya que la columna DescripcionAtencion no admite valores NULL
+            -- Inserción de todas las salas seleccionadas
+            INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
+            SELECT 
+                TRY_CAST(TRIM(value) AS INT), 
+                @IdUsuario, 
+                ISNULL(@DescripcionAtencion, ''), 
+                GETDATE(), 
+                1
+            FROM STRING_SPLIT(@SalasIds, ',')
+            WHERE TRY_CAST(TRIM(value) AS INT) > 0;
+        END
+        -- Soporte legado para llamadas con un único @IdSala
+        ELSE IF (@IdSala IS NOT NULL)
+        BEGIN
+            UPDATE DetallesSalas
+            SET Activo = 0,
+                FechaBaja = GETDATE(),
+                FechaModificacion = GETDATE()
+            WHERE IdUsuario = @IdUsuario 
+              AND Activo = 1;
+
             IF (@IdSala > 0)
             BEGIN
                 INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
@@ -296,15 +313,12 @@ BEGIN
             END
         END
 
-        -- Si no ocurrieron errores, confirmamos todos los cambios en la base de datos
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        -- Si ocurre cualquier falla, revertimos los cambios para evitar datos inconsistentes
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        -- Relanzamos el error hacia la capa C#
         THROW;
     END CATCH
 END;

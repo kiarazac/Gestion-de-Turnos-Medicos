@@ -88,7 +88,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
         /// <summary>
         /// Modifica los datos de un usuario existente aplicando validaciones de dominio y delegando la persistencia en UsuarioDAL.
-        /// Soporta la actualización opcional de la matrícula y la sala asignada para el personal médico.
+        /// Soporta la actualización de matrícula médica y una o múltiples salas asignadas.
         /// </summary>
         /// <param name="idUsuario">Identificador único del usuario a modificar.</param>
         /// <param name="nombre">Nombre actualizado del usuario.</param>
@@ -98,9 +98,9 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="telefono">Teléfono actualizado de contacto.</param>
         /// <param name="matricula">Matrícula médica actualizada (aplica a personal médico).</param>
         /// <param name="idRol">ID del rol asignado (opcional si es nulo o menor o igual a 0).</param>
-        /// <param name="idSala">ID de la nueva sala asignada (opcional; null = no modificar, 0 = desasignar, >0 = reasignar sala).</param>
+        /// <param name="salasIds">Lista de IDs de salas asignadas (null = no modificar, vacía = desasignar todas, con elementos = asignar múltiples salas).</param>
         /// <param name="descripcionAtencion">Notas u observaciones sobre la atención en la sala.</param>
-        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, int? idSala = null, string? descripcionAtencion = null)
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, List<int>? salasIds, string? descripcionAtencion = null)
         {
             // 1. Validaciones de negocio fundamentales
             if (idUsuario <= 0)
@@ -115,8 +115,24 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (string.IsNullOrWhiteSpace(dni))
                 throw new ArgumentException("El DNI es un campo obligatorio.");
 
-            // 2. Si las reglas de validación se cumplen, delegamos la persistencia a la Capa de Datos (DAL -> sp_ModificarUsuario)
-            _usuarioDAL.ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, idSala, descripcionAtencion);
+            // 2. Delegamos la persistencia a la Capa de Datos (DAL -> sp_ModificarUsuario con soporte de múltiples salas)
+            _usuarioDAL.ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion);
+        }
+
+        /// <summary>
+        /// Sobrecarga de compatibilidad para modificar usuario enviando un único ID de sala.
+        /// </summary>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, int? idSala = null, string? descripcionAtencion = null)
+        {
+            List<int>? salasIds = null;
+            if (idSala.HasValue)
+            {
+                salasIds = new List<int>();
+                if (idSala.Value > 0)
+                    salasIds.Add(idSala.Value);
+            }
+
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion);
         }
     }
 }

@@ -143,7 +143,14 @@ namespace Gestion_de_Turnos_Medicos
 
                 if (salas != null)
                 {
-                    foreach (var s in salas)
+                    // Agrupamos por IdSala para que cada sala física aparezca una única vez en el checklist,
+                    // ya que sp_ObtenerSalas devuelve una fila por cada médico asignado a dicha sala.
+                    var salasUnicas = salas
+                        .GroupBy(s => s.IdSala)
+                        .Select(g => g.First())
+                        .ToList();
+
+                    foreach (var s in salasUnicas)
                     {
                         clbSala.Items.Add(new ItemConId
                         {
@@ -361,20 +368,18 @@ namespace Gestion_de_Turnos_Medicos
             string matricula = esPersonalMedico ? txtMatricula.Text.Trim() : string.Empty;
             string notaSala = txtNotaSala.Text.Trim();
 
-            // 3. Determinamos la sala a enviar al procedimiento almacenado sp_ModificarUsuario
-            // Si es personal médico, tomamos la sala tildada (o 0 para desasignarla si se destildaron todas)
-            // Si no es médico, enviamos null para no tocar la tabla DetallesSalas
-            int? idSalaParaModificar = null;
+            // 3. Determinamos las salas a enviar al procedimiento almacenado sp_ModificarUsuario
+            // Si es personal médico, recopilamos todas las salas tildadas en clbSala (soporta múltiples salas simultáneas).
+            // Si el usuario destildó todas las salas, enviamos una lista vacía para desasignarlas en DetallesSalas.
+            // Si no es personal médico, enviamos null para no modificar las asignaciones de salas.
+            List<int>? salasIdsParaModificar = null;
             if (esPersonalMedico)
             {
-                if (clbSala.CheckedItems.Count > 0 && clbSala.CheckedItems[0] is ItemConId salaSeleccionada)
+                salasIdsParaModificar = new List<int>();
+                foreach (var item in clbSala.CheckedItems)
                 {
-                    idSalaParaModificar = salaSeleccionada.Id;
-                }
-                else
-                {
-                    // 0 indica a sp_ModificarUsuario que desasigne la sala activa previa
-                    idSalaParaModificar = 0;
+                    if (item is ItemConId sala)
+                        salasIdsParaModificar.Add(sala.Id);
                 }
             }
 
@@ -387,8 +392,8 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // 5. Invocamos a la Capa BLL -> DAL -> sp_ModificarUsuario (incluye matrícula, sala y descripción)
-                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono, matricula, rolSeleccionado.Id, idSalaParaModificar, notaSala);
+                // 5. Invocamos a la Capa BLL -> DAL -> sp_ModificarUsuario (incluye matrícula, múltiples salas y descripción)
+                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono, matricula, rolSeleccionado.Id, salasIdsParaModificar, notaSala);
 
                 MessageBox.Show($"El usuario '{nombre} {apellido}' fue modificado correctamente.",
                     "Usuario Modificado", MessageBoxButtons.OK, MessageBoxIcon.Information);
