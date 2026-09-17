@@ -13,6 +13,11 @@ namespace Gestion_de_Turnos_Medicos
         public FrmLogin()
         {
             InitializeComponent();
+
+            // Asignamos el botón 'Iniciar Sesión' (button1) como botón de aceptación por defecto del Formulario.
+            // De esta manera, al presionar la tecla Enter en cualquier control (como txtCorreo o txtContraseña),
+            // Windows Forms ejecuta automáticamente el evento button1_Click.
+            this.AcceptButton = button1;
         }
 
         private void button1_Click(object sender, EventArgs e)

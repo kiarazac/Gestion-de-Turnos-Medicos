@@ -37,6 +37,8 @@ namespace Gestion_de_Turnos_Medicos
             LPersonalMedico = new Label();
             btnSalas = new Button();
             btnPersonalMedico = new Button();
+            LUsuarios2 = new Label();
+            btnUsuarios2 = new Button();
             pnlContenedor = new Panel();
             panel1.SuspendLayout();
             SuspendLayout();
@@ -45,6 +47,8 @@ namespace Gestion_de_Turnos_Medicos
             // 
             panel1.AutoScroll = true;
             panel1.BackColor = SystemColors.ActiveCaption;
+            panel1.Controls.Add(LUsuarios2);
+            panel1.Controls.Add(btnUsuarios2);
             panel1.Controls.Add(Lsalir);
             panel1.Controls.Add(btnSalir);
             panel1.Controls.Add(LEspecialidades);
@@ -59,12 +63,38 @@ namespace Gestion_de_Turnos_Medicos
             panel1.Size = new Size(200, 425);
             panel1.TabIndex = 0;
             // 
+            // LUsuarios2
+            // 
+            LUsuarios2.AutoSize = true;
+            LUsuarios2.Font = new Font("Arial Black", 10F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            LUsuarios2.ForeColor = Color.DarkGreen;
+            LUsuarios2.Location = new Point(25, 345);
+            LUsuarios2.Name = "LUsuarios2";
+            LUsuarios2.Size = new Size(150, 19);
+            LUsuarios2.TabIndex = 8;
+            LUsuarios2.Text = "Usuarios 2.0 (Prueba)";
+            // 
+            // btnUsuarios2
+            // 
+            btnUsuarios2.BackColor = Color.FromArgb(15, 118, 110);
+            btnUsuarios2.Cursor = Cursors.Hand;
+            btnUsuarios2.FlatStyle = FlatStyle.Flat;
+            btnUsuarios2.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnUsuarios2.ForeColor = Color.White;
+            btnUsuarios2.Location = new Point(46, 368);
+            btnUsuarios2.Name = "btnUsuarios2";
+            btnUsuarios2.Size = new Size(92, 73);
+            btnUsuarios2.TabIndex = 9;
+            btnUsuarios2.Text = "⚡ V 2.0\n(Prueba)";
+            btnUsuarios2.UseVisualStyleBackColor = false;
+            btnUsuarios2.Click += btnUsuarios2_Click;
+            // 
             // Lsalir
             // 
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 345);
+            Lsalir.Location = new Point(65, 455);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
             Lsalir.TabIndex = 7;
@@ -74,7 +104,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
-            btnSalir.Location = new Point(46, 372);
+            btnSalir.Location = new Point(46, 482);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
             btnSalir.TabIndex = 6;
@@ -179,5 +209,7 @@ namespace Gestion_de_Turnos_Medicos
         private Label label3;
         private Label Lsalir;
         private Button btnSalir;
+        private Label LUsuarios2;
+        private Button btnUsuarios2;
     }
 }
