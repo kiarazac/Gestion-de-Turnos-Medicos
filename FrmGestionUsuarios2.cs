@@ -175,10 +175,16 @@ namespace Gestion_de_Turnos_Medicos
                     // Seleccionamos el rol del usuario
                     for (int i = 0; i < cmbRol.Items.Count; i++)
                     {
-                        if (cmbRol.Items[i] is ItemConId item && item.Texto.Equals(usuarioExistente.Rol, StringComparison.OrdinalIgnoreCase))
+                        if (cmbRol.Items[i] is ItemConId item)
                         {
-                            cmbRol.SelectedIndex = i;
-                            break;
+                            if (item.Texto.Equals(usuarioExistente.Rol, StringComparison.OrdinalIgnoreCase) ||
+                                (!string.IsNullOrWhiteSpace(usuarioExistente.Rol) &&
+                                 (item.Texto.Contains(usuarioExistente.Rol, StringComparison.OrdinalIgnoreCase) ||
+                                  usuarioExistente.Rol.Contains(item.Texto, StringComparison.OrdinalIgnoreCase))))
+                            {
+                                cmbRol.SelectedIndex = i;
+                                break;
+                            }
                         }
                     }
 
@@ -443,8 +449,11 @@ namespace Gestion_de_Turnos_Medicos
 
         private bool EsPersonalMedico()
         {
-            return cmbRol.SelectedItem is ItemConId item &&
-                   item.Texto.Equals(ROL_PERSONAL_MEDICO, StringComparison.OrdinalIgnoreCase);
+            if (cmbRol.SelectedItem is not ItemConId item || string.IsNullOrWhiteSpace(item.Texto))
+                return false;
+
+            return item.Texto.Contains("médic", StringComparison.OrdinalIgnoreCase) ||
+                   item.Texto.Contains("medic", StringComparison.OrdinalIgnoreCase);
         }
 
         private void DesmarcarChecklists()
@@ -510,8 +519,14 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Evento disparado al presionar el botón 'Modificar Datos'.
+        /// Valida las entradas, recopila las salas y especialidades seleccionadas, y delega en UsuarioBLL -> UsuarioDAL
+        /// para actualizar el usuario sin alterar la lógica de la base de datos SQL Server.
+        /// </summary>
         private void btnModificar_Click(object sender, EventArgs e)
         {
+            // 1. Verificamos que se haya cargado un usuario previamente verificado por DNI
             if (_idUsuarioSeleccionado <= 0)
             {
                 MessageBox.Show("Debe seleccionar o verificar un usuario existente para modificar.",
@@ -519,6 +534,7 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
+            // 2. Validamos los campos de entrada (esAlta = false permite conservar contraseña previa si está en blanco)
             if (!ValidarCampos(esAlta: false))
                 return;
 
@@ -533,14 +549,37 @@ namespace Gestion_de_Turnos_Medicos
             string? matricula = esMedico ? txtMatricula.Text.Trim() : null;
             string notaSala = txtNotaSala.Text.Trim();
 
+            // Clave opcional: si el campo de contraseña se llenó, se enviará para ser hasheada y actualizada
+            string? nuevaContrasena = !string.IsNullOrWhiteSpace(txtContrasena.Text) ? txtContrasena.Text : null;
+
+            // 3. Recopilamos las salas y especialidades médicas tildadas
             List<int>? salasIds = null;
+            List<int>? especialidadesIds = null;
+
             if (esMedico)
             {
                 salasIds = new List<int>();
                 foreach (var item in clbSala.CheckedItems)
-                    if (item is ItemConId sala) salasIds.Add(sala.Id);
+                {
+                    if (item is ItemConId sala)
+                        salasIds.Add(sala.Id);
+                }
+
+                especialidadesIds = new List<int>();
+                foreach (var item in clbEspecialidades.CheckedItems)
+                {
+                    if (item is ItemConId esp)
+                        especialidadesIds.Add(esp.Id);
+                }
+            }
+            else
+            {
+                // Si el rol ya no es médico (ej. Administrador o Recepcionista), se limpian las asignaciones médicas previas
+                salasIds = new List<int>();
+                especialidadesIds = new List<int>();
             }
 
+            // 4. Confirmación previa antes de persistir cambios
             var confirmacion = MessageBox.Show($"¿Desea guardar los cambios para '{nombre} {apellido}'?",
                 "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
@@ -549,15 +588,27 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                _usuarioBLL.ModificarUsuario(_idUsuarioSeleccionado, nombre, apellido, correo, dni, telefono,
-                    matricula, rolSeleccionado.Id, salasIds, notaSala);
+                // 5. Invocamos a la Capa de Negocio (UsuarioBLL) respetando la arquitectura en capas
+                _usuarioBLL.ModificarUsuario(
+                    _idUsuarioSeleccionado,
+                    nombre,
+                    apellido,
+                    correo,
+                    dni,
+                    telefono,
+                    matricula,
+                    rolSeleccionado.Id,
+                    salasIds,
+                    notaSala,
+                    especialidadesIds,
+                    nuevaContrasena);
 
                 MessageBox.Show($"Usuario '{nombre} {apellido}' actualizado correctamente.",
                     "Modificación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
+                // 6. Recargamos la grilla y refrescamos el formulario con los nuevos datos
                 CargarUsuariosDesdeBD();
 
-                // Recargamos el estado actualizado
                 txtDniBusqueda.Text = dni;
                 EjecutarVerificacionDni();
             }
@@ -675,6 +726,13 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("Para el rol 'Personal Médico' es obligatorio indicar la matrícula profesional.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtMatricula.Focus();
+                return false;
+            }
+
+            if (EsPersonalMedico() && clbEspecialidades.CheckedItems.Count == 0)
+            {
+                MessageBox.Show("Para el rol 'Personal Médico' debe asignar al menos una especialidad médica.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                clbEspecialidades.Focus();
                 return false;
             }
 

@@ -31,9 +31,9 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        CAPA DE PRESENTACIÓN (UI)                       │
 │  Namespace: Gestion_de_Turnos_Medicos                                  │
-│  Archivos: FrmLogin, FrmGestionUsuarios, FrmSalasAdmin,                │
-│            FrmGestionEspecialidades, FrmTurnoEmergencia,               │
-│            FrmTurnoEspecialidad, FrmListaTurnos,                       │
+│  Archivos: FrmLogin, FrmGestionUsuarios2 (Gestor Oficial Usuarios),    │
+│            FrmSalasAdmin, FrmGestionEspecialidades,                    │
+│            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
 │            FrmListaTurnosAtencion, MisSalas_PM, FrmAdmin, etc.         │
 │                                                                        │
 │  Responsabilidades:                                                    │
@@ -426,38 +426,40 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | Formulario (Capa UI) | Método BLL invocado | Método DAL subyacente | Stored Procedure (`README_StoredProcedures.md`) |
 | :--- | :--- | :--- | :--- |
 | **`FrmLogin`** | `UsuarioBLL.Login` | `UsuarioDAL.ValidarLogin` | `sp_ValidarLogin` (Rutea a `FrmAdmin`, `Pantalla_Principal_PERSONAL_MEDICO`, `FrmRecepcionista` o `FrmUsuarioVentana` según rol 1, 2, 3 o 4) |
-| **`FrmGestionUsuarios`** | `UsuarioBLL.ObtenerRoles` | `UsuarioDAL.ListarRoles` | `sp_ListarRoles` (Soporta rol Usuario Ventana) |
+| **`FrmGestionUsuarios2`** *(Form Oficial)* | `UsuarioBLL.ObtenerRoles` | `UsuarioDAL.ListarRoles` | `sp_ListarRoles` (Soporta rol Usuario Ventana) |
 | | `EspecialidadBLL.ObtenerEspecialidades` | `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `UsuarioBLL.ObtenerUsuarios` | `UsuarioDAL.ListarUsuarios` | `sp_ListarUsuarios` |
 | | `UsuarioBLL.RegistrarUsuario` | `UsuarioDAL.InsertarUsuario` | `sp_InsertarUsuario` |
 | | | `UsuarioDAL.AsignarEspecialidad` | `sp_AsignarEspecialidadMedico` |
 | | | `UsuarioDAL.AsignarSala` | `sp_AsignarSalaMedico` |
+| | `UsuarioBLL.ModificarUsuario` | `UsuarioDAL.ModificarUsuario` | `sp_ModificarUsuario` + `sp_AsignarSalaMedico` + `sp_AsignarEspecialidadMedico` + `sp_ActualizarContrasenaHash` |
 | | `UsuarioBLL.EliminarUsuario` | `UsuarioDAL.EliminarUsuario` | `sp_EliminarUsuario` |
 | **`FrmSalasAdmin`** | `UsuarioBLL.ObtenerMedicos` | `UsuarioDAL.ListarPersonalMedico` | `sp_ListarPersonalMedico` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.RegistrarSala` | `SalaDAL.InsertarSala` | `sp_InsertarSala` |
 | | | `SalaDAL.AsignarSalaMedico` | `sp_AsignarSalaMedico` |
+| | `SalaBLL.ModificarSala` | `SalaDAL.ModificarSala` | `sp_ModificarSala` + `sp_AsignarSalaMedico` |
 | | `SalaBLL.EliminarSala` | `SalaDAL.EliminarSala` | `sp_EliminarSala` |
 | **`FrmGestionEspecialidades`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `EspecialidadBLL.RegistrarEspecialidad`| `EspecialidadDAL.InsertarEspecialidad` | `sp_InsertarEspecialidad` |
 | | `EspecialidadBLL.EliminarEspecialidad` | `EspecialidadDAL.EliminarEspecialidad` | `sp_EliminarEspecialidad` |
 | **`FrmTurnoEmergencia`** | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` |
-| | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_RegistrarTurnoEmergencia` |
-| | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_RegistrarTurnoSintoma` |
-| **`FrmTurnoEspecialidad`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ObtenerEspecialidades` |
+| | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_CrearTurnoEmergencia` |
+| | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
+| **`FrmTurnoEspecialidad`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosDisponibles` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` |
-| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` / `sp_InsertarTurno` |
+| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` |
 | **`FrmListaTurnos`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` |
-| | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ObtenerEspecialidades` |
+| | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ListarTurnosEspecialidad` | `TurnoDAL.ListarTurnosEspecialidad` | `sp_ListarTurnosEspecialidad` |
-| **`FrmListaTurnosAtencion`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
+| **`FrmListaTurnosAtencion`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerTurnosAtencion` | `TurnoDAL.ListarTurnosAtencion` | `sp_ListarTurnosAtencion` |
 | | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | `sp_LlamarSiguienteTurno` |
 | | `TurnoBLL.IniciarAtencionTurno` | `TurnoDAL.IniciarAtencionTurno` | `sp_IniciarAtencionTurno` / `sp_ActualizarEstadoSala` |
-| | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencion` |
+| | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencionTurno` |
 | | `HistoriaClinicaBLL.RegistrarHistoria` | `HistoriaClinicaDAL.InsertarHistoria` | `sp_InsertarHistoriaClinica` |
 | **`MisSalas_PM`** | `SalaBLL.ObtenerSalas` (`@IdUsuario`) | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.AbrirSala` | `SalaDAL.AbrirSala` | `sp_AbrirSala` |

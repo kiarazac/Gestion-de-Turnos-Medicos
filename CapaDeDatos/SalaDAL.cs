@@ -101,30 +101,49 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado sp_ModificarSala para actualizar el nombre y el estado de una sala existente.
-        /// Utiliza parámetros tipados para evitar inyección SQL.
+        /// Ejecuta el procedimiento almacenado sp_ModificarSala para actualizar el nombre de una sala existente.
+        /// Respeta la firma real de 2 parámetros en dbGestionTurnos (@IdSala, @NombreSala) y actualiza el campo EstadoSala si se especifica.
+        /// Utiliza parámetros tipados para proteger contra inyección SQL.
         /// </summary>
         /// <param name="idSala">Identificador único de la sala a modificar.</param>
         /// <param name="nombreSala">Nuevo nombre descriptivo para la sala.</param>
-        /// <param name="estadoSala">Estado operativo de la sala ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
+        /// <param name="estadoSala">Estado operativo de la sala ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada').</param>
         public void ModificarSala(int idSala, string nombreSala, string? estadoSala = null)
         {
             using (var context = new dbTurnosMedicos())
             {
-                // 1. Configuramos los parámetros SQL requeridos por el procedimiento
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 var pNombreSala = new SqlParameter("@NombreSala", nombreSala);
                 var pEstadoSala = new SqlParameter("@EstadoSala", (object?)estadoSala ?? DBNull.Value);
 
-                // 2. Ejecutamos sp_ModificarSala en la base de datos
-                context.Database.ExecuteSqlRaw("EXEC sp_ModificarSala @IdSala, @NombreSala, @EstadoSala", pIdSala, pNombreSala, pEstadoSala);
+                try
+                {
+                    // 2. Ejecutamos sp_ModificarSala con los 3 parámetros (@IdSala, @NombreSala, @EstadoSala)
+                    context.Database.ExecuteSqlRaw("EXEC sp_ModificarSala @IdSala, @NombreSala, @EstadoSala", pIdSala, pNombreSala, pEstadoSala);
+                }
+                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Si el procedimiento en una BD legacy tuviera solo 2 parámetros
+                {
+                    var pIdSala2 = new SqlParameter("@IdSala", idSala);
+                    var pNombreSala2 = new SqlParameter("@NombreSala", nombreSala);
+                    context.Database.ExecuteSqlRaw("EXEC sp_ModificarSala @IdSala, @NombreSala", pIdSala2, pNombreSala2);
+
+                    // 3. Fallback: Si se especificó un estado de sala, actualizamos el campo EstadoSala manualmente
+                    if (!string.IsNullOrWhiteSpace(estadoSala))
+                    {
+                        var pEstado = new SqlParameter("@EstadoSala", estadoSala);
+                        var pId = new SqlParameter("@IdSala", idSala);
+                        context.Database.ExecuteSqlRaw(
+                            "UPDATE Salas SET EstadoSala = @EstadoSala, FechaModificacion = GETDATE() WHERE IdSala = @IdSala AND Activo = 1",
+                            pEstado, pId);
+                    }
+                }
             }
         }
 
         /// <summary>
         /// Reasigna los profesionales médicos asignados a una sala de atención.
         /// Aplica una baja lógica a las asignaciones activas existentes en DetallesSalas
-        /// y luego inserta las nuevas vinculaciones seleccionadas mediante sp_AsignarSalaMedico.
+        /// y luego inserta las nuevas vinculaciones seleccionadas mediante el Stored Procedure existente sp_AsignarSalaMedico.
         /// </summary>
         /// <param name="idSala">Identificador de la sala.</param>
         /// <param name="idsMedicos">Lista de identificadores de los usuarios médicos a vincular.</param>
@@ -136,7 +155,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 context.Database.ExecuteSqlRaw("UPDATE DetallesSalas SET Activo = 0, FechaBaja = GETDATE() WHERE IdSala = @IdSala AND Activo = 1", pIdSala);
 
-                // 2. Insertamos las nuevas asignaciones seleccionadas por el administrador
+                // 2. Insertamos las nuevas asignaciones seleccionadas por el administrador mediante sp_AsignarSalaMedico
                 if (idsMedicos != null && idsMedicos.Count > 0)
                 {
                     foreach (int idUsuario in idsMedicos)

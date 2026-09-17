@@ -48,9 +48,8 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnPersonalMedico_Click(object sender, EventArgs e)
         {
-            // NOTA: Si FrmGestionUsuarios llega a necesitar saber quién es el admin logueado para registrar auditorías, 
-            // simplemente modificarías su constructor y le pasarías el objeto así: new FrmGestionUsuarios(_usuarioActual)
-            AbrirFormularioHijo(new FrmGestionUsuarios());
+            // Se utiliza exclusivamente FrmGestionUsuarios2 como la versión oficial y funcional del gestor de usuarios
+            AbrirFormularioHijo(new FrmGestionUsuarios2());
         }
 
         private void btnSalas_Click(object sender, EventArgs e)

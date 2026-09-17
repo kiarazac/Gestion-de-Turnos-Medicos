@@ -31,6 +31,8 @@ namespace Gestion_de_Turnos_Medicos
             InitializeComponent();
             this.Load += FrmSalasAdmin_Load;
             this.dgvSalas.SelectionChanged += DgvSalas_SelectionChanged;
+            this.dgvSalas.CellClick += (s, e) => DgvSalas_SelectionChanged(s, e);
+            this.dgvSalas.CellEndEdit += DgvSalas_CellEndEdit;
         }
 
         private void FrmSalasAdmin_Load(object? sender, EventArgs e)
@@ -67,15 +69,17 @@ namespace Gestion_de_Turnos_Medicos
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "id_sala", HeaderText = "ID Sala", ReadOnly = true, Width = 80 });
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "nombreSala", HeaderText = "Nombre de Sala", Width = 180 });
             dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "estadoSala", HeaderText = "Estado", Width = 140 });
-            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "personal_asignado", HeaderText = "Personal Asignado", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "personal_asignado", HeaderText = "Personal Asignado", ReadOnly = true, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         }
 
         private void CargarEstados()
         {
             cmbEstadoSala.Items.Clear();
             cmbEstadoSala.Items.Add("Disponible");
+            cmbEstadoSala.Items.Add("Libre");
             cmbEstadoSala.Items.Add("Ocupada");
             cmbEstadoSala.Items.Add("En Mantenimiento");
+            cmbEstadoSala.Items.Add("Cerrada");
             cmbEstadoSala.SelectedIndex = 0;
         }
 
@@ -194,7 +198,15 @@ namespace Gestion_de_Turnos_Medicos
 
             string estado = fila.Cells["estadoSala"].Value?.ToString() ?? "Disponible";
             int indiceEstado = cmbEstadoSala.FindStringExact(estado);
-            cmbEstadoSala.SelectedIndex = indiceEstado >= 0 ? indiceEstado : 0;
+            if (indiceEstado >= 0)
+            {
+                cmbEstadoSala.SelectedIndex = indiceEstado;
+            }
+            else
+            {
+                cmbEstadoSala.Items.Add(estado);
+                cmbEstadoSala.SelectedItem = estado;
+            }
 
             // 3. Obtenemos los IDs de los médicos actualmente vinculados a esta sala según la cache
             var medicosAsignadosIds = _salasCache
@@ -209,6 +221,43 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     clbPersonal.SetItemChecked(i, medicosAsignadosIds.Contains(med.IdUsuario));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Evento que captura la edición directa de celdas en el DataGridView de salas (inline editing).
+        /// Valida el nombre y estado y persiste automáticamente la modificación a través de SalaBLL.
+        /// </summary>
+        private void DgvSalas_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= dgvSalas.Rows.Count)
+                return;
+
+            var fila = dgvSalas.Rows[e.RowIndex];
+            if (fila.Cells["id_sala"].Value == null || !int.TryParse(fila.Cells["id_sala"].Value?.ToString(), out int idSala))
+                return;
+
+            string nombreSala = fila.Cells["nombreSala"].Value?.ToString()?.Trim() ?? string.Empty;
+            string estadoSala = fila.Cells["estadoSala"].Value?.ToString()?.Trim() ?? "Disponible";
+
+            if (string.IsNullOrWhiteSpace(nombreSala))
+            {
+                MessageBox.Show("El nombre de la sala no puede quedar vacío.",
+                    "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarSalasDesdeBD();
+                return;
+            }
+
+            try
+            {
+                // Invocamos a la Capa BLL para persistir el cambio inmediatamente
+                _salaBLL.ModificarSala(idSala, nombreSala, estadoSala);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al guardar la edición de la sala:\n" + ex.Message,
+                    "Error al Guardar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                CargarSalasDesdeBD();
             }
         }
 

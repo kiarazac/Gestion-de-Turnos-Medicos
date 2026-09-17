@@ -220,14 +220,14 @@ GO
 ---
 
 ### 1.6 `sp_ModificarUsuario`
-- **Descripción:** Actualiza los datos de filiación, contacto, identificación, matrícula profesional y rol de un usuario existente. Permite la asignación y modificación de una o **múltiples salas simultáneas** mediante `@SalasIds` (o compatibilidad con `@IdSala`), gestionando de forma atómica y con borrado lógico la relación en la tabla `DetallesSalas`.
-- **Entidad:** Usuario / DetalleSala
-- **Operación:** Modificación / Reasignación de Múltiples Salas
-- **Tablas:** `Usuarios`, `DetallesSalas`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
-- **Acción:** Botón `btnModificar` y edición directa de celda en DataGridView (`dgvPersonal_CellEndEdit`)
+- **Descripción:** Actualiza los datos de filiación, contacto, identificación, matrícula profesional y rol de un usuario existente en la tabla `Usuarios`. Cuenta con control de transacciones y validaciones de integridad de negocio.
+- **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
+- **Operación:** Modificación / Reasignación de Salas y Especialidades
+- **Tablas:** `Usuarios`, `Roles`, `Pacientes`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2` (versión oficial activa en el sistema de turnos; `FrmGestionUsuarios` mantenido como referencia/legado)
+- **Acción:** Botón `btnModificar` en `FrmGestionUsuarios2` y edición en grilla
 - **Estado:** `EN USO`
-- **Parámetros:**
+- **Parámetros del SP en Base de Datos (dbGestionTurnos):**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdUsuario` | `INT` | IN | ID del usuario a modificar. |
@@ -238,9 +238,16 @@ GO
   | `@Dni` | `NVARCHAR(20)` | IN | Nuevo número de DNI (opcional, conserva anterior si es NULL). |
   | `@NroMatricula` | `NVARCHAR(50)` | IN | Nueva matrícula médica (opcional/médicos). |
   | `@IdRol` | `INT` | IN | Nuevo rol asignado (opcional, conserva anterior si es NULL). |
-  | `@IdSala` | `INT` | IN | Sala única asignada (soporte legado: NULL = no tocar salas, 0 = desasignar, >0 = reasignar sala). |
-  | `@DescripcionAtencion` | `NVARCHAR(255)` | IN | Observaciones o notas de atención en la sala (opcional). |
-  | `@SalasIds` | `NVARCHAR(MAX)` | IN | Lista de IDs de salas separadas por coma (ej: '1,3,5'). Permite asignar múltiples salas simultáneas. Si es '' (cadena vacía), desasigna todas las salas. Si es NULL, respeta `@IdSala`. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50030` | *El usuario a modificar no existe o se encuentra inactivo en el sistema.* | `@IdUsuario` inexistente o con `Activo = 0`. |
+  | `50037` | *El nombre y el apellido del usuario son campos obligatorios.* | `@Nombre` o `@Apellido` nulos o en blanco. |
+  | `50038` | *El correo electrónico es un campo obligatorio.* | `@Correo` nulo o en blanco. |
+  | `50031` | *El rol asignado al usuario no existe en el catálogo de roles.* | `@IdRol` no coincide con un rol activo existente. |
+  | `50032` | *El número de DNI ingresado ya pertenece a otro usuario registrado en el sistema.* | `@Dni` ya asignado a otro usuario activo. |
+  | `50033` | *El número de DNI ingresado ya se encuentra registrado para un paciente en el sistema.* | `@Dni` coincide con un paciente activo. |
+  | `50034` | *La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.* | `@Correo` ya asignado a otro usuario activo. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarUsuario
@@ -251,18 +258,57 @@ CREATE OR ALTER PROCEDURE sp_ModificarUsuario
     @Telefono NVARCHAR(20),
     @Dni NVARCHAR(20) = NULL,
     @NroMatricula NVARCHAR(50) = NULL,
-    @IdRol INT = NULL,
-    @IdSala INT = NULL,
-    @DescripcionAtencion NVARCHAR(255) = NULL,
-    @SalasIds NVARCHAR(MAX) = NULL
+    @IdRol INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        BEGIN TRANSACTION;
+        -- 1. Validar que el usuario a modificar exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50030, 'El usuario a modificar no existe o se encuentra inactivo en el sistema.', 1;
+        END
 
-        -- 1. Actualizamos datos personales y rol en Usuarios
+        -- 2. Validar que los campos obligatorios no vengan vacíos
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = '' OR @Apellido IS NULL OR LTRIM(RTRIM(@Apellido)) = ''
+        BEGIN
+            THROW 50037, 'El nombre y el apellido del usuario son campos obligatorios.', 1;
+        END
+
+        IF @Correo IS NULL OR LTRIM(RTRIM(@Correo)) = ''
+        BEGIN
+            THROW 50038, 'El correo electrónico es un campo obligatorio.', 1;
+        END
+
+        -- 3. Validar existencia del rol si se especifica
+        IF @IdRol IS NOT NULL AND @IdRol > 0 AND NOT EXISTS (SELECT 1 FROM Roles WHERE IdRol = @IdRol AND Activo = 1)
+        BEGIN
+            THROW 50031, 'El rol asignado al usuario no existe en el catálogo de roles.', 1;
+        END
+
+        -- 4. Validar que el DNI no esté duplicado en otro usuario activo
+        IF @Dni IS NOT NULL AND LTRIM(RTRIM(@Dni)) <> ''
+        BEGIN
+            IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND IdUsuario <> @IdUsuario AND Activo = 1)
+            BEGIN
+                THROW 50032, 'El número de DNI ingresado ya pertenece a otro usuario registrado en el sistema.', 1;
+            END
+
+            -- Validar que el DNI no esté registrado para un paciente activo
+            IF EXISTS (SELECT 1 FROM Pacientes WHERE Dni = @Dni AND Activo = 1)
+            BEGIN
+                THROW 50033, 'El número de DNI ingresado ya se encuentra registrado para un paciente en el sistema.', 1;
+            END
+        END
+
+        -- 5. Validar que el correo no esté duplicado en otro usuario activo
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND IdUsuario <> @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50034, 'La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.', 1;
+        END
+
+        -- 6. Actualización en la tabla Usuarios
         UPDATE Usuarios
         SET Nombre = @Nombre,
             Apellido = @Apellido,
@@ -270,55 +316,14 @@ BEGIN
             Telefono = @Telefono,
             Dni = ISNULL(@Dni, Dni),
             NroMatricula = @NroMatricula,
-            IdRol = ISNULL(@IdRol, IdRol),
+            IdRol = CASE WHEN @IdRol IS NOT NULL AND @IdRol > 0 THEN @IdRol ELSE IdRol END,
             FechaModificacion = GETDATE()
         WHERE IdUsuario = @IdUsuario;
 
-        -- 2. Gestión de múltiples salas mediante @SalasIds
-        IF (@SalasIds IS NOT NULL)
-        BEGIN
-            -- Baja lógica de asignaciones activas previas del usuario
-            UPDATE DetallesSalas
-            SET Activo = 0,
-                FechaBaja = GETDATE(),
-                FechaModificacion = GETDATE()
-            WHERE IdUsuario = @IdUsuario 
-              AND Activo = 1;
-
-            -- Inserción de todas las salas seleccionadas
-            INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
-            SELECT 
-                TRY_CAST(TRIM(value) AS INT), 
-                @IdUsuario, 
-                ISNULL(@DescripcionAtencion, ''), 
-                GETDATE(), 
-                1
-            FROM STRING_SPLIT(@SalasIds, ',')
-            WHERE TRY_CAST(TRIM(value) AS INT) > 0;
-        END
-        -- Soporte legado para llamadas con un único @IdSala
-        ELSE IF (@IdSala IS NOT NULL)
-        BEGIN
-            UPDATE DetallesSalas
-            SET Activo = 0,
-                FechaBaja = GETDATE(),
-                FechaModificacion = GETDATE()
-            WHERE IdUsuario = @IdUsuario 
-              AND Activo = 1;
-
-            IF (@IdSala > 0)
-            BEGIN
-                INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
-                VALUES (@IdSala, @IdUsuario, ISNULL(@DescripcionAtencion, ''), GETDATE(), 1);
-            END
-        END
-
-        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
         THROW;
     END CATCH
 END;
@@ -328,17 +333,22 @@ GO
 ---
 
 ### 1.7 `sp_EliminarUsuario` (Baja Lógica)
-- **Descripción:** Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja.
-- **Entidad:** Usuario
-- **Operación:** Baja lógica
-- **Tablas:** `Usuarios`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
+- **Descripción:** Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja, y dando de baja en cascada sus asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
+- **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
+- **Operación:** Baja lógica / Desactivación en cascada
+- **Tablas:** `Usuarios`, `DetallesSalas`, `MedicosEspecialidades`, `Turnos`, `HistoriasClinicas`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
 - **Acción:** Botón `btnEliminar`
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdUsuario` | `INT` | IN | ID del usuario a desactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50035` | *El usuario a desactivar no existe o ya se encuentra inactivo.* | `@IdUsuario` inexistente o con `Activo = 0`. |
+  | `50036` | *No se puede desactivar el usuario porque actualmente posee turnos en consulta o llamados activos.* | El médico tiene turnos en curso en estado 'Llamado' o 'En Consulta'. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_EliminarUsuario
@@ -347,10 +357,52 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Usuarios
-    SET Activo = 0,
-        FechaBaja = GETDATE()
-    WHERE IdUsuario = @IdUsuario;
+    BEGIN TRY
+        -- 1. Validar que el usuario exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50035, 'El usuario a desactivar no existe o ya se encuentra inactivo.', 1;
+        END
+
+        -- 2. Validar que no tenga turnos activos en atención o llamado en este momento
+        IF EXISTS (
+            SELECT 1 
+            FROM Turnos t
+            INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno
+            WHERE hc.IdUsuario = @IdUsuario 
+              AND t.Estado IN ('Llamado', 'En Consulta') 
+              AND t.Activo = 1
+        )
+        BEGIN
+            THROW 50036, 'No se puede desactivar el usuario porque actualmente posee turnos en consulta o llamados activos.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Baja lógica del usuario
+        UPDATE Usuarios
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdUsuario = @IdUsuario;
+
+        -- 4. Baja lógica en cascada de sus asignaciones de salas y especialidades
+        UPDATE DetallesSalas
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdUsuario = @IdUsuario AND Activo = 1;
+
+        UPDATE MedicosEspecialidades
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdUsuario = @IdUsuario AND Activo = 1;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -391,7 +443,7 @@ GO
 ## Módulo 2: Salas y Consultorios
 
 ### 2.1 `sp_InsertarSala`
-- **Descripción:** Registra un nuevo consultorio o sala física en el catálogo.
+- **Descripción:** Registra un nuevo consultorio o sala física en el catálogo de `Salas`, con validación de nombre único y estado operativo válido.
 - **Entidad:** Sala
 - **Operación:** Alta
 - **Tablas:** `Salas`
@@ -402,8 +454,14 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@NombreSala` | `NVARCHAR(100)` | IN | Nombre de la sala (ej. 'Consultorio 1'). |
-  | `@EstadoSala` | `NVARCHAR(50)` | IN | Estado inicial ('Disponible', 'Cerrada', etc.). |
+  | `@EstadoSala` | `NVARCHAR(50)` | IN | Estado inicial ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada'). |
 - **Devuelve:** `IdNuevaSala` (`SCOPE_IDENTITY()`).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50040` | *El nombre de la sala es obligatorio y no puede quedar vacío.* | `@NombreSala` nulo o en blanco. |
+  | `50041` | *Ya existe una sala activa registrada con este mismo nombre.* | `@NombreSala` duplicado con otra sala activa. |
+  | `50042` | *El estado especificado para la sala no es válido. Valores permitidos: Disponible, Libre, Ocupada, En Mantenimiento, Cerrada.* | `@EstadoSala` fuera del dominio válido. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarSala
@@ -413,10 +471,36 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO Salas (NombreSala, EstadoSala, Activo, FechaCreacion)
-    VALUES (@NombreSala, @EstadoSala, 1, GETDATE());
+    BEGIN TRY
+        -- 1. Validar que el nombre no esté vacío
+        IF @NombreSala IS NULL OR LTRIM(RTRIM(@NombreSala)) = ''
+        BEGIN
+            THROW 50040, 'El nombre de la sala es obligatorio y no puede quedar vacío.', 1;
+        END
 
-    SELECT SCOPE_IDENTITY() AS IdNuevaSala;
+        -- 2. Validar que no exista ya una sala activa con el mismo nombre
+        IF EXISTS (SELECT 1 FROM Salas WHERE NombreSala = @NombreSala AND Activo = 1)
+        BEGIN
+            THROW 50041, 'Ya existe una sala activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 3. Validar estado operativo permitido
+        IF @EstadoSala IS NULL OR @EstadoSala NOT IN ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada')
+        BEGIN
+            THROW 50042, 'El estado especificado para la sala no es válido. Valores permitidos: Disponible, Libre, Ocupada, En Mantenimiento, Cerrada.', 1;
+        END
+
+        -- 4. Inserción
+        INSERT INTO Salas (NombreSala, EstadoSala, Activo, FechaCreacion, FechaModificacion)
+        VALUES (@NombreSala, @EstadoSala, 1, GETDATE(), GETDATE());
+
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS IdNuevaSala;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -424,19 +508,26 @@ GO
 ---
 
 ### 2.2 `sp_ModificarSala`
-- **Descripción:** Actualiza el nombre identificatorio y el estado operativo de una sala de atención existente.
-- **Entidad:** Sala
-- **Operación:** Modificación
+- **Descripción:** Actualiza el nombre identificatorio de una sala de atención médica en la tabla `Salas`.
+- **Entidad:** Sala / DetalleSala
+- **Operación:** Modificación / Reasignación de Personal
 - **Tablas:** `Salas`
 - **Forms que lo utilizan:** `FrmSalasAdmin`
-- **Acción:** Botón `btnModificar`
+- **Acción:** Botón `btnModificar` y edición interactiva en grilla DataGridView
 - **Estado:** `EN USO`
-- **Parámetros:**
+- **Parámetros del SP en Base de Datos (dbGestionTurnos):**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
   | `@NombreSala` | `NVARCHAR(100)` | IN | Nuevo nombre descriptivo de la sala. |
-  | `@EstadoSala` | `NVARCHAR(50)` | IN | (Opcional) Estado operativo ('Disponible', 'Ocupada', 'En Mantenimiento'). |
+  | `@EstadoSala` | `NVARCHAR(50) = NULL` | IN | Nuevo estado operativo (opcional, conserva actual si es NULL). |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50043` | *La sala a modificar no existe o se encuentra inactiva.* | `@IdSala` inexistente o con `Activo = 0`. |
+  | `50044` | *El nombre de la sala es un campo obligatorio.* | `@NombreSala` nulo o en blanco. |
+  | `50045` | *Ya existe otra sala activa registrada con este mismo nombre.* | `@NombreSala` coincide con otra sala activa. |
+  | `50042` | *El estado especificado para la sala no es válido. Valores permitidos: Disponible, Libre, Ocupada, En Mantenimiento, Cerrada.* | `@EstadoSala` no coincide con los estados permitidos. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarSala
@@ -447,11 +538,46 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Salas
-    SET NombreSala = @NombreSala,
-        EstadoSala = ISNULL(@EstadoSala, EstadoSala),
-        FechaModificacion = GETDATE()
-    WHERE IdSala = @IdSala;
+    BEGIN TRY
+        -- 1. Validar que la sala exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50043, 'La sala a modificar no existe o se encuentra inactiva.', 1;
+        END
+
+        -- 2. Validar que el nombre no esté vacío
+        IF @NombreSala IS NULL OR LTRIM(RTRIM(@NombreSala)) = ''
+        BEGIN
+            THROW 50044, 'El nombre de la sala es un campo obligatorio.', 1;
+        END
+
+        -- 3. Validar que no haya otra sala activa con el mismo nombre
+        IF EXISTS (SELECT 1 FROM Salas WHERE NombreSala = @NombreSala AND IdSala <> @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50045, 'Ya existe otra sala activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 4. Validar estado operativo si viene provisto
+        IF @EstadoSala IS NOT NULL AND LTRIM(RTRIM(@EstadoSala)) <> ''
+        BEGIN
+            IF @EstadoSala NOT IN ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada')
+            BEGIN
+                THROW 50042, 'El estado especificado para la sala no es válido. Valores permitidos: Disponible, Libre, Ocupada, En Mantenimiento, Cerrada.', 1;
+            END
+        END
+
+        -- 5. Actualización atómica en la tabla Salas
+        UPDATE Salas
+        SET NombreSala = @NombreSala,
+            EstadoSala = ISNULL(@EstadoSala, EstadoSala),
+            FechaModificacion = GETDATE()
+        WHERE IdSala = @IdSala;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -459,10 +585,10 @@ GO
 ---
 
 ### 2.3 `sp_EliminarSala` (Baja Lógica)
-- **Descripción:** Realiza la baja lógica de la sala (`Activo = 0`).
-- **Entidad:** Sala
-- **Operación:** Baja lógica
-- **Tablas:** `Salas`
+- **Descripción:** Realiza la baja lógica de la sala (`Activo = 0`), verificando que no esté ocupada con atención médica activa y dando de baja en cascada las asignaciones de médicos en `DetallesSalas`.
+- **Entidad:** Sala / DetalleSala
+- **Operación:** Baja lógica / Desactivación en cascada
+- **Tablas:** `Salas`, `DetallesSalas`
 - **Forms que lo utilizan:** `FrmSalasAdmin`
 - **Acción:** Botón `btnEliminar`
 - **Estado:** `EN USO`
@@ -470,6 +596,11 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala a desactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50046` | *La sala a eliminar no existe o ya se encuentra inactiva.* | `@IdSala` inexistente o con `Activo = 0`. |
+  | `50047` | *No se puede eliminar la sala porque se encuentra en estado Ocupada con una atención médica en curso.* | `EstadoSala = 'Ocupada'`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_EliminarSala
@@ -478,10 +609,40 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Salas
-    SET Activo = 0,
-        FechaBaja = GETDATE()
-    WHERE IdSala = @IdSala;
+    BEGIN TRY
+        -- 1. Validar que la sala exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50046, 'La sala a eliminar no existe o ya se encuentra inactiva.', 1;
+        END
+
+        -- 2. Validar que la sala no esté en uso actualmente
+        IF EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND EstadoSala = 'Ocupada' AND Activo = 1)
+        BEGIN
+            THROW 50047, 'No se puede eliminar la sala porque se encuentra en estado Ocupada con una atención médica en curso.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Baja lógica de la sala
+        UPDATE Salas
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdSala = @IdSala;
+
+        -- 4. Baja lógica en cascada de asignaciones a médicos en DetallesSalas
+        UPDATE DetallesSalas
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdSala = @IdSala AND Activo = 1;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -493,7 +654,7 @@ GO
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Listado / Consulta
 - **Tablas:** `Salas`, `DetallesSalas`, `Usuarios`
-- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmGestionUsuarios`, `MisSalas_PM`
+- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM`
 - **Acción:** Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`)
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -530,31 +691,83 @@ GO
 ---
 
 ### 2.5 `sp_AsignarSalaMedico`
-- **Descripción:** Vincula un médico a un consultorio en la tabla `DetallesSalas` con observaciones de atención.
+- **Descripción:** Vincula un médico a un consultorio en la tabla `DetallesSalas`, validando existencia y rol médico, y previniendo duplicados activos.
 - **Entidad:** DetalleSala
 - **Operación:** Asignación
-- **Tablas:** `DetallesSalas`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`, `FrmSalasAdmin`
-- **Acción:** Botón `btnGuardar`
+- **Tablas:** `DetallesSalas`, `Salas`, `Usuarios`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`, `FrmSalasAdmin`
+- **Acción:** Botón `btnGuardar` / `btnModificar`
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala asignada. |
   | `@IdUsuario` | `INT` | IN | ID del médico asignado. |
-  | `@DescripcionAtencion` | `NVARCHAR(255)` | IN | Notas u horario de atención. |
+  | `@DescripcionAtencion` | `NVARCHAR(255) = NULL` | IN | Notas u horario de atención. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50060` | *La sala especificada para la asignación no existe o se encuentra inactiva.* | `@IdSala` inexistente o con `Activo = 0`. |
+  | `50061` | *El usuario asignado no existe, está inactivo o no pertenece al rol de Personal Médico.* | `@IdUsuario` inexistente, inactivo o con rol que no corresponde a Personal Médico (`IdRol = 1` o descripción con 'médico'). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_AsignarSalaMedico
     @IdSala INT,
     @IdUsuario INT,
-    @DescripcionAtencion NVARCHAR(255)
+    @DescripcionAtencion NVARCHAR(255) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
-    VALUES (@IdSala, @IdUsuario, @DescripcionAtencion, GETDATE(), 1);
+    BEGIN TRY
+        -- 1. Validar que la sala exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50060, 'La sala especificada para la asignación no existe o se encuentra inactiva.', 1;
+        END
+
+        -- 2. Validar que el usuario exista, esté activo y pertenezca al rol médico
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Usuarios u
+            INNER JOIN Roles r ON u.IdRol = r.IdRol
+            WHERE u.IdUsuario = @IdUsuario 
+              AND u.Activo = 1 
+              AND (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+        )
+        BEGIN
+            THROW 50061, 'El usuario asignado no existe, está inactivo o no pertenece al rol de Personal Médico.', 1;
+        END
+
+        -- 3. Evitar duplicidad: si ya está activa la asignación, actualizar la descripción
+        IF EXISTS (SELECT 1 FROM DetallesSalas WHERE IdSala = @IdSala AND IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            UPDATE DetallesSalas
+            SET DescripcionAtencion = ISNULL(@DescripcionAtencion, DescripcionAtencion),
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND IdUsuario = @IdUsuario AND Activo = 1;
+        END
+        ELSE IF EXISTS (SELECT 1 FROM DetallesSalas WHERE IdSala = @IdSala AND IdUsuario = @IdUsuario AND Activo = 0)
+        BEGIN
+            -- Reactivación de asignación previamente dada de baja
+            UPDATE TOP(1) DetallesSalas
+            SET DescripcionAtencion = ISNULL(@DescripcionAtencion, DescripcionAtencion),
+                Activo = 1,
+                FechaBaja = NULL,
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND IdUsuario = @IdUsuario AND Activo = 0;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO DetallesSalas (IdSala, IdUsuario, DescripcionAtencion, FechaCreacion, Activo)
+            VALUES (@IdSala, @IdUsuario, ISNULL(@DescripcionAtencion, ''), GETDATE(), 1);
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -655,18 +868,23 @@ GO
 ---
 
 ### 2.8 `sp_ActualizarEstadoSala`
-- **Descripción:** Actualiza genéricamente el estado operativo de una sala (`Disponible`, `Ocupada`, `En Mantenimiento`, `Cerrada`).
+- **Descripción:** Actualiza de forma genérica el estado operativo de un consultorio o sala física (`Disponible`, `Libre`, `Ocupada`, `En Mantenimiento`, `Cerrada`) con control de transacciones y validaciones de integridad.
 - **Entidad:** Sala
-- **Operación:** Actualización
+- **Operación:** Actualización de Estado
 - **Tablas:** `Salas`
-- **Forms que lo utilizan:** `FrmListaTurnosAtencion`
-- **Acción:** Inicio y finalización de consulta médica
+- **Forms que lo utilizan:** Utilizado por la capa DAL/BLL (`SalaDAL.ActualizarEstadoSala`, `SalaBLL.ActualizarEstadoSala`)
+- **Acción:** Mantenimiento de salas y soporte operativo
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@IdSala` | `INT` | IN | ID de la sala. |
-  | `@NuevoEstado` | `NVARCHAR(50)` | IN | Nuevo estado asignado. |
+  | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
+  | `@NuevoEstado` | `NVARCHAR(50)` | IN | Nuevo estado operativo a asignar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50048` | *La sala a actualizar no existe o se encuentra inactiva.* | `@IdSala` no existe o tiene `Activo = 0`. |
+  | `50049` | *El estado operativo asignado a la sala no es válido.* | `@NuevoEstado` no pertenece al conjunto permitido ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada'). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ActualizarEstadoSala
@@ -676,10 +894,27 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Salas
-    SET EstadoSala = @NuevoEstado,
-        FechaModificacion = GETDATE()
-    WHERE IdSala = @IdSala AND Activo = 1;
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50048, 'La sala a actualizar no existe o se encuentra inactiva.', 1;
+        END
+
+        IF @NuevoEstado NOT IN ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada')
+        BEGIN
+            THROW 50049, 'El estado operativo asignado a la sala no es válido.', 1;
+        END
+
+        UPDATE Salas
+        SET EstadoSala = @NuevoEstado,
+            FechaModificacion = GETDATE()
+        WHERE IdSala = @IdSala AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -716,9 +951,9 @@ GO
 ---
 
 ### 3.2 `sp_InsertarEspecialidad`
-- **Descripción:** Registra una nueva especialidad médica en el catálogo.
+- **Descripción:** Registra una nueva especialidad médica en el catálogo con validación de nombre no vacío y no duplicado. Si existía previamente dada de baja, la reactiva automáticamente.
 - **Entidad:** Especialidad
-- **Operación:** Alta
+- **Operación:** Alta / Reactivación
 - **Tablas:** `Especialidades`
 - **Forms que lo utilizan:** `FrmGestionEspecialidades`
 - **Acción:** Botón `btnGuardar`
@@ -727,6 +962,11 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@Nombre` | `NVARCHAR(100)` | IN | Nombre de la especialidad. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50050` | *El nombre de la especialidad es obligatorio y no puede quedar vacío.* | `@Nombre` es nulo o cadena vacía/espacios. |
+  | `50051` | *Ya existe una especialidad activa registrada con este mismo nombre.* | Ya existe otra especialidad con `Nombre = @Nombre` y `Activo = 1`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarEspecialidad
@@ -735,8 +975,38 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO Especialidades (Nombre, Activo, FechaCreacion)
-    VALUES (@Nombre, 1, GETDATE());
+    BEGIN TRY
+        -- 1. Validar que el nombre no esté vacío
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50050, 'El nombre de la especialidad es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        -- 2. Validar que no exista ya activa
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND Activo = 1)
+        BEGIN
+            THROW 50051, 'Ya existe una especialidad activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 3. Si existía previamente inactiva, la reactivamos
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND Activo = 0)
+        BEGIN
+            UPDATE Especialidades
+            SET Activo = 1,
+                FechaBaja = NULL
+            WHERE Nombre = @Nombre;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO Especialidades (Nombre, Activo, FechaCreacion)
+            VALUES (@Nombre, 1, GETDATE());
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -748,7 +1018,7 @@ GO
 - **Entidad:** Especialidad
 - **Operación:** Modificación
 - **Tablas:** `Especialidades`
-- **Forms que lo utilizan:** Ninguno actualmente.
+- **Forms que lo utilizan:** Ninguno actualmente (`FrmGestionEspecialidades` gestiona altas y bajas).
 - **Acción:** N/A
 - **Estado:** `NO UTILIZADO`
 - **Parámetros:**
@@ -776,10 +1046,10 @@ GO
 ---
 
 ### 3.4 `sp_EliminarEspecialidad` (Baja Lógica)
-- **Descripción:** Realiza el borrado lógico de una especialidad médica (`Activo = 0`).
-- **Entidad:** Especialidad
-- **Operación:** Baja lógica
-- **Tablas:** `Especialidades`
+- **Descripción:** Realiza el borrado lógico de una especialidad médica (`Activo = 0`) previa validación de que no posea turnos pendientes o en atención en curso, y desactiva en cascada sus asignaciones médicas en `MedicosEspecialidades`.
+- **Entidad:** Especialidad / MedicoEspecialidad
+- **Operación:** Baja lógica transaccional en cascada
+- **Tablas:** `Especialidades`, `MedicosEspecialidades`, `Turnos`
 - **Forms que lo utilizan:** `FrmGestionEspecialidades`
 - **Acción:** Botón `btnDesactivar`
 - **Estado:** `EN USO`
@@ -787,6 +1057,11 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdEspecialidad` | `INT` | IN | ID de la especialidad a desactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50052` | *La especialidad a desactivar no existe o ya se encuentra inactiva.* | `@IdEspecialidad` no existe o tiene `Activo = 0`. |
+  | `50053` | *No se puede dar de baja la especialidad porque posee turnos pendientes de atención (En Espera, Llamado o En Consulta).* | Existen turnos activos en dichos estados para la especialidad. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_EliminarEspecialidad
@@ -795,10 +1070,46 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Especialidades
-    SET Activo = 0,
-        FechaBaja = GETDATE()
-    WHERE IdEspecialidad = @IdEspecialidad;
+    BEGIN TRY
+        -- 1. Validar que la especialidad exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50052, 'La especialidad a desactivar no existe o ya se encuentra inactiva.', 1;
+        END
+
+        -- 2. Validar que no posea turnos pendientes de atención
+        IF EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE IdEspecialidad = @IdEspecialidad 
+              AND Estado IN ('En Espera', 'Llamado', 'En Consulta') 
+              AND Activo = 1
+        )
+        BEGIN
+            THROW 50053, 'No se puede dar de baja la especialidad porque posee turnos pendientes de atención (En Espera, Llamado o En Consulta).', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Baja lógica de la especialidad
+        UPDATE Especialidades
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdEspecialidad = @IdEspecialidad;
+
+        -- 4. Baja lógica en cascada en MedicosEspecialidades
+        UPDATE MedicosEspecialidades
+        SET Activo = 0,
+            FechaBaja = GETDATE()
+        WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -806,18 +1117,23 @@ GO
 ---
 
 ### 3.5 `sp_AsignarEspecialidadMedico`
-- **Descripción:** Asocia una especialidad a un profesional médico en la tabla intermedia `MedicosEspecialidades`.
+- **Descripción:** Asocia una especialidad a un profesional médico en la tabla intermedia `MedicosEspecialidades`, validando la existencia de ambos y previniendo duplicados activos.
 - **Entidad:** MedicoEspecialidad
 - **Operación:** Asignación
-- **Tablas:** `MedicosEspecialidades`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
-- **Acción:** Botón `btnGuardar`
+- **Tablas:** `MedicosEspecialidades`, `Usuarios`, `Especialidades`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
+- **Acción:** Botón `btnGuardar` / `btnModificar` en `FrmGestionUsuarios2`
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdUsuario` | `INT` | IN | ID del médico. |
   | `@IdEspecialidad` | `INT` | IN | ID de la especialidad vinculada. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50062` | *El profesional médico a asignar no existe, está inactivo o no pertenece al rol de Personal Médico.* | `@IdUsuario` inexistente, inactivo o con rol distinto de Personal Médico (`IdRol = 1` o descripción con 'médico'). |
+  | `50063` | *La especialidad médica a asignar no existe o se encuentra inactiva.* | `@IdEspecialidad` no existe o no está activa. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_AsignarEspecialidadMedico
@@ -827,8 +1143,85 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO MedicosEspecialidades (IdUsuario, IdEspecialidad, Activo, FechaCreacion)
-    VALUES (@IdUsuario, @IdEspecialidad, 1, GETDATE());
+    BEGIN TRY
+        -- 1. Validar que el usuario exista, esté activo y pertenezca al rol médico
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Usuarios u
+            INNER JOIN Roles r ON u.IdRol = r.IdRol
+            WHERE u.IdUsuario = @IdUsuario 
+              AND u.Activo = 1 
+              AND (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+        )
+        BEGIN
+            THROW 50062, 'El profesional médico a asignar no existe, está inactivo o no pertenece al rol de Personal Médico.', 1;
+        END
+
+        -- 2. Validar que la especialidad exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50063, 'La especialidad médica a asignar no existe o se encuentra inactiva.', 1;
+        END
+
+        -- 3. Evitar duplicidad: si ya está activa, no hacer nada; si está inactiva, reactivarla
+        IF NOT EXISTS (SELECT 1 FROM MedicosEspecialidades WHERE IdUsuario = @IdUsuario AND IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            IF EXISTS (SELECT 1 FROM MedicosEspecialidades WHERE IdUsuario = @IdUsuario AND IdEspecialidad = @IdEspecialidad AND Activo = 0)
+            BEGIN
+                UPDATE TOP(1) MedicosEspecialidades
+                SET Activo = 1,
+                    FechaBaja = NULL,
+                    FechaModificacion = GETDATE()
+                WHERE IdUsuario = @IdUsuario AND IdEspecialidad = @IdEspecialidad AND Activo = 0;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO MedicosEspecialidades (IdUsuario, IdEspecialidad, Activo, FechaCreacion)
+                VALUES (@IdUsuario, @IdEspecialidad, 1, GETDATE());
+            END
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+```
+
+---
+
+### 3.6 `sp_ObtenerEspecialidadesPorMedico`
+- **Descripción:** Obtiene las especialidades activas asignadas a un médico en particular a través de la tabla intermedia `MedicosEspecialidades`.
+- **Entidad:** Especialidad / MedicoEspecialidad
+- **Operación:** Consulta por Médico
+- **Tablas:** `Especialidades`, `MedicosEspecialidades`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`, `FrmListaTurnosAtencion`
+- **Acción:** Carga de especialidades vinculadas al profesional (`CargarServiciosDelMedico` y precarga en `FrmGestionUsuarios2`)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | ID del médico consultado. |
+- **Devuelve:** `IdEspecialidad`, `Nombre`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ObtenerEspecialidadesPorMedico
+    @IdUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        e.IdEspecialidad,
+        e.Nombre
+    FROM Especialidades e
+    INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
+    WHERE me.IdUsuario = @IdUsuario 
+      AND me.Activo = 1 
+      AND e.Activo = 1
+    ORDER BY e.Nombre ASC;
 END;
 GO
 ```
@@ -837,14 +1230,120 @@ GO
 
 ## Módulo 4: Pacientes
 
-### 4.1 `sp_InsertarPaciente`
-- **Descripción:** Registra un nuevo paciente en la tabla `Pacientes` y devuelve el ID recién generado.
+### 4.1 `sp_BuscarPacientePorDNI`
+- **Descripción:** Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI).
 - **Entidad:** Paciente
-- **Operación:** Alta
+- **Operación:** Consulta / Búsqueda por DNI
 - **Tablas:** `Pacientes`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
+- **Acción:** Autocompletado y verificación de antecedentes al ingresar DNI
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@DNI` | `NVARCHAR(20)` | IN | Documento de identidad del paciente. |
+- **Devuelve:** `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `ObraSocial`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_BuscarPacientePorDNI
+    @DNI NVARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT IdPaciente, Nombre, Apellido, Dni, ObraSocial 
+    FROM Pacientes 
+    WHERE DNI = @DNI AND Activo = 1;
+END;
+GO
+```
+
+---
+
+### 4.2 `sp_GuardarPaciente` (Upsert Inteligente)
+- **Descripción:** Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
+- **Entidad:** Paciente
+- **Operación:** Búsqueda / Alta / Actualización con Integridad Cruzada
+- **Tablas:** `Pacientes`, `Usuarios`
 - **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
 - **Acción:** Botón `BtnGenerarTurno`
 - **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Nombre` | `NVARCHAR(100)` | IN | Nombre del paciente. |
+  | `@Apellido` | `NVARCHAR(100)` | IN | Apellido del paciente. |
+  | `@Dni` | `NVARCHAR(20)` | IN | Documento de identidad. |
+  | `@ObraSocial` | `NVARCHAR(100)` | IN | Cobertura médica u obra social. |
+- **Devuelve:** 1 fila: `IdPaciente`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50010` | *Ya existe un usuario registrado en el sistema con este mismo número de DNI. No se puede duplicar.* | El `@Dni` ingresado coincide con un usuario registrado y activo en `Usuarios`. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_GuardarPaciente
+    @Nombre NVARCHAR(100),
+    @Apellido NVARCHAR(100),
+    @Dni NVARCHAR(20),
+    @ObraSocial NVARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- Validar si el DNI ya existe como Usuario activo en el sistema
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
+        BEGIN
+            THROW 50010, 'Ya existe un usuario registrado en el sistema con este mismo número de DNI. No se puede duplicar.', 1;
+        END
+
+        DECLARE @IdPaciente INT;
+
+        SELECT @IdPaciente = IdPaciente 
+        FROM Pacientes 
+        WHERE Dni = @Dni AND Activo = 1;
+
+        IF @IdPaciente IS NOT NULL
+        BEGIN
+            UPDATE Pacientes
+            SET Nombre = @Nombre,
+                Apellido = @Apellido,
+                ObraSocial = @ObraSocial,
+                FechaModificacion = GETDATE()
+            WHERE IdPaciente = @IdPaciente;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, Activo, FechaCreacion)
+            VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, 1, GETDATE());
+
+            SET @IdPaciente = SCOPE_IDENTITY();
+        END
+
+        SELECT @IdPaciente AS IdPaciente;
+
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+GO
+```
+
+---
+
+### 4.3 `sp_InsertarPaciente`
+- **Descripción:** Inserción simple y directa de un paciente sin validación de duplicidad por DNI ni verificación cruzada con la tabla de usuarios. Fue superado operativamente por `sp_GuardarPaciente`.
+- **Entidad:** Paciente
+- **Operación:** Alta simple
+- **Tablas:** `Pacientes`
+- **Forms que lo utilizan:** Ninguno actualmente (reemplazado por `sp_GuardarPaciente`).
+- **Acción:** N/A
+- **Estado:** `NO UTILIZADO (SUPERADO POR sp_GuardarPaciente)`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -874,102 +1373,9 @@ GO
 
 ---
 
-### 4.2 `sp_GuardarPaciente` (Upsert Inteligente)
-- **Descripción:** Busca al paciente por DNI. Si ya existe en el sistema, actualiza su cobertura médica y retorna su `IdPaciente`. Si no existe, lo inserta y retorna el nuevo ID.
-- **Entidad:** Paciente
-- **Operación:** Búsqueda / Alta / Actualización
-- **Tablas:** `Pacientes`
-- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
-- **Acción:** Botón `BtnGenerarTurno`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@Nombre` | `NVARCHAR(100)` | IN | Nombre del paciente. |
-  | `@Apellido` | `NVARCHAR(100)` | IN | Apellido del paciente. |
-  | `@Dni` | `NVARCHAR(20)` | IN | Documento de identidad. |
-  | `@ObraSocial` | `NVARCHAR(100)` | IN | Cobertura médica. |
-- **Devuelve:** 1 fila: `IdPaciente`.
-
-```sql
-CREATE OR ALTER PROCEDURE sp_GuardarPaciente
-    @Nombre NVARCHAR(100),
-    @Apellido NVARCHAR(100),
-    @Dni NVARCHAR(20),
-    @ObraSocial NVARCHAR(100)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @IdPaciente INT;
-
-    SELECT @IdPaciente = IdPaciente 
-    FROM Pacientes 
-    WHERE Dni = @Dni AND Activo = 1;
-
-    IF @IdPaciente IS NOT NULL
-    BEGIN
-        UPDATE Pacientes
-        SET Nombre = @Nombre,
-            Apellido = @Apellido,
-            ObraSocial = @ObraSocial,
-            FechaModificacion = GETDATE()
-        WHERE IdPaciente = @IdPaciente;
-    END
-    ELSE
-    BEGIN
-        INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, Activo, FechaCreacion)
-        VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, 1, GETDATE());
-
-        SET @IdPaciente = SCOPE_IDENTITY();
-    END
-
-    SELECT @IdPaciente AS IdPaciente;
-END;
-GO
-```
-
----
-
 ## Módulo 5: Turnos y Triage de Guardia
 
-### 5.1 `sp_InsertarTurno`
-- **Descripción:** Registra un turno estándar programado en recepción en estado `'En Espera'`.
-- **Entidad:** Turno
-- **Operación:** Alta
-- **Tablas:** `Turnos`
-- **Forms que lo utilizan:** `FrmTurnoEspecialidad`
-- **Acción:** Botón `BtnGenerarTurno`
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@NroOrden` | `NVARCHAR(50)` | IN | Código de orden (ej. 'T-001'). |
-  | `@TipoTurno` | `NVARCHAR(50)` | IN | Tipo ('Consulta', 'Estudio'). |
-  | `@IdPrioridad` | `INT` | IN | Prioridad (1 = Alta, 2 = Media, 3 = Baja). |
-  | `@IdPaciente` | `INT` | IN | ID del paciente. |
-  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_InsertarTurno
-    @NroOrden NVARCHAR(50),
-    @TipoTurno NVARCHAR(50),
-    @IdPrioridad INT,
-    @IdPaciente INT,
-    @IdEspecialidad INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-    VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
-END;
-GO
-```
-
----
-
-### 5.2 `sp_ObtenerSintomas`
+### 5.1 `sp_ObtenerSintomas`
 - **Descripción:** Retorna el catálogo de síntomas activos con su nivel de gravedad para el triage dinámico de guardia.
 - **Entidad:** Sintoma
 - **Operación:** Consulta / Catálogo
@@ -995,11 +1401,41 @@ GO
 
 ---
 
-### 5.3 `sp_RegistrarTurnoSintoma`
-- **Descripción:** Asocia un síntoma del paciente al turno generado en la tabla `TurnoSintomas`.
-- **Entidad:** TurnoSintoma
-- **Operación:** Alta / Relación
-- **Tablas:** `TurnoSintomas`
+### 5.2 `sp_ObtenerGravedadSintoma`
+- **Descripción:** Obtiene la gravedad nativa de un síntoma específico para el cálculo de nivel de triage de emergencias.
+- **Entidad:** Sintoma
+- **Operación:** Consulta de Triage
+- **Tablas:** `Sintomas`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`
+- **Acción:** Selección de síntoma en el selector de triage
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdSintoma` | `INT` | IN | ID del síntoma seleccionado. |
+- **Devuelve:** `Gravedad` (1 = Alta, 2 = Media, 3 = Baja).
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ObtenerGravedadSintoma
+    @IdSintoma INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT Gravedad 
+    FROM Sintomas 
+    WHERE IdSintoma = @IdSintoma;
+END;
+GO
+```
+
+---
+
+### 5.3 `sp_GuardarTurnoSintoma`
+- **Descripción:** Vincula un síntoma al turno de atención médica en la tabla `TurnoSintomas`, validando que ambos existan y se encuentren activos, y previniendo la duplicación del mismo síntoma en el turno.
+- **Entidad:** TurnoSintoma / Turno / Sintoma
+- **Operación:** Alta de Relación con Integridad
+- **Tablas:** `TurnoSintomas`, `Turnos`, `Sintomas`
 - **Forms que lo utilizan:** `FrmTurnoEmergencia`
 - **Acción:** Botón `BtnGenerarTurno`
 - **Estado:** `EN USO`
@@ -1007,74 +1443,120 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdTurno` | `INT` | IN | ID del turno generado. |
-  | `@IdSintoma` | `INT` | IN | ID del síntoma. |
-  | `@EstadoActual` | `NVARCHAR(100)` | IN | Observaciones clínicas iniciales. |
+  | `@IdSintoma` | `INT` | IN | ID del síntoma asociado. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50085` | *El turno especificado para vincular el síntoma no existe o se encuentra inactivo.* | `@IdTurno` no existe o tiene `Activo = 0`. |
+  | `50086` | *El síntoma especificado no existe o se encuentra inactivo.* | `@IdSintoma` no existe o tiene `Activo = 0`. |
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_RegistrarTurnoSintoma
+CREATE OR ALTER PROCEDURE sp_GuardarTurnoSintoma
     @IdTurno INT,
-    @IdSintoma INT,
-    @EstadoActual NVARCHAR(100)
+    @IdSintoma INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO TurnoSintomas (IdTurno, IdSintoma, EstadoActual, FechaCreacion, Activo)
-    VALUES (@IdTurno, @IdSintoma, @EstadoActual, GETDATE(), 1);
+    BEGIN TRY
+        -- 1. Validar que el turno exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1)
+        BEGIN
+            THROW 50085, 'El turno especificado para vincular el síntoma no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 2. Validar que el síntoma exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE IdSintoma = @IdSintoma AND Activo = 1)
+        BEGIN
+            THROW 50086, 'El síntoma especificado no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 3. Evitar duplicar el mismo síntoma en el turno
+        IF NOT EXISTS (SELECT 1 FROM TurnoSintomas WHERE IdTurno = @IdTurno AND IdSintoma = @IdSintoma AND Activo = 1)
+        BEGIN
+            INSERT INTO TurnoSintomas (IdTurno, IdSintoma, EstadoActual, Activo, FechaCreacion) 
+            VALUES (@IdTurno, @IdSintoma, 'en espera', 1, GETDATE());
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
 
 ---
 
-### 5.4 `sp_RegistrarTurnoEmergencia`
-- **Descripción:** Motor de urgencias: calcula automáticamente la prioridad (1=Alta, 2=Media, 3=Baja) según la gravedad del síntoma, crea el turno de guardia e inserta la relación en `TurnoSintomas`.
-- **Entidad:** Turno / Sintoma / TurnoSintoma
-- **Operación:** Alta con Triage Automático
-- **Tablas:** `Sintomas`, `Turnos`, `TurnoSintomas`
+### 5.4 `sp_CrearTurnoEmergencia`
+- **Descripción:** Genera un nuevo turno de guardia de urgencias/emergencias, asociándolo al servicio de Emergencia, asignando la prioridad de triage correspondiente y generando el ticket correlativo `E-001`. Cuenta con validaciones de negocio previas.
+- **Entidad:** Turno / Paciente / Especialidad
+- **Operación:** Alta con Triage y Numeración Correlativa
+- **Tablas:** `Turnos`, `Pacientes`, `Especialidades`
 - **Forms que lo utilizan:** `FrmTurnoEmergencia`
 - **Acción:** Botón `BtnGenerarTurno`
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@NroOrden` | `NVARCHAR(50)` | IN | Número de ticket visible (ej. 'E-001'). |
   | `@IdPaciente` | `INT` | IN | ID del paciente asistido. |
-  | `@IdSintoma` | `INT` | IN | ID del síntoma que motiva el ingreso. |
-  | `@EstadoActual` | `NVARCHAR(255)` | IN | Descripción de estado inicial. |
-- **Devuelve:** `IdNuevoTurno` (`SCOPE_IDENTITY()`).
+  | `@IdPrioridad` | `INT` | IN | Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja). |
+- **Devuelve:** `IdNuevoTurno`, `NroOrden`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50001` | *El paciente seleccionado no existe o se encuentra inactivo en el sistema.* | `@IdPaciente` inexistente o inactivo en `Pacientes`. |
+  | `50002` | *No se encontró configurada una especialidad activa para "Emergencia" en la base de datos.* | La especialidad "Emergencia" no está registrada activa. |
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_RegistrarTurnoEmergencia
-    @NroOrden NVARCHAR(50), 
+CREATE OR ALTER PROCEDURE sp_CrearTurnoEmergencia
     @IdPaciente INT,
-    @IdSintoma INT,
-    @EstadoActual NVARCHAR(255)
+    @IdPrioridad INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @IdPrioridad INT;
-    DECLARE @Gravedad NVARCHAR(50);
-    DECLARE @IdTurnoGenerado INT;
+    BEGIN TRY
+        -- Validación de negocio previa en SQL por si acaso
+        IF NOT EXISTS (SELECT 1 FROM Pacientes WHERE IdPaciente = @IdPaciente AND Activo = 1)
+        BEGIN
+            THROW 50001, 'El paciente seleccionado no existe o se encuentra inactivo en el sistema.', 1;
+        END
 
-    SELECT @Gravedad = Gravedad 
-    FROM Sintomas 
-    WHERE IdSintoma = @IdSintoma;
+        DECLARE @IdTurno INT;
+        DECLARE @NroOrden NVARCHAR(20);
+        DECLARE @IdEspecialidadEmergencia INT;
 
-    IF @Gravedad = 'Alta' SET @IdPrioridad = 1;
-    ELSE IF @Gravedad = 'Media' SET @IdPrioridad = 2;
-    ELSE SET @IdPrioridad = 3;
+        SELECT @IdEspecialidadEmergencia = IdEspecialidad 
+        FROM Especialidades 
+        WHERE Nombre = 'Emergencia' AND Activo = 1;
 
-    INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, Activo, FechaCreacion)
-    VALUES (@NroOrden, 'En Espera', GETDATE(), 'Emergencia', @IdPrioridad, @IdPaciente, 1, GETDATE());
+        IF @IdEspecialidadEmergencia IS NULL
+        BEGIN
+            THROW 50002, 'No se encontró configurada una especialidad activa para "Emergencia" en la base de datos.', 1;
+        END
 
-    SET @IdTurnoGenerado = SCOPE_IDENTITY();
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
+        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, 1, GETDATE());
 
-    INSERT INTO TurnoSintomas (IdTurno, IdSintoma, EstadoActual, FechaCreacion, Activo)
-    VALUES (@IdTurnoGenerado, @IdSintoma, @EstadoActual, GETDATE(), 1);
-    
-    SELECT @IdTurnoGenerado AS IdNuevoTurno;
+        SET @IdTurno = SCOPE_IDENTITY();
+        
+        SET @NroOrden = CONCAT('E-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
+        UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
+
+        -- Devolvemos ambas columnas requeridas por el DTO
+        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
+
+    END TRY
+    BEGIN CATCH
+        -- Capturamos el error de SQL y lo propagamos limpiamente al código C#
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
 END;
 GO
 ```
@@ -1088,7 +1570,7 @@ GO
 - **Tablas:** `Turnos`, `Especialidades`
 - **Forms que lo utilizan:** `FrmTurnoEspecialidad`
 - **Acción:** Selección de fecha en calendario (`calFechaTurno_DateChanged`)
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -1127,13 +1609,13 @@ GO
 ---
 
 ### 5.6 `sp_CrearTurnoEspecialidad`
-- **Descripción:** Registra un turno programado vinculando paciente, especialidad, fecha y horario asignado, devolviendo el `IdTurno` y código correlativo.
-- **Entidad:** Turno / Especialidad
-- **Operación:** Alta Programada
-- **Tablas:** `Turnos`, `Especialidades`
+- **Descripción:** Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha y horario asignado. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001` para Cardiología, `P-001` para Pediatría) y devuelve el ID recién creado.
+- **Entidad:** Turno / Especialidad / Paciente
+- **Operación:** Alta Programada con Validación de Negocio
+- **Tablas:** `Turnos`, `Especialidades`, `Pacientes`
 - **Forms que lo utilizan:** `FrmTurnoEspecialidad`
 - **Acción:** Botón `BtnGenerarTurno`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -1143,6 +1625,11 @@ GO
   | `@Horario` | `NVARCHAR(10)` | IN | Horario asignado (ej. '10:30'). |
   | `@Estado` | `NVARCHAR(50)` | IN | Estado inicial ('En Espera'). |
 - **Devuelve:** `IdNuevoTurno`, `NroOrden`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50001` | *El paciente especificado no se encuentra registrado o está inactivo.* | `@IdPaciente` inexistente o inactivo en `Pacientes`. |
+  | `50003` | *La especialidad seleccionada no existe o se encuentra inactiva.* | `@NombreEspecialidad` no encontrada o inactiva en `Especialidades`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
@@ -1155,23 +1642,55 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @IdEspecialidad INT;
-    DECLARE @IdTurno INT;
-    DECLARE @NroOrden NVARCHAR(20);
+    BEGIN TRY
+        -- Validamos que la especialidad exista y esté activa
+        DECLARE @IdEspecialidad INT;
+        SELECT @IdEspecialidad = IdEspecialidad 
+        FROM Especialidades 
+        WHERE Nombre = @NombreEspecialidad AND Activo = 1;
 
-    SELECT @IdEspecialidad = IdEspecialidad 
-    FROM Especialidades 
-    WHERE Nombre = @NombreEspecialidad AND Activo = 1;
+        IF @IdEspecialidad IS NULL
+        BEGIN
+            THROW 50003, 'La especialidad seleccionada no existe o se encuentra inactiva.', 1;
+        END
 
-    INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-    VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+        -- Validamos que el paciente exista
+        IF NOT EXISTS (SELECT 1 FROM Pacientes WHERE IdPaciente = @IdPaciente AND Activo = 1)
+        BEGIN
+            THROW 50001, 'El paciente especificado no se encuentra registrado o está inactivo.', 1;
+        END
 
-    SET @IdTurno = SCOPE_IDENTITY();
-    SET @NroOrden = CONCAT('T-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
+        DECLARE @IdTurno INT;
+        DECLARE @NroOrden NVARCHAR(20);
+        DECLARE @InicialEspecialidad CHAR(1);
 
-    UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
+        -- Obtenemos la primera letra de la especialidad en mayúscula (ej: C de Cardiología)
+        SET @InicialEspecialidad = UPPER(LEFT(@NombreEspecialidad, 1));
 
-    SELECT @IdTurno AS IdNuevoTurno, @NroOrden AS NroOrden;
+        -- Insertamos con un valor temporal
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
+        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+
+        SET @IdTurno = SCOPE_IDENTITY();
+        
+        -- Formateamos el número de orden usando la inicial de la especialidad (Ej: C-001, P-005)
+        SET @NroOrden = CONCAT(@InicialEspecialidad, '-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
+        
+        -- Actualizamos el turno con el NroOrden definitivo
+        UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
+
+        -- Retornamos los datos requeridos por el DTO
+        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
+
+    END TRY
+    BEGIN CATCH
+        -- Capturamos el error y lo propagamos limpiamente a C#
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
 END;
 GO
 ```
@@ -1309,6 +1828,41 @@ BEGIN
 END;
 GO
 ```
+
+---
+
+### 5.10 `sp_InsertarTurno`
+- **Descripción:** Inserción simple de turno estándar sin prefijos personalizados de especialidad ni triage automático de emergencias. Superado por `sp_CrearTurnoEspecialidad` y `sp_CrearTurnoEmergencia`.
+- **Entidad:** Turno
+- **Operación:** Alta simple
+- **Tablas:** `Turnos`
+- **Forms que lo utilizan:** Ninguno actualmente (superado).
+- **Acción:** N/A
+- **Estado:** `NO UTILIZADO (SUPERADO POR sp_CrearTurnoEspecialidad y sp_CrearTurnoEmergencia)`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@NroOrden` | `NVARCHAR(50)` | IN | Código de orden. |
+  | `@TipoTurno` | `NVARCHAR(50)` | IN | Tipo de turno. |
+  | `@IdPrioridad` | `INT` | IN | Nivel de prioridad. |
+  | `@IdPaciente` | `INT` | IN | ID del paciente. |
+  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_InsertarTurno
+    @NroOrden NVARCHAR(50),
+    @TipoTurno NVARCHAR(50),
+    @IdPrioridad INT,
+    @IdPaciente INT,
+    @IdEspecialidad INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
+    VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+END;
+GO
 ```
 
 ---
@@ -1432,11 +1986,11 @@ GO
 
 ---
 
-### 6.4 `sp_LlamarSiguienteTurno` / `sp_LlamarSiguientePaciente`
-- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el médico tratante y el consultorio donde se realizará la atención.
-- **Entidad:** Turno
-- **Operación:** Llamado Médico
-- **Tablas:** `Turnos`
+### 6.4 `sp_LlamarSiguienteTurno`
+- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido ni cancelado.
+- **Entidad:** Turno / Sala
+- **Operación:** Llamado de Paciente a Consultorio
+- **Tablas:** `Turnos`, `Salas`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Botón `btnSiguientePaciente`
 - **Estado:** `EN USO`
@@ -1446,9 +2000,14 @@ GO
   | `@IdTurno` | `INT` | IN | ID del turno llamado. |
   | `@NombreMedico` | `NVARCHAR(100)` | IN | Nombre del profesional médico. |
   | `@SalaAsignada` | `NVARCHAR(100)` | IN | Consultorio/sala donde se atiende. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50080` | *El turno a llamar no existe o se encuentra inactivo en el sistema.* | `@IdTurno` inexistente o con `Activo = 0`. |
+  | `50081` | *El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido o Cancelado).* | El turno ya está en estado 'Atendido' o 'Cancelado'. |
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_LlamarSiguientePaciente
+CREATE OR ALTER PROCEDURE sp_LlamarSiguienteTurno
     @IdTurno INT,
     @NombreMedico NVARCHAR(100),
     @SalaAsignada NVARCHAR(100)
@@ -1456,10 +2015,36 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Turnos
-    SET Estado = 'Llamado',
-        FechaModificacion = GETDATE()
-    WHERE IdTurno = @IdTurno AND Activo = 1;
+    BEGIN TRY
+        -- 1. Validar que el turno exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1)
+        BEGIN
+            THROW 50080, 'El turno a llamar no existe o se encuentra inactivo en el sistema.', 1;
+        END
+
+        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido ni Cancelado)
+        DECLARE @EstadoActual NVARCHAR(50);
+        SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno;
+
+        IF @EstadoActual IN ('Atendido', 'Cancelado')
+        BEGIN
+            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido o Cancelado).', 1;
+        END
+
+        DECLARE @IdSala INT = NULL;
+        SELECT @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+
+        UPDATE Turnos
+        SET Estado = 'Llamado',
+            IdSala = ISNULL(@IdSala, IdSala),
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -1467,40 +2052,93 @@ GO
 ---
 
 ### 6.5 `sp_IniciarAtencionTurno`
-- **Descripción:** Registra el inicio formal de la consulta médica pasando el turno al estado `'En Consulta'`.
-- **Entidad:** Turno
-- **Operación:** Inicio de Consulta
-- **Tablas:** `Turnos`
+- **Descripción:** Registra el inicio formal de la consulta médica pasando el turno al estado `'En Consulta'` y actualiza atómicamente la sala asignada al estado `'Ocupada'`.
+- **Entidad:** Turno / Sala
+- **Operación:** Inicio de Consulta Médica
+- **Tablas:** `Turnos`, `Salas`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Botón `btnIniciarAtencion`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdTurno` | `INT` | IN | ID del turno en atención. |
+  | `@SalaAsignada` | `NVARCHAR(100) = NULL` | IN | Consultorio físico asignado (opcional). |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50082` | *El turno a iniciar atención no existe o se encuentra inactivo.* | `@IdTurno` no existe o tiene `Activo = 0`. |
+  | `50083` | *No se puede iniciar la atención porque el turno ya ha sido finalizado previamente.* | El turno ya está en estado 'Atendido'. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_IniciarAtencionTurno
-    @IdTurno INT
+    @IdTurno INT,
+    @SalaAsignada NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Turnos
-    SET Estado = 'En Consulta',
-        FechaModificacion = GETDATE()
-    WHERE IdTurno = @IdTurno AND Activo = 1;
+    BEGIN TRY
+        -- 1. Validar que el turno exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1)
+        BEGIN
+            THROW 50082, 'El turno a iniciar atención no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 2. Validar que no esté ya finalizado
+        IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Estado = 'Atendido')
+        BEGIN
+            THROW 50083, 'No se puede iniciar la atención porque el turno ya ha sido finalizado previamente.', 1;
+        END
+
+        DECLARE @IdSala INT = NULL;
+
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+            
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%';
+            END
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Actualizar el turno a 'En Consulta'
+        UPDATE Turnos
+        SET Estado = 'En Consulta',
+            IdSala = COALESCE(@IdSala, IdSala),
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        -- 4. Si se identificó la sala, marcarla como 'Ocupada'
+        IF @IdSala IS NOT NULL
+        BEGIN
+            UPDATE Salas
+            SET EstadoSala = 'Ocupada',
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND Activo = 1;
+        END
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
 
 ---
 
-### 6.6 `sp_FinalizarAtencion` / `sp_FinalizarAtencionTurno`
-- **Descripción:** Concluye la consulta médica: pasa el turno a estado `'Atendido'`, libera la sala y registra las observaciones clínicas en el historial.
-- **Entidad:** Turno / Sala / HistoriaClinica
-- **Operación:** Cierre de Consulta
-- **Tablas:** `Turnos`, `Salas`, `HistoriasClinicas`
+### 6.6 `sp_FinalizarAtencionTurno`
+- **Descripción:** Concluye formalmente la consulta médica: pasa el turno a estado `'Atendido'`, libera atómicamente la sala a estado `'Disponible'` y valida la existencia del turno.
+- **Entidad:** Turno / Sala
+- **Operación:** Cierre de Consulta y Liberación de Recursos
+- **Tablas:** `Turnos`, `Salas`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Botón `btnTerminarAtencion`
 - **Estado:** `EN USO`
@@ -1511,6 +2149,10 @@ GO
   | `@Diagnostico` | `NVARCHAR(MAX)` | IN | Diagnóstico o nota de evolución. |
   | `@NombreMedico` | `NVARCHAR(100)` | IN | Médico que finalizó la atención. |
   | `@SalaAsignada` | `NVARCHAR(100)` | IN | Consultorio donde se atendió. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50084` | *El turno a finalizar no existe en el sistema.* | `@IdTurno` no coincide con ningún turno existente. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_FinalizarAtencionTurno
@@ -1522,17 +2164,37 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. Marcar el turno como Atendido
-    UPDATE Turnos
-    SET Estado = 'Atendido',
-        FechaModificacion = GETDATE()
-    WHERE IdTurno = @IdTurno;
+    BEGIN TRY
+        -- 1. Validar que el turno exista
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        BEGIN
+            THROW 50084, 'El turno a finalizar no existe en el sistema.', 1;
+        END
 
-    -- 2. Liberar la sala a Disponible
-    UPDATE Salas
-    SET EstadoSala = 'Disponible',
-        FechaModificacion = GETDATE()
-    WHERE NombreSala = @SalaAsignada AND Activo = 1;
+        BEGIN TRANSACTION;
+
+        -- 2. Marcar el turno como Atendido
+        UPDATE Turnos
+        SET Estado = 'Atendido',
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
+
+        -- 3. Liberar la sala a Disponible
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--'
+        BEGIN
+            UPDATE Salas
+            SET EstadoSala = 'Disponible',
+                FechaModificacion = GETDATE()
+            WHERE NombreSala = @SalaAsignada AND Activo = 1;
+        END
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -1540,10 +2202,10 @@ GO
 ---
 
 ### 6.7 `sp_InsertarHistoriaClinica`
-- **Descripción:** Registra las notas clínicas, anamnesis y recetas farmacológicas emitidas por el médico.
-- **Entidad:** HistoriaClinica
-- **Operación:** Alta
-- **Tablas:** `HistoriasClinicas`
+- **Descripción:** Registra las notas clínicas, diagnóstico, evolución y recetas farmacológicas emitidas por el médico tratante en la tabla `HistoriasClinicas`. Cuenta con validación de paciente, turno, médico y diagnóstico obligatorio.
+- **Entidad:** HistoriaClinica / Paciente / Turno / Usuario
+- **Operación:** Alta Médica de Historia Clínica
+- **Tablas:** `HistoriasClinicas`, `Pacientes`, `Turnos`, `Usuarios`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Botón `btnTerminarAtencion`
 - **Estado:** `EN USO`
@@ -1551,12 +2213,19 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@TipoTurno` | `NVARCHAR(50)` | IN | 'Consulta' o 'Emergencia'. |
-  | `@DiagRapido` | `NVARCHAR(255)` | IN | Diagnóstico presuntivo. |
+  | `@DiagRapido` | `NVARCHAR(255)` | IN | Diagnóstico presuntivo obligatorio. |
   | `@DescripHistoriaClinica` | `NVARCHAR(MAX)` | IN | Evolución médica. |
   | `@RecetaMedicamentos` | `NVARCHAR(MAX)` | IN | Recetas y posología. |
-  | `@IdPaciente` | `INT` | IN | ID del paciente. |
+  | `@IdPaciente` | `INT` | IN | ID del paciente atendido. |
   | `@IdTurno` | `INT` | IN | ID del turno atendido. |
-  | `@IdUsuario` | `INT` | IN | ID del médico tratante. |
+  | `@IdUsuario` | `INT` | IN | ID del profesional médico tratante. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50070` | *El paciente vinculado a la historia clínica no existe o se encuentra inactivo.* | `@IdPaciente` no existe o no está activo en `Pacientes`. |
+  | `50071` | *El turno asociado a la historia clínica no existe en el sistema.* | `@IdTurno` no existe en `Turnos`. |
+  | `50072` | *El profesional médico que firma la atención no existe o se encuentra inactivo.* | `@IdUsuario` no existe o no está activo en `Usuarios`. |
+  | `50073` | *El diagnóstico médico es un campo obligatorio para registrar la historia clínica.* | `@DiagRapido` nulo o en blanco. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarHistoriaClinica
@@ -1571,8 +2240,39 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO HistoriasClinicas (Fecha, TipoTurno, DiagRapido, DescripHistoriaClinica, RecetaMedicamentos, IdPaciente, IdTurno, IdUsuario, Activo, FechaCreacion)
-    VALUES (GETDATE(), @TipoTurno, @DiagRapido, @DescripHistoriaClinica, @RecetaMedicamentos, @IdPaciente, @IdTurno, @IdUsuario, 1, GETDATE());
+    BEGIN TRY
+        -- 1. Validar que el paciente exista
+        IF NOT EXISTS (SELECT 1 FROM Pacientes WHERE IdPaciente = @IdPaciente AND Activo = 1)
+        BEGIN
+            THROW 50070, 'El paciente vinculado a la historia clínica no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 2. Validar que el turno exista
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        BEGIN
+            THROW 50071, 'El turno asociado a la historia clínica no existe en el sistema.', 1;
+        END
+
+        -- 3. Validar que el profesional médico exista
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50072, 'El profesional médico que firma la atención no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 4. Validar diagnóstico rápido
+        IF @DiagRapido IS NULL OR LTRIM(RTRIM(@DiagRapido)) = ''
+        BEGIN
+            THROW 50073, 'El diagnóstico médico es un campo obligatorio para registrar la historia clínica.', 1;
+        END
+
+        INSERT INTO HistoriasClinicas (Fecha, TipoTurno, DiagRapido, DescripHistoriaClinica, RecetaMedicamentos, IdPaciente, IdTurno, IdUsuario, Activo, FechaCreacion)
+        VALUES (GETDATE(), @TipoTurno, @DiagRapido, @DescripHistoriaClinica, @RecetaMedicamentos, @IdPaciente, @IdTurno, @IdUsuario, 1, GETDATE());
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -1743,51 +2443,57 @@ GO
 
 ---
 
-## 8. Tabla Resumen General
+## 8. Tabla Resumen General de Stored Procedures (dbGestionTurnos)
 
-| Stored Procedure | Entidad | Operación | Form(s) que lo utilizan | Acción dentro del Form | Estado |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `sp_ValidarLogin` | Usuario / Rol | Autenticación | `FrmLogin` | Botón `button1` (Iniciar sesión) | `EN USO` |
-| `sp_ListarRoles` | Rol | Listado | `FrmGestionUsuarios` | Cargar combo de roles | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarRol` | Rol | Alta | Ninguno | Script inicial de seeds | `NO UTILIZADO` |
-| `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios` | Cargar grilla de usuarios | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarUsuario` | Usuario | Alta | `FrmGestionUsuarios` | Botón `btnGuardar` | `EN USO` |
-| `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios` | Botón `btnModificar` y celda DataGrid | `EN USO` |
-| `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios` | Botón `btnEliminar` | `EN USO` |
-| `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` | `EN USO` |
-| `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y selección en grilla | `EN USO` |
-| `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` | `EN USO` |
-| `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios`, `MisSalas_PM` | Cargar grillas de salas activas | `EN USO` |
-| `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios`, `FrmSalasAdmin` | Botón `btnGuardar` | `EN USO` |
-| `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` | `EN USO` |
-| `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` | `EN USO` |
-| `sp_ActualizarEstadoSala`| Sala | Actualización | `FrmListaTurnosAtencion` | Inicio/fin de consulta médica | `EN USO` |
-| `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarEspecialidad`| Especialidad | Alta | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
-| `sp_ModificarEspecialidad`| Especialidad | Modificación | Ninguno | Preparado para edición | `NO UTILIZADO` |
-| `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
-| `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios` | Botón `btnGuardar` | `EN USO` |
-| `sp_InsertarPaciente` | Paciente | Alta | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` | `EN USO` |
-| `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarTurno` | Turno | Alta | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` | `EN USO` |
-| `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage | `EN USO` |
-| `sp_RegistrarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` | `EN USO` |
-| `sp_RegistrarTurnoEmergencia`| Turno / Triage | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` | `EN USO` |
-| `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Cargar grilla y monitor de emergencias | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ListarTurnosGeneralesPantalla`| Turno / Especialidad / Sala | Monitor público general | `FrmUsuarioVentana` | Carga y refresco periódico grilla general | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera | `EN USO` |
-| `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos | `EN USO` |
-| `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con datos paciente | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_LlamarSiguientePaciente`| Turno | Llamado | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_IniciarAtencionTurno`| Turno | En Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre atención | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` | `EN USO` |
-| `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` / Pantalla TV | Refresco periódico de llamados | `PENDIENTE DE IMPLEMENTACIÓN` |
-| `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Visor Historia Clínica | Consulta por paciente | `SIN FORM ASOCIADO / PENDIENTE DE VISOR HC` |
+A continuación se detalla el universo completo de los **44 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
+
+| N° | Stored Procedure | Entidad | Operación | Componente / Form(s) | Acción dentro del Sistema | Estado en Proyecto |
+| :- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `sp_ValidarLogin` | Usuario / Rol | Autenticación | `FrmLogin` | Botón `button1` (Iniciar sesión) | `EN USO` |
+| 2 | `sp_ListarRoles` | Rol | Listado | `FrmGestionUsuarios2` | Cargar selector desplegable de roles | `EN USO` |
+| 3 | `sp_InsertarRol` | Rol | Alta | Ninguno | Script de datos iniciales (`Seeds`) | `NO UTILIZADO` |
+| 4 | `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios2` | Cargar grilla general de usuarios activos | `EN USO` |
+| 5 | `sp_InsertarUsuario` | Usuario | Alta | `FrmGestionUsuarios2` | Botón `btnGuardar` (Registrar nuevo) | `EN USO` |
+| 6 | `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios2` | Botón `btnModificar` (Actualizar datos) | `EN USO` |
+| 7 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios2` | Botón `btnEliminar` (Desactivar) | `EN USO` |
+| 8 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `EN USO` |
+| 9 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
+| 10 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
+| 11 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
+| 12 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios activos | `EN USO` |
+| 13 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 14 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
+| 15 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a En Mantenimiento) | `EN USO` |
+| 16 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
+| 17 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas activas | `EN USO` |
+| 18 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
+| 19 | `sp_ModificarEspecialidad`| Especialidad | Modificación | Ninguno | Sin botón ni pantalla en el sistema | `NO UTILIZADO` |
+| 20 | `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
+| 21 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 22 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
+| 23 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
+| 24 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
+| 25 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
+| 26 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
+| 27 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
+| 28 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
+| 29 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
+| 30 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
+| 31 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
+| 32 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
+| 33 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
+| 34 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
+| 35 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
+| 36 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
+| 37 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
+| 38 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
+| 39 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
+| 40 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
+| 41 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
+| 42 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
+| 43 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
+| 44 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
+| * | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Módulo Médico (DAL/BLL) | Consulta histórica por paciente (pendiente de visor UI) | `PREPARADO EN BD` |
 
 ---
 
@@ -1796,70 +2502,137 @@ GO
 ### `FrmLogin`
 - `sp_ValidarLogin` → Botón "Iniciar Sesión" (`button1_Click`). Valida credenciales activas y obtiene rol del usuario. Incluye ruteo dinámico para el rol `Usuario Ventana` (`IdRol = 4`), abriendo `FrmUsuarioVentana`.
 
-### `FrmGestionUsuarios`
+### `FrmGestionUsuarios2` (Formulario Oficial de Gestión de Usuarios y Personal)
+- **Estado en el Sistema:** Formulario único y activo ejecutado desde el menú principal de administración (`FrmAdmin`).
 - `sp_ListarRoles` → Carga inicial del desplegable de roles (`CargarRolesDesdeBD`). Soporta los 4 roles: Administrador, Personal médico, Recepcionista y Usuario Ventana.
-- `sp_ListarEspecialidades` → Carga inicial del listado de especialidades asignables (`CargarEspecialidadesDesdeBD`).
-- `sp_ObtenerSalas` → Carga inicial del listado de consultorios asignables (`CargarSalasDesdeBD`).
+- `sp_ListarEspecialidades` → Carga del listado con selección múltiple (`CargarEspecialidadesDesdeBD`).
+- `sp_ObtenerSalas` → Carga del listado con selección múltiple de consultorios (`CargarSalasDesdeBD`).
 - `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios activos (`CargarUsuariosDesdeBD`).
-- `sp_InsertarUsuario` → Botón "Guardar" (`btnGuardar_Click`). Da de alta el usuario y devuelve su ID.
-- `sp_ModificarUsuario` → Botón "Modificar" (`btnModificar_Click`) y edición directa de celdas en el DataGrid (`dgvPersonal_CellEndEdit`). Modifica los datos del usuario.
-- `sp_AsignarEspecialidadMedico` → Botón "Guardar". Asocia cada especialidad tildada al usuario creado.
-- `sp_AsignarSalaMedico` → Botón "Guardar". Asocia cada sala tildada al usuario creado.
-- `sp_EliminarUsuario` → Botón "Eliminar" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario seleccionado.
+- `sp_BuscarPacientePorDNI` → Utilizado internamente para validar que un DNI ingresado para un usuario no esté asignado a un paciente.
+- `sp_ObtenerEspecialidadesPorMedico` → Precarga de las especialidades activas vinculadas al médico al seleccionarlo en la grilla o buscarlo por DNI.
+- `sp_InsertarUsuario` → Botón "Registrar Nuevo Usuario" (`btnGuardar_Click`). Da de alta el usuario y orquesta asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
+- `sp_ModificarUsuario` → Botón "Modificar Datos" (`btnModificar_Click`). Actualiza datos personales y delega reasignación atómica de salas y especialidades con control de excepciones.
+- `sp_AsignarEspecialidadMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada especialidad tildada al usuario.
+- `sp_AsignarSalaMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada sala tildada al usuario.
+- `sp_EliminarUsuario` → Botón "Desactivar Usuario" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario y de sus asignaciones en cascada.
 
 ### `FrmSalasAdmin`
 - `sp_ListarPersonalMedico` → Carga del listado de médicos asignables a consultorios (`CargarPersonalMedicoDesdeBD`).
 - `sp_ObtenerSalas` → Carga y refresco de la grilla de salas (`CargarSalasDesdeBD`).
-- `sp_InsertarSala` → Botón "Guardar" (`btnGuardar_Click`). Registra la nueva sala.
+- `sp_InsertarSala` → Botón "Guardar" (`btnGuardar_Click`). Registra la nueva sala con control de duplicados y estado válido.
+- `sp_ModificarSala` → Botón "Modificar" y edición directa en celdas de la grilla. Valida nombre y unicidad.
 - `sp_AsignarSalaMedico` → Botón "Guardar". Vincula los médicos seleccionados a la sala creada.
-- `sp_EliminarSala` → Botón "Eliminar" (`btnEliminar_Click`). Ejecuta la baja lógica de la sala.
+- `sp_EliminarSala` → Botón "Eliminar" (`btnEliminar_Click`). Ejecuta la baja lógica de la sala y de sus asignaciones en cascada.
 
 ### `FrmGestionEspecialidades`
 - `sp_ListarEspecialidades` → Carga y refresco de la grilla de especialidades (`CargarEspecialidadesDesdeBD`).
-- `sp_InsertarEspecialidad` → Botón "Guardar" (`btnGuardar_Click`). Da de alta una nueva especialidad.
-- `sp_EliminarEspecialidad` → Botón "Desactivar" (`btnDesactivar_Click`). Ejecuta la baja lógica.
+- `sp_InsertarEspecialidad` → Botón "Guardar" (`btnGuardar_Click`). Da de alta o reactiva una especialidad médica.
+- `sp_EliminarEspecialidad` → Botón "Desactivar" (`btnDesactivar_Click`). Ejecuta la baja lógica validando que no posea turnos activos.
 
 ### `FrmTurnoEmergencia`
 - `sp_ObtenerSintomas` → Carga del catálogo para categorización de triage (`CargarCatalogoSintomas`).
-- `sp_GuardarPaciente` (o `sp_InsertarPaciente`) → Botón "Generar Turno". Registra o recupera el ID del paciente por DNI.
-- `sp_RegistrarTurnoEmergencia` → Botón "Generar Turno". Calcula triage, crea turno de guardia y vincula síntoma.
-- `sp_RegistrarTurnoSintoma` → Botón "Generar Turno". Asocia síntomas adicionales al turno generado.
+- `sp_ObtenerGravedadSintoma` → Consulta la gravedad del síntoma seleccionado para calcular la prioridad en pantalla.
+- `sp_BuscarPacientePorDNI` → Autocompleta datos del paciente al ingresar su número de documento.
+- `sp_GuardarPaciente` → Botón "Generar Turno". Registra o recupera el ID del paciente por DNI de forma atómica.
+- `sp_CrearTurnoEmergencia` → Botón "Generar Turno". Genera el ticket de guardia correlativo `E-xxx` asociado a Emergencias.
+- `sp_GuardarTurnoSintoma` → Botón "Generar Turno". Asocia los síntomas del paciente al turno de atención.
 
 ### `FrmTurnoEspecialidad`
-- `sp_ObtenerEspecialidades` (o `sp_ListarEspecialidades`) → Carga del combo de especialidades (`CargarEspecialidades`).
-- `sp_ObtenerHorariosDisponibles` → Selección de fecha en calendario (`calFechaTurno_DateChanged`). Lista horarios libres.
-- `sp_GuardarPaciente` (o `sp_InsertarPaciente`) → Botón "Generar Turno". Registra o recupera paciente.
-- `sp_CrearTurnoEspecialidad` (o `sp_InsertarTurno`) → Botón "Generar Turno". Registra el turno programado correlativo.
+- `sp_ListarEspecialidades` → Carga del desplegable de especialidades médicas (`CargarEspecialidades`).
+- `sp_ObtenerHorariosDisponibles` → Selección de fecha en calendario (`calFechaTurno_DateChanged`). Lista horarios libres disponibles.
+- `sp_BuscarPacientePorDNI` → Autocompleta los datos filiatorios del paciente por su DNI.
+- `sp_GuardarPaciente` → Botón "Generar Turno". Registra o actualiza al paciente por DNI.
+- `sp_CrearTurnoEspecialidad` → Botón "Generar Turno". Registra el turno programado correlativo (ej. `C-001`).
 
 ### `FrmListaTurnos`
 - `sp_ListarTurnosEmergencia` → Carga inicial y refresco de la grilla y contadores de guardia (`CargarTurnosEmergencia`).
-- `sp_ObtenerEspecialidades` → Carga del selector de especialidades (`CargarEspecialidades`).
-- `sp_ListarTurnosEspecialidad` (o `sp_ObtenerListaTurnos`) → Selección de especialidad (`cmbEspecialidades_SelectedIndexChanged`).
+- `sp_ListarEspecialidades` → Carga del selector de especialidades (`CargarEspecialidades`).
+- `sp_ListarTurnosEspecialidad` / `sp_ObtenerListaTurnos` → Selección de especialidad (`cmbEspecialidades_SelectedIndexChanged`).
 
 ### `FrmListaTurnosAtencion`
-- `sp_ListarEspecialidades` → Carga del selector de servicios del médico (`CargarServiciosDelMedico`).
-- `sp_ListarTurnosAtencion` (o `sp_ObtenerTurnosEnEspera`) → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
-- `sp_LlamarSiguientePaciente` (o `sp_LlamarSiguienteTurno`) → Botón "Siguiente Paciente". Pasa a estado 'Llamado'.
-- `sp_IniciarAtencionTurno` (o `sp_ActualizarEstadoSala`) → Botón "Iniciar Atención". Pasa a estado 'En Consulta' y sala a 'Ocupada'.
-- `sp_FinalizarAtencionTurno` (o `sp_FinalizarAtencion`) → Botón "Terminar Atención". Pasa a 'Atendido' y libera la sala.
-- `sp_InsertarHistoriaClinica` → Botón "Terminar Atención". Guarda diagnóstico y recetas en la historia clínica.
+- `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` → Carga del selector de servicios del médico (`CargarServiciosDelMedico`).
+- `sp_ListarTurnosAtencion` / `sp_ObtenerTurnosEnEspera` → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
+- `sp_LlamarSiguienteTurno` → Botón "Siguiente Paciente". Pasa el turno a estado 'Llamado'.
+- `sp_IniciarAtencionTurno` → Botón "Iniciar Atención". Pasa el turno a 'En Consulta' y marca el consultorio como 'Ocupada'.
+- `sp_FinalizarAtencionTurno` → Botón "Terminar Atención". Pasa el turno a 'Atendido' y libera el consultorio a 'Disponible'.
+- `sp_InsertarHistoriaClinica` → Botón "Terminar Atención". Guarda diagnóstico, evolución y recetas farmacológicas.
 
 ### `MisSalas_PM`
 - `sp_ObtenerSalas` (`@IdUsuario = médico`) → Carga de la grilla de salas asignadas al médico logueado (`CargarMisSalas`).
-- `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando validaciones.
-- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'En Mantenimiento' controlando que no esté ocupada.
+- `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando que el médico no tenga otra abierta.
+- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'En Mantenimiento' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
-- Sin llamadas directas a SPs (Contenedor MDI administrativo). Gestiona apertura de `FrmGestionUsuarios`, `FrmSalasAdmin`, `FrmGestionEspecialidades`.
+- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin` y `FrmGestionEspecialidades`.
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)
-- Sin llamadas directas a SPs (Contenedor MDI médico). Transfiere el contexto de `_usuarioActual` (médico logueado) hacia `MisSalas_PM` y `FrmListaTurnosAtencion`.
+- Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM` y `FrmListaTurnosAtencion`.
 
 ### `FrmRecepcionista`
-- Sin llamadas directas a SPs (Contenedor MDI de recepción). Gestiona apertura de `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, y `FrmUsuarioVentana` a través del nuevo botón `btnUsuarioVentana` ("Pantalla Turnos").
+- Contenedor MDI de recepción. Gestiona acceso a `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos` y apertura del visor `FrmUsuarioVentana`.
 
 ### `FrmUsuarioVentana`
 - `sp_ListarTurnosEmergencia` → Carga inicial y auto-refresco periódico de la grilla de emergencias/triage (`dgvEmergencias`).
-- `sp_ListarTurnosGeneralesPantalla` → Carga inicial y auto-refresco periódico de la grilla de turnos generales y consultorios (`dgvGeneral`).
+- `sp_ListarTurnosGeneralesPantalla` → Carga inicial y auto-refresco periódico de la grilla de consultorios externos (`dgvGeneral`).
 - `sp_ObtenerTurnosPantallaPublica` → Alternativa de consulta para monitor público de llamados activos.
-- Rol asignado: `Usuario Ventana` (`IdRol = 4`). Puede iniciarse con sesión autenticada o como visor incrustado desde `FrmRecepcionista`.
+- Rol asignado: `Usuario Ventana` (`IdRol = 4`).
+
+---
+
+## 9.1 Registro de Correcciones y Ajustes en Flujos de Modificación (Salas y Usuarios)
+
+A partir de la revisión técnica del flujo de modificación de entidades se detectaron y corrigieron los siguientes comportamientos en SQL Server y la Capa DAL/UI:
+
+### 1. Desfase de Identificador de Rol en `sp_AsignarSalaMedico` (Error 50061)
+- **Problema detectado:** `sp_AsignarSalaMedico` contenía una condición fija `AND IdRol = 2`. Sin embargo, en el esquema real de `dbGestionTurnos`, `IdRol = 1` corresponde a `Personal médico` y `IdRol = 2` a `Recepcionista`. Al intentar modificar una sala asignando médicos (`FrmSalasAdmin`) o al modificar un usuario médico reasignándole salas (`FrmGestionUsuarios2`), la base de datos abortaba la operación arrojando:
+  > `THROW 50061, 'El usuario asignado no existe, está inactivo o no pertenece al rol de Personal Médico.', 1;`
+- **Solución implementada:** Se modificó `sp_AsignarSalaMedico` vinculando dinámicamente con la tabla `Roles` mediante `INNER JOIN Roles r ON u.IdRol = r.IdRol`, permitiendo `(u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')`. Esto desacopla el procedimiento de IDs estáticos y garantiza la asignación para cualquier profesional médico.
+- **Manejo de borrado lógico:** Se incorporó reactivación automática de registros previos: si en `DetallesSalas` existía una vinculación con `Activo = 0` (por haber sido desasignada previamente), se reactiva con `Activo = 1, FechaBaja = NULL` y se actualiza su descripción, impidiendo duplicidad de registros y errores de clave.
+
+### 2. Validación Robusta en `sp_AsignarEspecialidadMedico` (Error 50062)
+- **Mejora aplicada:** Se actualizó la validación del usuario médico en `sp_AsignarEspecialidadMedico` para verificar que el usuario esté activo y pertenezca efectivamente al rol médico (`u.IdRol = 1 OR r.Descripcion LIKE '%Médic%'`), protegiendo la integridad clínica de la tabla `MedicosEspecialidades`. Además, reactiva asignaciones inactivas previas ante reasignaciones consecutivas en `UsuarioDAL`.
+
+### 3. Modificación Atómica en `sp_ModificarSala` (Soporte de `@EstadoSala`)
+- **Mejora aplicada:** Se incorporó el parámetro opcional `@EstadoSala NVARCHAR(50) = NULL` con validación de estados permitidos (`Disponible`, `Libre`, `Ocupada`, `En Mantenimiento`, `Cerrada` - error `50042`). De este modo, la Capa DAL (`SalaDAL.ModificarSala`) actualiza tanto el nombre como el estado operativo en una única sentencia atómica contra SQL Server, manteniendo compatibilidad total hacia atrás con clientes que envían 2 parámetros.
+
+### 4. Salvaguardas en `sp_ModificarUsuario` (Roles y DNI)
+- **Mejora aplicada:** Se garantizó que la comprobación de rol valide que el rol exista y esté activo (`Roles.Activo = 1`). Se protegió la actualización con `CASE WHEN @IdRol IS NOT NULL AND @IdRol > 0 THEN @IdRol ELSE IdRol END` para impedir que valores nulos o cero corrompan la clave foránea del usuario.
+
+### 5. Resiliencia en Interfaz de Usuario (`FrmGestionUsuarios2.cs`)
+- **Mejora aplicada:** El método `EsPersonalMedico()` se generalizó para evaluar coincidencias insensibles a mayúsculas y acentos (`Contains("médic") || Contains("medic")`), asegurando que la sección médica (matrícula, especialidades y consultorios) se despliegue y valide con exactitud ante cualquier variación de catálogo.
+
+---
+
+## 10. Procedimientos Almacenados No Utilizados en el Proyecto
+
+A continuación se detallan exhaustivamente los **5 procedimientos almacenados** que se encuentran creados en la base de datos `dbGestionTurnos` pero que **NO son utilizados hasta el momento por el código del proyecto** (ni en la capa de interfaz WinForms ni en la lógica de negocio):
+
+### 1. `sp_FinalizarAtencion`
+- **Firma en Base de Datos:** `@IdTurno INT, @IdSala INT`
+- **Motivo de no uso:** Es una implementación temprana y elemental que únicamente modificaba el estado del turno y requería el identificador numérico de la sala. 
+- **Procedimiento que lo sustituye:** Fue completamente reemplazado en la aplicación por **`sp_FinalizarAtencionTurno`** (`@IdTurno, @Diagnostico, @NombreMedico, @SalaAsignada`), el cual interactúa directamente con el flujo de cierre clínico, libera atómicamente el consultorio por nombre textual y valida la existencia del turno con código de error `50084`.
+
+### 2. `sp_InsertarPaciente`
+- **Firma en Base de Datos:** `@Nombre NVARCHAR(100), @Apellido NVARCHAR(100), @Dni NVARCHAR(20), @ObraSocial NVARCHAR(100)`
+- **Motivo de no uso:** Realiza una inserción simple y ciega (`INSERT INTO Pacientes...`) sin verificar si el DNI ya pertenecía a un paciente existente, lo que generaba registros duplicados con historias clínicas fragmentadas ante visitas sucesivas.
+- **Procedimiento que lo sustituye:** Fue reemplazado por **`sp_GuardarPaciente`**, el cual implementa una lógica de *upsert* inteligente: busca por DNI, actualiza la cobertura si ya existe, valida que el DNI no pertenezca a un usuario del sistema (código `50010`), o inserta si es un paciente nuevo.
+
+### 3. `sp_InsertarRol`
+- **Firma en Base de Datos:** `@Descripcion NVARCHAR(50)`
+- **Motivo de no uso:** Es un procedimiento utilitario de catálogo. El sistema no provee una interfaz gráfica de usuario para el alta o modificación dinámica de roles, ya que los cuatro roles de la clínica (`Administrador`, `Personal médico`, `Recepcionista`, `Usuario Ventana`) son estructuras estáticas predeterminadas del negocio.
+- **Procedimiento que lo sustituye:** Se inicializan mediante el script de datos iniciales (`Seeds`) en la sección 7.
+
+### 4. `sp_InsertarTurno`
+- **Firma en Base de Datos:** `@NroOrden NVARCHAR(50), @TipoTurno NVARCHAR(50), @IdPrioridad INT, @IdPaciente INT, @IdEspecialidad INT`
+- **Motivo de no uso:** Procedimiento genérico temprano que requería que el código de orden fuera calculado o provisto externamente y no contemplaba el flujo diferenciado de guardia vs. consultorio programado.
+- **Procedimiento que lo sustituye:** Fue reemplazado por dos procedimientos especializados:
+  - **`sp_CrearTurnoEspecialidad`**: Genera automáticamente el código con la inicial de la especialidad (ej. `C-001`, `P-001`), asocia fecha y franja horaria y valida paciente y especialidad (códigos `50001` y `50003`).
+  - **`sp_CrearTurnoEmergencia`**: Genera automáticamente el código de guardia `E-001`, asigna el nivel de triage y vincula el servicio de emergencias (códigos `50001` y `50002`).
+
+### 5. `sp_ModificarEspecialidad`
+- **Firma en Base de Datos:** `@IdEspecialidad INT, @Nombre NVARCHAR(100)`
+- **Motivo de no uso:** El formulario administrativo `FrmGestionEspecialidades` implementa exclusivamente las acciones de alta de nuevas especialidades (`btnGuardar` -> `sp_InsertarEspecialidad`) y de baja lógica (`btnDesactivar` -> `sp_EliminarEspecialidad`). No existe en la interfaz ningún botón, diálogo ni evento programado para editar o renombrar una especialidad ya registrada.
+- **Estado actual:** Permanece disponible en la base de datos para una eventual incorporación futura de funcionalidad de edición en pantalla.
+
+*(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra definido e implementado en la base de datos y referenciado en las capas de acceso a datos, pero la pantalla de visor de antecedentes médicos aún no ha sido incorporada al frontend WinForms).*
+

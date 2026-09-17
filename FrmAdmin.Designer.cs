@@ -73,6 +73,7 @@ namespace Gestion_de_Turnos_Medicos
             LUsuarios2.Size = new Size(150, 19);
             LUsuarios2.TabIndex = 8;
             LUsuarios2.Text = "Usuarios 2.0 (Prueba)";
+            LUsuarios2.Visible = false;
             // 
             // btnUsuarios2
             // 
@@ -87,6 +88,7 @@ namespace Gestion_de_Turnos_Medicos
             btnUsuarios2.TabIndex = 9;
             btnUsuarios2.Text = "⚡ V 2.0\n(Prueba)";
             btnUsuarios2.UseVisualStyleBackColor = false;
+            btnUsuarios2.Visible = false;
             btnUsuarios2.Click += btnUsuarios2_Click;
             // 
             // Lsalir
@@ -94,7 +96,7 @@ namespace Gestion_de_Turnos_Medicos
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 455);
+            Lsalir.Location = new Point(65, 345);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
             Lsalir.TabIndex = 7;
@@ -104,7 +106,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
-            btnSalir.Location = new Point(46, 482);
+            btnSalir.Location = new Point(46, 370);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
             btnSalir.TabIndex = 6;

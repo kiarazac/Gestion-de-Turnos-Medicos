@@ -118,24 +118,39 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Modifica los datos de un usuario existente en la base de datos a través de sp_ModificarUsuario.
-        /// Permite actualizar datos personales, documento, matrícula profesional médica y una o múltiples salas asignadas en DetallesSalas.
-        /// Aplica parámetros parametrizados para proteger contra Inyección SQL y transacciones atómicas.
+        /// Respeta estrictamente la firma del procedimiento almacenado en dbGestionTurnos (8 parámetros: @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol).
+        /// Adicionalmente, orquesta de forma atómica la reasignación de salas en DetallesSalas y especialidades en MedicosEspecialidades
+        /// mediante borrado lógico e inserción con los procedimientos sp_AsignarSalaMedico y sp_AsignarEspecialidadMedico.
         /// </summary>
-        /// <param name="idUsuario">ID del usuario a modificar.</param>
+        /// <param name="idUsuario">ID único del usuario a modificar.</param>
         /// <param name="nombre">Nombre actualizado.</param>
         /// <param name="apellido">Apellido actualizado.</param>
         /// <param name="correo">Correo electrónico actualizado.</param>
         /// <param name="dni">DNI actualizado.</param>
-        /// <param name="telefono">Teléfono actualizado.</param>
-        /// <param name="nroMatricula">Matrícula médica actualizada (si es médico).</param>
-        /// <param name="idRol">Rol asignado.</param>
-        /// <param name="salasIds">Lista de IDs de salas asignadas (NULL = no tocar salas, vacía = desasignar todas, con IDs = asignar múltiples salas).</param>
+        /// <param name="telefono">Teléfono actualizado de contacto.</param>
+        /// <param name="nroMatricula">Matrícula médica profesional (si aplica).</param>
+        /// <param name="idRol">ID del rol asignado.</param>
+        /// <param name="salasIds">Lista opcional de IDs de salas asignadas (null = no alterar salas; vacía = desasignar todas; con IDs = reasignar).</param>
         /// <param name="descripcionAtencion">Notas u observaciones sobre la atención en la sala.</param>
-        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? nroMatricula, int? idRol, List<int>? salasIds, string? descripcionAtencion = null)
+        /// <param name="especialidadesIds">Lista opcional de IDs de especialidades asignadas al médico (null = no alterar; vacía = desasignar todas; con IDs = reasignar).</param>
+        /// <param name="nuevaContrasenaHash">Hash de nueva contraseña si se desea actualizar las credenciales del usuario (opcional).</param>
+        public void ModificarUsuario(
+            int idUsuario,
+            string nombre,
+            string apellido,
+            string correo,
+            string dni,
+            string telefono,
+            string? nroMatricula,
+            int? idRol,
+            List<int>? salasIds = null,
+            string? descripcionAtencion = null,
+            List<int>? especialidadesIds = null,
+            string? nuevaContrasenaHash = null)
         {
             using (var context = new dbTurnosMedicos())
             {
-                // 1. Preparación de parámetros con protección contra Inyección SQL
+                // 1. Preparación de parámetros con tipos explícitos para proteger contra Inyección SQL
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
                 var pNombre = new SqlParameter("@Nombre", nombre);
                 var pApellido = new SqlParameter("@Apellido", apellido);
@@ -144,27 +159,120 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pDni = new SqlParameter("@Dni", (object?)dni ?? DBNull.Value);
                 var pMatricula = new SqlParameter("@NroMatricula", (object?)nroMatricula ?? DBNull.Value);
                 var pIdRol = new SqlParameter("@IdRol", idRol.HasValue && idRol.Value > 0 ? (object)idRol.Value : DBNull.Value);
-                var pIdSala = new SqlParameter("@IdSala", DBNull.Value);
-                var pDescripcion = new SqlParameter("@DescripcionAtencion", (object?)descripcionAtencion ?? DBNull.Value);
-
-                // Convertimos la lista de salas a formato CSV para enviarla a STRING_SPLIT en SQL Server
-                string? salasCsv = salasIds != null ? string.Join(",", salasIds) : null;
-                var pSalasIds = new SqlParameter("@SalasIds", (object?)salasCsv ?? DBNull.Value);
 
                 try
                 {
-                    // 2. Ejecutamos sp_ModificarUsuario con soporte de múltiples salas (@SalasIds)
+                    // 2. Invocamos sp_ModificarUsuario con los 8 parámetros que soporta la base de datos real dbGestionTurnos
                     context.Database.ExecuteSqlRaw(
-                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol, @IdSala, @DescripcionAtencion, @SalasIds",
-                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol, pIdSala, pDescripcion, pSalasIds);
+                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol",
+                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol);
                 }
-                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Si el SP tuviera una versión anterior sin @SalasIds
+                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Si el SP en un entorno legacy tuviera solo 5 parámetros
                 {
+                    // Fallback para bases de datos con la versión histórica de 5 parámetros de sp_ModificarUsuario
+                    var pIdUsuarioOld = new SqlParameter("@IdUsuario", idUsuario);
+                    var pNombreOld = new SqlParameter("@Nombre", nombre);
+                    var pApellidoOld = new SqlParameter("@Apellido", apellido);
+                    var pCorreoOld = new SqlParameter("@Correo", correo);
+                    var pTelefonoOld = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
+
                     context.Database.ExecuteSqlRaw(
-                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono, @Dni, @NroMatricula, @IdRol, @IdSala, @DescripcionAtencion",
-                        pIdUsuario, pNombre, pApellido, pCorreo, pTelefono, pDni, pMatricula, pIdRol, pIdSala, pDescripcion);
+                        "EXEC sp_ModificarUsuario @IdUsuario, @Nombre, @Apellido, @Correo, @Telefono",
+                        pIdUsuarioOld, pNombreOld, pApellidoOld, pCorreoOld, pTelefonoOld);
+
+                    // Actualizamos los campos adicionales (Dni, NroMatricula, IdRol) de forma directa en Usuarios
+                    var pDniExtra = new SqlParameter("@Dni", (object?)dni ?? DBNull.Value);
+                    var pMatriculaExtra = new SqlParameter("@NroMatricula", (object?)nroMatricula ?? DBNull.Value);
+                    var pIdRolExtra = new SqlParameter("@IdRol", idRol.HasValue && idRol.Value > 0 ? (object)idRol.Value : DBNull.Value);
+                    var pIdUserExtra = new SqlParameter("@IdUsuario", idUsuario);
+                    context.Database.ExecuteSqlRaw(
+                        "UPDATE Usuarios SET Dni = ISNULL(@Dni, Dni), NroMatricula = @NroMatricula, IdRol = ISNULL(@IdRol, IdRol), FechaModificacion = GETDATE() WHERE IdUsuario = @IdUsuario",
+                        pDniExtra, pMatriculaExtra, pIdRolExtra, pIdUserExtra);
+                }
+
+                // 3. Si se proporcionó una nueva contraseña hasheada, actualizamos las credenciales del usuario
+                if (!string.IsNullOrWhiteSpace(nuevaContrasenaHash))
+                {
+                    var pPass = new SqlParameter("@Contrasena", nuevaContrasenaHash);
+                    var pUserPass = new SqlParameter("@IdUsuario", idUsuario);
+                    context.Database.ExecuteSqlRaw(
+                        "UPDATE Usuarios SET Contrasena = @Contrasena, FechaModificacion = GETDATE() WHERE IdUsuario = @IdUsuario",
+                        pPass, pUserPass);
+                }
+
+                // 4. Reasignación de salas en DetallesSalas si se especificó la lista (soporta desasignación si la lista viene vacía)
+                if (salasIds != null)
+                {
+                    ReasignarSalasUsuario(context, idUsuario, salasIds, descripcionAtencion);
+                }
+
+                // 5. Reasignación de especialidades médicas en MedicosEspecialidades si se especificó la lista
+                if (especialidadesIds != null)
+                {
+                    ReasignarEspecialidadesUsuario(context, idUsuario, especialidadesIds);
                 }
             }
+        }
+
+        /// <summary>
+        /// Aplica una baja lógica a las vinculaciones activas de salas de un usuario y registra las nuevas asignaciones
+        /// mediante el Stored Procedure existente sp_AsignarSalaMedico.
+        /// </summary>
+        public void ReasignarSalasUsuario(dbTurnosMedicos context, int idUsuario, List<int> salasIds, string? descripcionAtencion = null)
+        {
+            // 1. Damos de baja lógica las asignaciones previas activas en DetallesSalas
+            var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+            context.Database.ExecuteSqlRaw(
+                "UPDATE DetallesSalas SET Activo = 0, FechaBaja = GETDATE() WHERE IdUsuario = @IdUsuario AND Activo = 1",
+                pIdUsuario);
+
+            // 2. Insertamos las nuevas salas seleccionadas utilizando el Stored Procedure existente sp_AsignarSalaMedico
+            if (salasIds != null && salasIds.Count > 0)
+            {
+                foreach (int idSala in salasIds)
+                {
+                    var pSala = new SqlParameter("@IdSala", idSala);
+                    var pUser = new SqlParameter("@IdUsuario", idUsuario);
+                    var pDesc = new SqlParameter("@DescripcionAtencion", (object?)descripcionAtencion ?? string.Empty);
+                    context.Database.ExecuteSqlRaw(
+                        "EXEC sp_AsignarSalaMedico @IdSala, @IdUsuario, @DescripcionAtencion",
+                        pSala, pUser, pDesc);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Aplica una baja lógica a las especialidades activas asignadas a un médico y registra las nuevas vinculaciones
+        /// mediante el Stored Procedure existente sp_AsignarEspecialidadMedico.
+        /// </summary>
+        public void ReasignarEspecialidadesUsuario(dbTurnosMedicos context, int idUsuario, List<int> especialidadesIds)
+        {
+            // 1. Damos de baja lógica las especialidades previas activas en MedicosEspecialidades
+            var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+            context.Database.ExecuteSqlRaw(
+                "UPDATE MedicosEspecialidades SET Activo = 0, FechaBaja = GETDATE() WHERE IdUsuario = @IdUsuario AND Activo = 1",
+                pIdUsuario);
+
+            // 2. Insertamos las nuevas especialidades seleccionadas utilizando el Stored Procedure existente sp_AsignarEspecialidadMedico
+            if (especialidadesIds != null && especialidadesIds.Count > 0)
+            {
+                foreach (int idEspecialidad in especialidadesIds)
+                {
+                    var pUser = new SqlParameter("@IdUsuario", idUsuario);
+                    var pEsp = new SqlParameter("@IdEspecialidad", idEspecialidad);
+                    context.Database.ExecuteSqlRaw(
+                        "EXEC sp_AsignarEspecialidadMedico @IdUsuario, @IdEspecialidad",
+                        pUser, pEsp);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sobrecarga de compatibilidad para modificar un usuario enviando salasIds y descripcionAtencion sin especialidades ni clave.
+        /// </summary>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? nroMatricula, int? idRol, List<int>? salasIds, string? descripcionAtencion = null)
+        {
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, nroMatricula, idRol, salasIds, descripcionAtencion, null, null);
         }
 
         /// <summary>
@@ -180,7 +288,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     salasIds.Add(idSala.Value);
             }
 
-            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, nroMatricula, idRol, salasIds, descripcionAtencion);
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, nroMatricula, idRol, salasIds, descripcionAtencion, null, null);
         }
     }
 }

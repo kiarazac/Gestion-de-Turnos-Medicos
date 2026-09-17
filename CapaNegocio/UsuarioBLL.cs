@@ -88,7 +88,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
         /// <summary>
         /// Modifica los datos de un usuario existente aplicando validaciones de dominio y delegando la persistencia en UsuarioDAL.
-        /// Soporta la actualización de matrícula médica y una o múltiples salas asignadas.
+        /// Soporta la actualización de matrícula médica, salas y especialidades asignadas, así como cambio opcional de contraseña.
         /// </summary>
         /// <param name="idUsuario">Identificador único del usuario a modificar.</param>
         /// <param name="nombre">Nombre actualizado del usuario.</param>
@@ -98,11 +98,25 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="telefono">Teléfono actualizado de contacto.</param>
         /// <param name="matricula">Matrícula médica actualizada (aplica a personal médico).</param>
         /// <param name="idRol">ID del rol asignado (opcional si es nulo o menor o igual a 0).</param>
-        /// <param name="salasIds">Lista de IDs de salas asignadas (null = no modificar, vacía = desasignar todas, con elementos = asignar múltiples salas).</param>
+        /// <param name="salasIds">Lista de IDs de salas asignadas (null = no modificar, vacía = desasignar todas, con elementos = reasignar salas).</param>
         /// <param name="descripcionAtencion">Notas u observaciones sobre la atención en la sala.</param>
-        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, List<int>? salasIds, string? descripcionAtencion = null)
+        /// <param name="especialidadesIds">Lista de IDs de especialidades médicas (null = no modificar, vacía = desasignar todas, con elementos = reasignar especialidades).</param>
+        /// <param name="nuevaContrasena">Nueva contraseña en texto plano para ser hasheada de forma segura (opcional).</param>
+        public void ModificarUsuario(
+            int idUsuario,
+            string nombre,
+            string apellido,
+            string correo,
+            string dni,
+            string telefono,
+            string? matricula,
+            int? idRol,
+            List<int>? salasIds,
+            string? descripcionAtencion,
+            List<int>? especialidadesIds,
+            string? nuevaContrasena = null)
         {
-            // 1. Validaciones de negocio fundamentales
+            // 1. Validaciones de reglas de negocio fundamentales
             if (idUsuario <= 0)
                 throw new ArgumentException("El ID de usuario proporcionado no es válido.");
 
@@ -115,14 +129,50 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (string.IsNullOrWhiteSpace(dni))
                 throw new ArgumentException("El DNI es un campo obligatorio.");
 
-            // 2. Delegamos la persistencia a la Capa de Datos (DAL -> sp_ModificarUsuario con soporte de múltiples salas)
-            _usuarioDAL.ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion);
+            // 2. Hasheo seguro de la nueva clave si fue provista por el administrador
+            string? passHash = null;
+            if (!string.IsNullOrWhiteSpace(nuevaContrasena))
+            {
+                passHash = Seguridad.HashearContrasenia(nuevaContrasena);
+            }
+
+            // 3. Delegamos la persistencia atómica a la Capa de Datos (DAL)
+            _usuarioDAL.ModificarUsuario(
+                idUsuario,
+                nombre.Trim(),
+                apellido.Trim(),
+                correo.Trim(),
+                dni.Trim(),
+                telefono?.Trim() ?? string.Empty,
+                matricula?.Trim(),
+                idRol,
+                salasIds,
+                descripcionAtencion?.Trim(),
+                especialidadesIds,
+                passHash);
+        }
+
+        /// <summary>
+        /// Sobrecarga básica para modificar datos personales y rol del usuario (8 parámetros).
+        /// Compatible con llamadas directas desde grillas o formularios legados.
+        /// </summary>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol)
+        {
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, (List<int>?)null, null, null, null);
+        }
+
+        /// <summary>
+        /// Sobrecarga de compatibilidad para modificar usuario enviando salas sin especialidades ni contraseña.
+        /// </summary>
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, List<int>? salasIds, string? descripcionAtencion = null)
+        {
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion, null, null);
         }
 
         /// <summary>
         /// Sobrecarga de compatibilidad para modificar usuario enviando un único ID de sala.
         /// </summary>
-        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, int? idSala = null, string? descripcionAtencion = null)
+        public void ModificarUsuario(int idUsuario, string nombre, string apellido, string correo, string dni, string telefono, string? matricula, int? idRol, int? idSala, string? descripcionAtencion = null)
         {
             List<int>? salasIds = null;
             if (idSala.HasValue)
@@ -132,7 +182,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                     salasIds.Add(idSala.Value);
             }
 
-            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion);
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion, null, null);
         }
     }
 }
