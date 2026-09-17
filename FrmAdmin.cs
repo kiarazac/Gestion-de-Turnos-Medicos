@@ -63,6 +63,12 @@ namespace Gestion_de_Turnos_Medicos
             AbrirFormularioHijo(new FrmGestionEspecialidades());
         }
 
+        private void btnUsuarios2_Click(object sender, EventArgs e)
+        {
+            // Abre la nueva versión con flujo guiado por DNI y rediseño moderno
+            AbrirFormularioHijo(new FrmGestionUsuarios2());
+        }
+
         private void btnSalir_Click(object sender, EventArgs e)
         {
             // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
