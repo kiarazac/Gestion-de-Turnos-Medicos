@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -10,6 +12,11 @@ namespace Gestion_de_Turnos_Medicos
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly SalaBLL _salaBLL = new SalaBLL();
         private readonly UsuarioBLL _usuarioBLL = new UsuarioBLL();
+
+        // 2. Variables de estado para edición y cache de datos
+        private int _idSalaSeleccionada = 0;
+        private List<SalaDTO> _salasCache = new List<SalaDTO>();
+        private bool _cargandoDatos = false;
 
         // Estructura interna para relacionar nombre del médico con su IdUsuario
         private sealed class ItemMedico
@@ -23,6 +30,7 @@ namespace Gestion_de_Turnos_Medicos
         {
             InitializeComponent();
             this.Load += FrmSalasAdmin_Load;
+            this.dgvSalas.SelectionChanged += DgvSalas_SelectionChanged;
         }
 
         private void FrmSalasAdmin_Load(object? sender, EventArgs e)
@@ -89,31 +97,44 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Carga todas las salas registradas y activas desde la Capa de Negocio (BLL).
+        /// Agrupa las asignaciones de profesionales para mostrar una única fila por sala física en la grilla.
         /// </summary>
         private void CargarSalasDesdeBD()
         {
+            _cargandoDatos = true;
             dgvSalas.Rows.Clear();
 
             try
             {
-                // BLL delega a SalaDAL -> sp_ObtenerSalas
+                // 1. Invocamos a la Capa de Negocio (SalaBLL) -> SalaDAL -> sp_ObtenerSalas
                 var salas = _salaBLL.ObtenerSalas(null);
+                _salasCache = salas ?? new List<SalaDTO>();
 
-                if (salas != null)
+                if (_salasCache.Count > 0)
                 {
-                    foreach (var s in salas)
+                    // 2. Agrupamos por IdSala para que las salas con múltiples médicos no aparezcan duplicadas
+                    var salasAgrupadas = _salasCache.GroupBy(s => s.IdSala);
+
+                    foreach (var grupo in salasAgrupadas)
                     {
+                        var primera = grupo.First();
                         int filaIndex = dgvSalas.Rows.Add();
                         DataGridViewRow fila = dgvSalas.Rows[filaIndex];
 
-                        fila.Cells["id_sala"].Value = s.IdSala;
-                        fila.Cells["nombreSala"].Value = s.NombreSala;
-                        fila.Cells["estadoSala"].Value = s.EstadoSala;
+                        fila.Cells["id_sala"].Value = primera.IdSala;
+                        fila.Cells["nombreSala"].Value = primera.NombreSala;
+                        fila.Cells["estadoSala"].Value = primera.EstadoSala;
 
-                        string medico = !string.IsNullOrWhiteSpace(s.ApellidoMedico)
-                            ? $"{s.ApellidoMedico}, {s.NombreMedico}"
+                        // 3. Concatenamos los nombres de los profesionales médicos asignados
+                        var medicos = grupo
+                            .Where(g => !string.IsNullOrWhiteSpace(g.ApellidoMedico))
+                            .Select(g => $"{g.ApellidoMedico}, {g.NombreMedico}")
+                            .Distinct()
+                            .ToList();
+
+                        fila.Cells["personal_asignado"].Value = medicos.Count > 0
+                            ? string.Join("; ", medicos)
                             : "Sin asignar";
-                        fila.Cells["personal_asignado"].Value = medico;
                     }
                 }
             }
@@ -121,6 +142,58 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("No se pudieron consultar las salas desde la base de datos:\n" + ex.Message,
                     "Error al cargar salas", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _cargandoDatos = false;
+                dgvSalas.ClearSelection();
+            }
+        }
+
+        /// <summary>
+        /// Evento disparado cuando el usuario hace clic o navega en la grilla de salas.
+        /// Carga automáticamente los datos de la sala seleccionada en los campos de edición superiores
+        /// para permitir su modificación inmediata.
+        /// </summary>
+        private void DgvSalas_SelectionChanged(object? sender, EventArgs e)
+        {
+            // Evitamos responder al evento mientras la grilla se está rellenando
+            if (_cargandoDatos)
+                return;
+
+            if (dgvSalas.CurrentRow == null || dgvSalas.CurrentRow.Index < 0)
+            {
+                _idSalaSeleccionada = 0;
+                return;
+            }
+
+            var fila = dgvSalas.CurrentRow;
+            if (fila.Cells["id_sala"].Value == null)
+                return;
+
+            // 1. Obtenemos el identificador de la sala seleccionada
+            _idSalaSeleccionada = Convert.ToInt32(fila.Cells["id_sala"].Value);
+
+            // 2. Poblamos las cajas de texto y el combo de estado
+            txtNombreSala.Text = fila.Cells["nombreSala"].Value?.ToString() ?? string.Empty;
+
+            string estado = fila.Cells["estadoSala"].Value?.ToString() ?? "Disponible";
+            int indiceEstado = cmbEstadoSala.FindStringExact(estado);
+            cmbEstadoSala.SelectedIndex = indiceEstado >= 0 ? indiceEstado : 0;
+
+            // 3. Obtenemos los IDs de los médicos actualmente vinculados a esta sala según la cache
+            var medicosAsignadosIds = _salasCache
+                .Where(s => s.IdSala == _idSalaSeleccionada && s.IdUsuario.HasValue)
+                .Select(s => s.IdUsuario!.Value)
+                .ToHashSet();
+
+            // 4. Marcamos en el CheckedListBox los profesionales que atienden en esta sala
+            for (int i = 0; i < clbPersonal.Items.Count; i++)
+            {
+                if (clbPersonal.Items[i] is ItemMedico med)
+                {
+                    clbPersonal.SetItemChecked(i, medicosAsignadosIds.Contains(med.IdUsuario));
+                }
             }
         }
 
@@ -163,6 +236,61 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Evento disparado al presionar el botón 'Modificar'.
+        /// Valida los datos editados y delega en SalaBLL -> SalaDAL -> sp_ModificarSala
+        /// para actualizar el nombre, estado y reasignar los médicos vinculados.
+        /// </summary>
+        private void btnModificar_Click(object? sender, EventArgs e)
+        {
+            // 1. Verificamos que previamente se haya seleccionado una sala en la tabla inferior
+            if (_idSalaSeleccionada <= 0)
+            {
+                MessageBox.Show("Por favor, seleccioná una sala de la lista inferior para modificar sus datos.",
+                    "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 2. Validamos que los campos obligatorios contengan información válida
+            if (!ValidarCampos())
+                return;
+
+            string nombreSala = txtNombreSala.Text.Trim();
+            string estadoSala = cmbEstadoSala.SelectedItem!.ToString()!;
+
+            // 3. Recopilamos los médicos tildados para la reasignación
+            List<int> idsMedicosSeleccionados = new List<int>();
+            foreach (var item in clbPersonal.CheckedItems)
+            {
+                if (item is ItemMedico med)
+                {
+                    idsMedicosSeleccionados.Add(med.IdUsuario);
+                }
+            }
+
+            try
+            {
+                // 4. Invocamos a la Capa BLL que ejecutará sp_ModificarSala y actualizará DetallesSalas
+                _salaBLL.ModificarSala(_idSalaSeleccionada, nombreSala, estadoSala, idsMedicosSeleccionados);
+
+                MessageBox.Show($"La sala '{nombreSala}' fue modificada correctamente.",
+                    "Modificación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // 5. Refrescamos la grilla y dejamos el formulario en estado inicial
+                CargarSalasDesdeBD();
+                LimpiarCampos();
+            }
+            catch (ArgumentException argEx)
+            {
+                MessageBox.Show(argEx.Message, "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al modificar la sala:\n" + ex.Message,
+                    "Error al modificar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void btnEliminar_Click(object sender, EventArgs e)
         {
             if (dgvSalas.CurrentRow == null || dgvSalas.CurrentRow.Index < 0)
@@ -199,6 +327,14 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Evento del botón 'Limpiar' para cancelar la edición actual y resetear el formulario.
+        /// </summary>
+        private void btnLimpiar_Click(object? sender, EventArgs e)
+        {
+            LimpiarCampos();
+        }
+
         private bool ValidarCampos()
         {
             if (string.IsNullOrWhiteSpace(txtNombreSala.Text))
@@ -218,8 +354,12 @@ namespace Gestion_de_Turnos_Medicos
             return true;
         }
 
+        /// <summary>
+        /// Restablece los campos de texto, combos y selecciones a sus valores por defecto.
+        /// </summary>
         private void LimpiarCampos()
         {
+            _idSalaSeleccionada = 0;
             txtNombreSala.Clear();
             cmbEstadoSala.SelectedIndex = 0;
 
@@ -228,6 +368,7 @@ namespace Gestion_de_Turnos_Medicos
                 clbPersonal.SetItemChecked(i, false);
             }
 
+            dgvSalas.ClearSelection();
             txtNombreSala.Focus();
         }
     }

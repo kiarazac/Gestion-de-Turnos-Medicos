@@ -410,29 +410,32 @@ GO
 ---
 
 ### 2.2 `sp_ModificarSala`
-- **Descripción:** Actualiza el nombre identificatorio de la sala.
+- **Descripción:** Actualiza el nombre identificatorio y el estado operativo de una sala de atención existente.
 - **Entidad:** Sala
 - **Operación:** Modificación
 - **Tablas:** `Salas`
-- **Forms que lo utilizan:** Ninguno actualmente.
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO`
+- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Acción:** Botón `btnModificar`
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@IdSala` | `INT` | IN | ID de la sala. |
-  | `@NombreSala` | `NVARCHAR(100)` | IN | Nuevo nombre. |
+  | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
+  | `@NombreSala` | `NVARCHAR(100)` | IN | Nuevo nombre descriptivo de la sala. |
+  | `@EstadoSala` | `NVARCHAR(50)` | IN | (Opcional) Estado operativo ('Disponible', 'Ocupada', 'En Mantenimiento'). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarSala
     @IdSala INT,
-    @NombreSala NVARCHAR(100)
+    @NombreSala NVARCHAR(100),
+    @EstadoSala NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     UPDATE Salas
     SET NombreSala = @NombreSala,
+        EstadoSala = ISNULL(@EstadoSala, EstadoSala),
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala;
 END;
@@ -1739,7 +1742,7 @@ GO
 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios` | Botón `btnEliminar` | `EN USO` |
 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `PENDIENTE DE IMPLEMENTACIÓN` |
 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` | `EN USO` |
-| `sp_ModificarSala` | Sala | Modificación | Ninguno | Preparado para renombrar salas | `NO UTILIZADO` |
+| `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y selección en grilla | `EN USO` |
 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` | `EN USO` |
 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios`, `MisSalas_PM` | Cargar grillas de salas activas | `EN USO` |
 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios`, `FrmSalasAdmin` | Botón `btnGuardar` | `EN USO` |

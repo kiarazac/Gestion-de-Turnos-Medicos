@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmSalasAdmin
     {
@@ -29,7 +29,9 @@
         private void InitializeComponent()
         {
             pnlDatos = new Panel();
+            btnLimpiar = new Button();
             btnEliminar = new Button();
+            btnModificar = new Button();
             btnGuardar = new Button();
             clbPersonal = new CheckedListBox();
             lblPersonal = new Label();
@@ -46,7 +48,9 @@
             // pnlDatos
             // 
             pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
+            pnlDatos.Controls.Add(btnLimpiar);
             pnlDatos.Controls.Add(btnEliminar);
+            pnlDatos.Controls.Add(btnModificar);
             pnlDatos.Controls.Add(btnGuardar);
             pnlDatos.Controls.Add(clbPersonal);
             pnlDatos.Controls.Add(lblPersonal);
@@ -61,21 +65,41 @@
             pnlDatos.Size = new Size(1133, 290);
             pnlDatos.TabIndex = 0;
             // 
+            // btnLimpiar
+            // 
+            btnLimpiar.Location = new Point(688, 160);
+            btnLimpiar.Name = "btnLimpiar";
+            btnLimpiar.Size = new Size(85, 28);
+            btnLimpiar.TabIndex = 10;
+            btnLimpiar.Text = "Limpiar";
+            btnLimpiar.UseVisualStyleBackColor = true;
+            btnLimpiar.Click += btnLimpiar_Click;
+            // 
             // btnEliminar
             // 
-            btnEliminar.Location = new Point(688, 131);
+            btnEliminar.Location = new Point(688, 125);
             btnEliminar.Name = "btnEliminar";
-            btnEliminar.Size = new Size(75, 23);
-            btnEliminar.TabIndex = 8;
+            btnEliminar.Size = new Size(85, 28);
+            btnEliminar.TabIndex = 9;
             btnEliminar.Text = "Eliminar";
             btnEliminar.UseVisualStyleBackColor = true;
             btnEliminar.Click += btnEliminar_Click;
             // 
+            // btnModificar
+            // 
+            btnModificar.Location = new Point(688, 90);
+            btnModificar.Name = "btnModificar";
+            btnModificar.Size = new Size(85, 28);
+            btnModificar.TabIndex = 8;
+            btnModificar.Text = "Modificar";
+            btnModificar.UseVisualStyleBackColor = true;
+            btnModificar.Click += btnModificar_Click;
+            // 
             // btnGuardar
             // 
-            btnGuardar.Location = new Point(688, 70);
+            btnGuardar.Location = new Point(688, 55);
             btnGuardar.Name = "btnGuardar";
-            btnGuardar.Size = new Size(75, 23);
+            btnGuardar.Size = new Size(85, 28);
             btnGuardar.TabIndex = 7;
             btnGuardar.Text = "Guardar";
             btnGuardar.UseVisualStyleBackColor = true;
@@ -188,6 +212,8 @@
         private System.Windows.Forms.CheckedListBox clbPersonal;
         private System.Windows.Forms.DataGridView dgvSalas;
         private Button btnGuardar;
+        private Button btnModificar;
         private Button btnEliminar;
+        private Button btnLimpiar;
     }
 }

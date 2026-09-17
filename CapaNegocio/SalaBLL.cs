@@ -91,5 +91,36 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             _salaDAL.ActualizarEstadoSala(idSala, nuevoEstado);
         }
+
+        /// <summary>
+        /// Modifica una sala existente actualizando su nombre, estado y reasignando los profesionales médicos seleccionados.
+        /// Aplica validaciones de reglas de negocio antes de invocar a la Capa de Datos (DAL).
+        /// </summary>
+        /// <param name="idSala">ID de la sala a modificar (debe ser mayor a 0).</param>
+        /// <param name="nombreSala">Nombre descriptivo de la sala.</param>
+        /// <param name="estadoSala">Estado operativo de la sala ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
+        /// <param name="idsMedicosSeleccionados">Lista opcional de IDs de médicos asignados.</param>
+        public void ModificarSala(int idSala, string nombreSala, string estadoSala, List<int>? idsMedicosSeleccionados = null)
+        {
+            // 1. Validación de identificador
+            if (idSala <= 0)
+                throw new ArgumentException("El identificador de la sala no es válido.");
+
+            // 2. Validación de campos obligatorios
+            if (string.IsNullOrWhiteSpace(nombreSala))
+                throw new ArgumentException("El nombre de la sala es obligatorio.");
+
+            if (string.IsNullOrWhiteSpace(estadoSala))
+                throw new ArgumentException("El estado de la sala es obligatorio.");
+
+            // 3. Modificación del nombre y estado en la base de datos (sp_ModificarSala)
+            _salaDAL.ModificarSala(idSala, nombreSala.Trim(), estadoSala.Trim());
+
+            // 4. Actualización de asignaciones médicas si se especificaron
+            if (idsMedicosSeleccionados != null)
+            {
+                _salaDAL.ReasignarMedicosASala(idSala, idsMedicosSeleccionados);
+            }
+        }
     }
 }
