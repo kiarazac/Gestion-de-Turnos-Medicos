@@ -48,11 +48,26 @@ namespace Gestion_de_Turnos_Medicos
             dgvSalas.AllowUserToAddRows = false;
             dgvSalas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvSalas.MultiSelect = false;
+            dgvSalas.RowHeadersVisible = false;
+            dgvSalas.EnableHeadersVisualStyles = false;
 
-            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "id_sala", HeaderText = "ID Sala", ReadOnly = true, Width = 60 });
-            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "nombreSala", HeaderText = "Nombre de Sala", Width = 150 });
-            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "estadoSala", HeaderText = "Estado", Width = 120 });
-            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "personal_asignado", HeaderText = "Personal Asignado", Width = 250 });
+            // Encabezados con estilo médico moderno
+            dgvSalas.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(30, 41, 59);
+            dgvSalas.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvSalas.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            dgvSalas.ColumnHeadersHeight = 36;
+
+            // Celdas y alternancia
+            dgvSalas.DefaultCellStyle.Font = new Font("Segoe UI", 9F);
+            dgvSalas.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 251, 241);
+            dgvSalas.DefaultCellStyle.SelectionForeColor = Color.FromArgb(15, 23, 42);
+            dgvSalas.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+            dgvSalas.RowTemplate.Height = 28;
+
+            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "id_sala", HeaderText = "ID Sala", ReadOnly = true, Width = 80 });
+            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "nombreSala", HeaderText = "Nombre de Sala", Width = 180 });
+            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "estadoSala", HeaderText = "Estado", Width = 140 });
+            dgvSalas.Columns.Add(new DataGridViewTextBoxColumn { Name = "personal_asignado", HeaderText = "Personal Asignado", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         }
 
         private void CargarEstados()

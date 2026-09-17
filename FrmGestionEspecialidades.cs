@@ -28,6 +28,21 @@ namespace Gestion_de_Turnos_Medicos
             dgvEspecialidades.AllowUserToAddRows = false;
             dgvEspecialidades.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvEspecialidades.MultiSelect = false;
+            dgvEspecialidades.RowHeadersVisible = false;
+            dgvEspecialidades.EnableHeadersVisualStyles = false;
+
+            // Encabezados con estilo médico moderno
+            dgvEspecialidades.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(30, 41, 59);
+            dgvEspecialidades.ColumnHeadersDefaultCellStyle.ForeColor = System.Drawing.Color.White;
+            dgvEspecialidades.ColumnHeadersDefaultCellStyle.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            dgvEspecialidades.ColumnHeadersHeight = 36;
+
+            // Celdas y alternancia
+            dgvEspecialidades.DefaultCellStyle.Font = new System.Drawing.Font("Segoe UI", 9F);
+            dgvEspecialidades.DefaultCellStyle.SelectionBackColor = System.Drawing.Color.FromArgb(204, 251, 241);
+            dgvEspecialidades.DefaultCellStyle.SelectionForeColor = System.Drawing.Color.FromArgb(15, 23, 42);
+            dgvEspecialidades.AlternatingRowsDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(248, 250, 252);
+            dgvEspecialidades.RowTemplate.Height = 28;
 
             dgvEspecialidades.Columns.Add(new DataGridViewTextBoxColumn
             {

@@ -28,7 +28,15 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void InitializeComponent()
         {
-            pnlDatos = new Panel();
+            pnlHeader = new Panel();
+            lblSubtituloHeader = new Label();
+            lblTituloHeader = new Label();
+            pnlContenedorPrincipal = new Panel();
+            pnlCardGrilla = new Panel();
+            lblTituloGrilla = new Label();
+            dgvSalas = new DataGridView();
+            pnlCardDatos = new Panel();
+            pnlAcciones = new Panel();
             btnLimpiar = new Button();
             btnEliminar = new Button();
             btnModificar = new Button();
@@ -39,181 +47,315 @@ namespace Gestion_de_Turnos_Medicos
             lblEstadoSala = new Label();
             txtNombreSala = new TextBox();
             lblNombreSala = new Label();
-            lblTitulo = new Label();
-            dgvSalas = new DataGridView();
-            pnlDatos.SuspendLayout();
+            lblTituloDatos = new Label();
+            pnlHeader.SuspendLayout();
+            pnlContenedorPrincipal.SuspendLayout();
+            pnlCardGrilla.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvSalas).BeginInit();
+            pnlCardDatos.SuspendLayout();
+            pnlAcciones.SuspendLayout();
             SuspendLayout();
             // 
-            // pnlDatos
+            // pnlHeader
             // 
-            pnlDatos.BackColor = Color.FromArgb(225, 242, 240);
-            pnlDatos.Controls.Add(btnLimpiar);
-            pnlDatos.Controls.Add(btnEliminar);
-            pnlDatos.Controls.Add(btnModificar);
-            pnlDatos.Controls.Add(btnGuardar);
-            pnlDatos.Controls.Add(clbPersonal);
-            pnlDatos.Controls.Add(lblPersonal);
-            pnlDatos.Controls.Add(cmbEstadoSala);
-            pnlDatos.Controls.Add(lblEstadoSala);
-            pnlDatos.Controls.Add(txtNombreSala);
-            pnlDatos.Controls.Add(lblNombreSala);
-            pnlDatos.Controls.Add(lblTitulo);
-            pnlDatos.Dock = DockStyle.Top;
-            pnlDatos.Location = new Point(0, 0);
-            pnlDatos.Name = "pnlDatos";
-            pnlDatos.Size = new Size(1133, 290);
-            pnlDatos.TabIndex = 0;
+            pnlHeader.BackColor = Color.FromArgb(15, 118, 110);
+            pnlHeader.Controls.Add(lblSubtituloHeader);
+            pnlHeader.Controls.Add(lblTituloHeader);
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Location = new Point(0, 0);
+            pnlHeader.Name = "pnlHeader";
+            pnlHeader.Size = new Size(1133, 60);
+            pnlHeader.TabIndex = 0;
+            // 
+            // lblSubtituloHeader
+            // 
+            lblSubtituloHeader.AutoSize = true;
+            lblSubtituloHeader.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblSubtituloHeader.ForeColor = Color.FromArgb(204, 251, 241);
+            lblSubtituloHeader.Location = new Point(18, 34);
+            lblSubtituloHeader.Name = "lblSubtituloHeader";
+            lblSubtituloHeader.Size = new Size(328, 15);
+            lblSubtituloHeader.TabIndex = 1;
+            lblSubtituloHeader.Text = "Administración de consultorios y asignación de profesionales";
+            // 
+            // lblTituloHeader
+            // 
+            lblTituloHeader.AutoSize = true;
+            lblTituloHeader.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblTituloHeader.ForeColor = Color.White;
+            lblTituloHeader.Location = new Point(16, 8);
+            lblTituloHeader.Name = "lblTituloHeader";
+            lblTituloHeader.Size = new Size(295, 25);
+            lblTituloHeader.TabIndex = 0;
+            lblTituloHeader.Text = "Gestión de Consultorios y Salas";
+            // 
+            // pnlContenedorPrincipal
+            // 
+            pnlContenedorPrincipal.AutoScroll = true;
+            pnlContenedorPrincipal.BackColor = Color.FromArgb(241, 245, 249);
+            pnlContenedorPrincipal.Controls.Add(pnlCardGrilla);
+            pnlContenedorPrincipal.Controls.Add(pnlCardDatos);
+            pnlContenedorPrincipal.Dock = DockStyle.Fill;
+            pnlContenedorPrincipal.Location = new Point(0, 60);
+            pnlContenedorPrincipal.Name = "pnlContenedorPrincipal";
+            pnlContenedorPrincipal.Padding = new Padding(16);
+            pnlContenedorPrincipal.Size = new Size(1133, 441);
+            pnlContenedorPrincipal.TabIndex = 1;
+            // 
+            // pnlCardGrilla
+            // 
+            pnlCardGrilla.BackColor = Color.White;
+            pnlCardGrilla.BorderStyle = BorderStyle.FixedSingle;
+            pnlCardGrilla.Controls.Add(lblTituloGrilla);
+            pnlCardGrilla.Controls.Add(dgvSalas);
+            pnlCardGrilla.Dock = DockStyle.Fill;
+            pnlCardGrilla.Location = new Point(16, 226);
+            pnlCardGrilla.Name = "pnlCardGrilla";
+            pnlCardGrilla.Padding = new Padding(12);
+            pnlCardGrilla.Size = new Size(1101, 199);
+            pnlCardGrilla.TabIndex = 1;
+            // 
+            // lblTituloGrilla
+            // 
+            lblTituloGrilla.AutoSize = true;
+            lblTituloGrilla.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblTituloGrilla.ForeColor = Color.FromArgb(30, 41, 59);
+            lblTituloGrilla.Location = new Point(12, 8);
+            lblTituloGrilla.Name = "lblTituloGrilla";
+            lblTituloGrilla.Size = new Size(270, 20);
+            lblTituloGrilla.TabIndex = 0;
+            lblTituloGrilla.Text = "📋 Salas Registradas en el Sistema (BD)";
+            // 
+            // dgvSalas
+            // 
+            dgvSalas.AllowUserToAddRows = false;
+            dgvSalas.AllowUserToDeleteRows = false;
+            dgvSalas.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            dgvSalas.BackgroundColor = Color.White;
+            dgvSalas.BorderStyle = BorderStyle.None;
+            dgvSalas.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvSalas.Location = new Point(12, 34);
+            dgvSalas.MultiSelect = false;
+            dgvSalas.Name = "dgvSalas";
+            dgvSalas.ReadOnly = true;
+            dgvSalas.RowHeadersVisible = false;
+            dgvSalas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvSalas.Size = new Size(1075, 151);
+            dgvSalas.TabIndex = 1;
+            // 
+            // pnlCardDatos
+            // 
+            pnlCardDatos.BackColor = Color.White;
+            pnlCardDatos.BorderStyle = BorderStyle.FixedSingle;
+            pnlCardDatos.Controls.Add(pnlAcciones);
+            pnlCardDatos.Controls.Add(clbPersonal);
+            pnlCardDatos.Controls.Add(lblPersonal);
+            pnlCardDatos.Controls.Add(cmbEstadoSala);
+            pnlCardDatos.Controls.Add(lblEstadoSala);
+            pnlCardDatos.Controls.Add(txtNombreSala);
+            pnlCardDatos.Controls.Add(lblNombreSala);
+            pnlCardDatos.Controls.Add(lblTituloDatos);
+            pnlCardDatos.Dock = DockStyle.Top;
+            pnlCardDatos.Location = new Point(16, 16);
+            pnlCardDatos.Name = "pnlCardDatos";
+            pnlCardDatos.Padding = new Padding(12);
+            pnlCardDatos.Size = new Size(1101, 210);
+            pnlCardDatos.TabIndex = 0;
+            // 
+            // pnlAcciones
+            // 
+            pnlAcciones.BackColor = Color.FromArgb(248, 250, 252);
+            pnlAcciones.BorderStyle = BorderStyle.FixedSingle;
+            pnlAcciones.Controls.Add(btnLimpiar);
+            pnlAcciones.Controls.Add(btnEliminar);
+            pnlAcciones.Controls.Add(btnModificar);
+            pnlAcciones.Controls.Add(btnGuardar);
+            pnlAcciones.Dock = DockStyle.Bottom;
+            pnlAcciones.Location = new Point(12, 146);
+            pnlAcciones.Name = "pnlAcciones";
+            pnlAcciones.Size = new Size(1075, 50);
+            pnlAcciones.TabIndex = 7;
             // 
             // btnLimpiar
             // 
-            btnLimpiar.Location = new Point(688, 160);
+            btnLimpiar.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnLimpiar.BackColor = Color.FromArgb(100, 116, 139);
+            btnLimpiar.Cursor = Cursors.Hand;
+            btnLimpiar.FlatAppearance.BorderSize = 0;
+            btnLimpiar.FlatStyle = FlatStyle.Flat;
+            btnLimpiar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnLimpiar.ForeColor = Color.White;
+            btnLimpiar.Location = new Point(910, 8);
             btnLimpiar.Name = "btnLimpiar";
-            btnLimpiar.Size = new Size(85, 28);
-            btnLimpiar.TabIndex = 10;
-            btnLimpiar.Text = "Limpiar";
-            btnLimpiar.UseVisualStyleBackColor = true;
+            btnLimpiar.Size = new Size(150, 32);
+            btnLimpiar.TabIndex = 3;
+            btnLimpiar.Text = "🔄 Limpiar Campos";
+            btnLimpiar.UseVisualStyleBackColor = false;
             btnLimpiar.Click += btnLimpiar_Click;
             // 
             // btnEliminar
             // 
-            btnEliminar.Location = new Point(688, 125);
+            btnEliminar.BackColor = Color.FromArgb(220, 38, 38);
+            btnEliminar.Cursor = Cursors.Hand;
+            btnEliminar.FlatAppearance.BorderSize = 0;
+            btnEliminar.FlatStyle = FlatStyle.Flat;
+            btnEliminar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnEliminar.ForeColor = Color.White;
+            btnEliminar.Location = new Point(360, 8);
             btnEliminar.Name = "btnEliminar";
-            btnEliminar.Size = new Size(85, 28);
-            btnEliminar.TabIndex = 9;
-            btnEliminar.Text = "Eliminar";
-            btnEliminar.UseVisualStyleBackColor = true;
+            btnEliminar.Size = new Size(160, 32);
+            btnEliminar.TabIndex = 2;
+            btnEliminar.Text = "🗑 Desactivar Sala";
+            btnEliminar.UseVisualStyleBackColor = false;
             btnEliminar.Click += btnEliminar_Click;
             // 
             // btnModificar
             // 
-            btnModificar.Location = new Point(688, 90);
+            btnModificar.BackColor = Color.FromArgb(37, 99, 235);
+            btnModificar.Cursor = Cursors.Hand;
+            btnModificar.FlatAppearance.BorderSize = 0;
+            btnModificar.FlatStyle = FlatStyle.Flat;
+            btnModificar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnModificar.ForeColor = Color.White;
+            btnModificar.Location = new Point(185, 8);
             btnModificar.Name = "btnModificar";
-            btnModificar.Size = new Size(85, 28);
-            btnModificar.TabIndex = 8;
-            btnModificar.Text = "Modificar";
-            btnModificar.UseVisualStyleBackColor = true;
+            btnModificar.Size = new Size(160, 32);
+            btnModificar.TabIndex = 1;
+            btnModificar.Text = "💾 Modificar Sala";
+            btnModificar.UseVisualStyleBackColor = false;
             btnModificar.Click += btnModificar_Click;
             // 
             // btnGuardar
             // 
-            btnGuardar.Location = new Point(688, 55);
+            btnGuardar.BackColor = Color.FromArgb(5, 150, 105);
+            btnGuardar.Cursor = Cursors.Hand;
+            btnGuardar.FlatAppearance.BorderSize = 0;
+            btnGuardar.FlatStyle = FlatStyle.Flat;
+            btnGuardar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnGuardar.ForeColor = Color.White;
+            btnGuardar.Location = new Point(15, 8);
             btnGuardar.Name = "btnGuardar";
-            btnGuardar.Size = new Size(85, 28);
-            btnGuardar.TabIndex = 7;
-            btnGuardar.Text = "Guardar";
-            btnGuardar.UseVisualStyleBackColor = true;
+            btnGuardar.Size = new Size(155, 32);
+            btnGuardar.TabIndex = 0;
+            btnGuardar.Text = "➕ Guardar Sala";
+            btnGuardar.UseVisualStyleBackColor = false;
             btnGuardar.Click += btnGuardar_Click;
             // 
             // clbPersonal
             // 
+            clbPersonal.CheckOnClick = true;
+            clbPersonal.Font = new Font("Segoe UI", 9F);
             clbPersonal.FormattingEnabled = true;
-            clbPersonal.Items.AddRange(new object[] { "Dr. Garcia", "Enfermero Medina" });
-            clbPersonal.Location = new Point(435, 66);
+            clbPersonal.Location = new Point(460, 48);
             clbPersonal.Name = "clbPersonal";
-            clbPersonal.Size = new Size(220, 112);
+            clbPersonal.Size = new Size(360, 80);
             clbPersonal.TabIndex = 6;
             // 
             // lblPersonal
             // 
             lblPersonal.AutoSize = true;
             lblPersonal.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblPersonal.Location = new Point(310, 70);
+            lblPersonal.ForeColor = Color.FromArgb(15, 118, 110);
+            lblPersonal.Location = new Point(460, 30);
             lblPersonal.Name = "lblPersonal";
-            lblPersonal.Size = new Size(110, 15);
+            lblPersonal.Size = new Size(183, 15);
             lblPersonal.TabIndex = 5;
-            lblPersonal.Text = "Personal Asignado:";
+            lblPersonal.Text = "👨‍⚕️ Personal Médico Asignado:";
             // 
             // cmbEstadoSala
             // 
             cmbEstadoSala.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbEstadoSala.Font = new Font("Segoe UI", 9F);
             cmbEstadoSala.FormattingEnabled = true;
-            cmbEstadoSala.Items.AddRange(new object[] { "Ocupado", "Disponible", "Mantenimiento" });
-            cmbEstadoSala.Location = new Point(110, 106);
+            cmbEstadoSala.Location = new Point(16, 105);
             cmbEstadoSala.Name = "cmbEstadoSala";
-            cmbEstadoSala.Size = new Size(150, 23);
+            cmbEstadoSala.Size = new Size(380, 23);
             cmbEstadoSala.TabIndex = 4;
             // 
             // lblEstadoSala
             // 
             lblEstadoSala.AutoSize = true;
             lblEstadoSala.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblEstadoSala.Location = new Point(24, 110);
+            lblEstadoSala.ForeColor = Color.FromArgb(51, 65, 85);
+            lblEstadoSala.Location = new Point(16, 87);
             lblEstadoSala.Name = "lblEstadoSala";
-            lblEstadoSala.Size = new Size(46, 15);
+            lblEstadoSala.Size = new Size(149, 15);
             lblEstadoSala.TabIndex = 3;
-            lblEstadoSala.Text = "Estado:";
+            lblEstadoSala.Text = "Estado de Disponibilidad:";
             // 
             // txtNombreSala
             // 
-            txtNombreSala.Location = new Point(110, 66);
+            txtNombreSala.Font = new Font("Segoe UI", 9F);
+            txtNombreSala.Location = new Point(16, 52);
             txtNombreSala.Name = "txtNombreSala";
-            txtNombreSala.Size = new Size(150, 23);
+            txtNombreSala.PlaceholderText = "Ej: Consultorio 1, Sala de Rayos...";
+            txtNombreSala.Size = new Size(380, 23);
             txtNombreSala.TabIndex = 2;
             // 
             // lblNombreSala
             // 
             lblNombreSala.AutoSize = true;
             lblNombreSala.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblNombreSala.Location = new Point(24, 70);
+            lblNombreSala.ForeColor = Color.FromArgb(51, 65, 85);
+            lblNombreSala.Location = new Point(16, 34);
             lblNombreSala.Name = "lblNombreSala";
-            lblNombreSala.Size = new Size(56, 15);
+            lblNombreSala.Size = new Size(198, 15);
             lblNombreSala.TabIndex = 1;
-            lblNombreSala.Text = "Nombre:";
+            lblNombreSala.Text = "Nombre de la Sala / Consultorio:";
             // 
-            // lblTitulo
+            // lblTituloDatos
             // 
-            lblTitulo.AutoSize = true;
-            lblTitulo.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
-            lblTitulo.ForeColor = Color.Black;
-            lblTitulo.Location = new Point(20, 12);
-            lblTitulo.Name = "lblTitulo";
-            lblTitulo.Size = new Size(200, 32);
-            lblTitulo.TabIndex = 0;
-            lblTitulo.Text = "Gestión de Salas";
-            // 
-            // dgvSalas
-            // 
-            dgvSalas.AllowUserToAddRows = false;
-            dgvSalas.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            dgvSalas.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvSalas.Location = new Point(0, 290);
-            dgvSalas.Name = "dgvSalas";
-            dgvSalas.RowHeadersWidth = 25;
-            dgvSalas.Size = new Size(1133, 165);
-            dgvSalas.TabIndex = 9;
+            lblTituloDatos.AutoSize = true;
+            lblTituloDatos.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+            lblTituloDatos.ForeColor = Color.FromArgb(30, 41, 59);
+            lblTituloDatos.Location = new Point(12, 10);
+            lblTituloDatos.Name = "lblTituloDatos";
+            lblTituloDatos.Size = new Size(279, 19);
+            lblTituloDatos.TabIndex = 0;
+            lblTituloDatos.Text = "🏢 Configuración del Consultorio / Sala";
             // 
             // FrmSalasAdmin
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.Silver;
             ClientSize = new Size(1133, 501);
-            Controls.Add(dgvSalas);
-            Controls.Add(pnlDatos);
+            Controls.Add(pnlContenedorPrincipal);
+            Controls.Add(pnlHeader);
             Name = "FrmSalasAdmin";
-            Text = "Gestión de Salas";
-            pnlDatos.ResumeLayout(false);
-            pnlDatos.PerformLayout();
+            Text = "Gestión de Consultorios y Salas";
+            pnlHeader.ResumeLayout(false);
+            pnlHeader.PerformLayout();
+            pnlContenedorPrincipal.ResumeLayout(false);
+            pnlCardGrilla.ResumeLayout(false);
+            pnlCardGrilla.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvSalas).EndInit();
+            pnlCardDatos.ResumeLayout(false);
+            pnlCardDatos.PerformLayout();
+            pnlAcciones.ResumeLayout(false);
             ResumeLayout(false);
-
         }
 
         #endregion
 
-        private System.Windows.Forms.Panel pnlDatos;
-        private System.Windows.Forms.Label lblTitulo;
-        private System.Windows.Forms.Label lblNombreSala;
-        private System.Windows.Forms.TextBox txtNombreSala;
-        private System.Windows.Forms.Label lblEstadoSala;
-        private System.Windows.Forms.ComboBox cmbEstadoSala;
-        private System.Windows.Forms.Label lblPersonal;
-        private System.Windows.Forms.CheckedListBox clbPersonal;
-        private System.Windows.Forms.DataGridView dgvSalas;
+        private Panel pnlHeader;
+        private Label lblSubtituloHeader;
+        private Label lblTituloHeader;
+        private Panel pnlContenedorPrincipal;
+        private Panel pnlCardDatos;
+        private Label lblTituloDatos;
+        private Label lblNombreSala;
+        private TextBox txtNombreSala;
+        private Label lblEstadoSala;
+        private ComboBox cmbEstadoSala;
+        private Label lblPersonal;
+        private CheckedListBox clbPersonal;
+        private Panel pnlAcciones;
         private Button btnGuardar;
         private Button btnModificar;
         private Button btnEliminar;
         private Button btnLimpiar;
+        private Panel pnlCardGrilla;
+        private Label lblTituloGrilla;
+        private DataGridView dgvSalas;
     }
 }
