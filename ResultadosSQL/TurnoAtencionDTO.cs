@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using System.ComponentModel.DataAnnotations; // Necesario para [Keyless]
+using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;// Necesario para [Keyless]
 
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
+    [Keyless]
     public class TurnoAtencionDTO
     {
         public int IdTurno { get; set; }
@@ -16,6 +18,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public string NombrePaciente { get; set; }
         public string ApellidoPaciente { get; set; }
         public string DniPaciente { get; set; }
-        public string ObraSocial { get; set; }
+        public string ObraSocial { get; set;  }
+        
+        // Nueva propiedad para mostrar el nombre de la sala en el Form
+        public string NombreSala { get; set; } = string.Empty;
     }
 }

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+
 namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 {
     public class TurnoDAL
