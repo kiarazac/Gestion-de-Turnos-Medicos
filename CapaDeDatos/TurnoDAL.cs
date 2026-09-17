@@ -165,12 +165,19 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        public void IniciarAtencionTurno(int idTurno)
+        public void IniciarAtencionTurno(int idTurno, string salaAsignada)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdTurno = new SqlParameter("@IdTurno", idTurno);
-                context.Database.ExecuteSqlRaw("EXEC sp_IniciarAtencionTurno @IdTurno", pIdTurno);
+
+                // Especificamos explícitamente el tamaño del SqlParameter para NVARCHAR
+                var pSalaAsignada = new SqlParameter("@SalaAsignada", System.Data.SqlDbType.NVarChar, 100)
+                {
+                    Value = (object?)salaAsignada ?? DBNull.Value
+                };
+
+                context.Database.ExecuteSqlRaw("EXEC sp_IniciarAtencionTurno @IdTurno, @SalaAsignada", pIdTurno, pSalaAsignada);
             }
         }
 

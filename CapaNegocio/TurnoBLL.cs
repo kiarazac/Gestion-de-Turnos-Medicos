@@ -119,13 +119,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return _turnoDAL.ListarTurnosAtencion();
         }
 
-  
-        public void IniciarAtencionTurno(int idTurno)
+
+        public void IniciarAtencionTurno(int idTurno, string salaAsignada)
         {
             if (idTurno <= 0)
                 throw new ArgumentException("El ID del turno no es válido.");
 
-            _turnoDAL.IniciarAtencionTurno(idTurno);
+            _turnoDAL.IniciarAtencionTurno(idTurno, salaAsignada);
         }
 
         public void FinalizarAtencionTurno(int idTurno, string diagnostico, string nombreMedico, string salaAsignada)

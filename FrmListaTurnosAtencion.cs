@@ -359,8 +359,8 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a TurnoDAL y ejecuta sp_IniciarAtencionTurno
-                _turnoBLL.IniciarAtencionTurno(_turnoActual.IdTurno);
+                // Pasamos el Id del turno y el texto de la sala del médico logueado
+                _turnoBLL.IniciarAtencionTurno(_turnoActual.IdTurno, _salaAsignada);
             }
             catch (Exception ex)
             {
