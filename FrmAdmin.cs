@@ -48,8 +48,8 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnPersonalMedico_Click(object sender, EventArgs e)
         {
-            // Se utiliza exclusivamente FrmGestionUsuarios2 como la versión oficial y funcional del gestor de usuarios
-            AbrirFormularioHijo(new FrmGestionUsuarios2());
+            // Se utiliza exclusivamente FrmGestionUsuarios2 pasando la sesión activa del administrador
+            AbrirFormularioHijo(new FrmGestionUsuarios2(_usuarioActual));
         }
 
         private void btnSalas_Click(object sender, EventArgs e)
@@ -64,8 +64,8 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnUsuarios2_Click(object sender, EventArgs e)
         {
-            // Abre la nueva versión con flujo guiado por DNI y rediseño moderno
-            AbrirFormularioHijo(new FrmGestionUsuarios2());
+            // Abre la versión 2.0 pasando la sesión activa para control de auto-eliminación
+            AbrirFormularioHijo(new FrmGestionUsuarios2(_usuarioActual));
         }
 
         private void btnSalir_Click(object sender, EventArgs e)

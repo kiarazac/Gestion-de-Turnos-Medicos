@@ -116,8 +116,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
                 catch (Exception)
                 {
-                    // Fallback directo con consulta SQL para garantizar disponibilidad inmediata
-                    // si la base de datos local aún no actualizó el procedimiento sp_ListarUsuarios o no proyecta Activo.
+                    // Fallback directo con subconsultas correlacionadas DISTINCT:
+                    // 1. Elimina duplicados de salas (evita 'Sala I, Sala I' causado por productos cartesianos)
+                    // 2. Preserva las especialidades y salas de usuarios inactivos sin borrarlas
                     string sql = @"
                         SELECT 
                             u.IdUsuario,
@@ -128,17 +129,28 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             u.Telefono,
                             r.Descripcion AS Rol,
                             ISNULL(u.NroMatricula, '') AS NroMatricula,
-                            ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
-                            ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+                            ISNULL((
+                                SELECT STRING_AGG(e.Nombre, ', ')
+                                FROM (
+                                    SELECT DISTINCT e2.Nombre
+                                    FROM MedicosEspecialidades me2
+                                    INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
+                                    WHERE me2.IdUsuario = u.IdUsuario AND (me2.Activo = 1 OR u.Activo = 0) AND e2.Activo = 1
+                                ) e
+                            ), '') AS Especialidades,
+                            ISNULL((
+                                SELECT STRING_AGG(s.NombreSala, ', ')
+                                FROM (
+                                    SELECT DISTINCT s2.NombreSala
+                                    FROM DetallesSalas ds2
+                                    INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
+                                    WHERE ds2.IdUsuario = u.IdUsuario AND (ds2.Activo = 1 OR u.Activo = 0) AND s2.Activo = 1
+                                ) s
+                            ), '') AS Salas,
                             u.Activo
                         FROM Usuarios u
                         INNER JOIN Roles r ON u.IdRol = r.IdRol
-                        LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
-                        LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
-                        LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
-                        LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
                         WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
-                        GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo
                         ORDER BY u.Activo DESC, u.Apellido, u.Nombre;";
 
                     return context.Database
@@ -171,17 +183,28 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         u.Telefono,
                         r.Descripcion AS Rol,
                         ISNULL(u.NroMatricula, '') AS NroMatricula,
-                        ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
-                        ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+                        ISNULL((
+                            SELECT STRING_AGG(e.Nombre, ', ')
+                            FROM (
+                                SELECT DISTINCT e2.Nombre
+                                FROM MedicosEspecialidades me2
+                                INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
+                                WHERE me2.IdUsuario = u.IdUsuario AND (me2.Activo = 1 OR u.Activo = 0) AND e2.Activo = 1
+                            ) e
+                        ), '') AS Especialidades,
+                        ISNULL((
+                            SELECT STRING_AGG(s.NombreSala, ', ')
+                            FROM (
+                                SELECT DISTINCT s2.NombreSala
+                                FROM DetallesSalas ds2
+                                INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
+                                WHERE ds2.IdUsuario = u.IdUsuario AND (ds2.Activo = 1 OR u.Activo = 0) AND s2.Activo = 1
+                            ) s
+                        ), '') AS Salas,
                         u.Activo
                     FROM Usuarios u
                     INNER JOIN Roles r ON u.IdRol = r.IdRol
-                    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
-                    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
-                    LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
-                    LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
-                    WHERE u.Dni = @Dni AND (@IncluirInactivos = 1 OR u.Activo = 1)
-                    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo;";
+                    WHERE u.Dni = @Dni AND (@IncluirInactivos = 1 OR u.Activo = 1);";
 
                 return context.Database
                     .SqlQueryRaw<UsuarioListadoDTO>(sql, pDni, pIncluir)
@@ -192,6 +215,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Da de baja lógica a un usuario en el sistema a través de sp_EliminarUsuario.
+        /// Solo marca Activo = 0 al usuario sin borrar sus atributos (salas y especialidades asignadas).
         /// </summary>
         /// <param name="idUsuario">ID único del usuario a desactivar.</param>
         public void EliminarUsuario(int idUsuario)
@@ -199,7 +223,16 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             using (var context = new dbTurnosMedicos())
             {
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
-                context.Database.ExecuteSqlRaw("EXEC sp_EliminarUsuario @IdUsuario", pIdUsuario);
+                try
+                {
+                    context.Database.ExecuteSqlRaw("EXEC sp_EliminarUsuario @IdUsuario", pIdUsuario);
+                }
+                catch (SqlException ex) when (ex.Number == 2812) // Fallback si el SP no está disponible
+                {
+                    context.Database.ExecuteSqlRaw(
+                        "UPDATE Usuarios SET Activo = 0, FechaBaja = GETDATE() WHERE IdUsuario = @IdUsuario",
+                        pIdUsuario);
+                }
             }
         }
 
@@ -220,9 +253,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
                 catch (SqlException ex) when (ex.Number == 2812) // Error 2812: No se encontró el SP sp_ReactivarUsuario
                 {
-                    // Contingencia directa para compatibilidad inmediata si la BD aún no tiene el procedimiento almacenado creado
+                    // Contingencia directa para compatibilidad inmediata: restaura usuario y asegura vinculaciones activas
                     context.Database.ExecuteSqlRaw(
-                        "UPDATE Usuarios SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdUsuario = @IdUsuario",
+                        @"UPDATE Usuarios SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdUsuario = @IdUsuario;
+                          UPDATE DetallesSalas SET Activo = 1, FechaBaja = NULL WHERE IdUsuario = @IdUsuario;
+                          UPDATE MedicosEspecialidades SET Activo = 1, FechaBaja = NULL WHERE IdUsuario = @IdUsuario;",
                         pIdUsuario);
                 }
             }

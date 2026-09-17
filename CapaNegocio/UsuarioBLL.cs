@@ -52,10 +52,24 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return _usuarioDAL.ObtenerUsuarioPorDni(dni.Trim(), incluirInactivos);
         }
 
+        /// <summary>
+        /// Da de baja lógica a un usuario del sistema previa validación de reglas de negocio fundamentales:
+        /// - No se permite desactivar cuentas inválidas (ID <= 0).
+        /// - La cuenta administradora principal ('admin@gmail.com') cuenta con inmunidad absoluta del sistema y no puede ser desactivada.
+        /// </summary>
+        /// <param name="idUsuario">ID único del usuario a desactivar.</param>
         public void EliminarUsuario(int idUsuario)
         {
             if (idUsuario <= 0)
                 throw new ArgumentException("El ID de usuario proporcionado no es válido.");
+
+            // Regla de inmunidad: Bloquear desactivación de la cuenta administradora principal
+            var usuarios = _usuarioDAL.ListarUsuarios(incluirInactivos: false);
+            var usuario = usuarios.FirstOrDefault(u => u.IdUsuario == idUsuario);
+            if (usuario != null && usuario.Correo.Trim().Equals("admin@gmail.com", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("La cuenta administradora principal ('admin@gmail.com') posee inmunidad y no puede ser desactivada del sistema.");
+            }
 
             _usuarioDAL.EliminarUsuario(idUsuario);
         }

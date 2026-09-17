@@ -27,6 +27,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal = new DataGridView();
             pnlFormularioDatos = new Panel();
             pnlAcciones = new Panel();
+            txtBuscarUsuario = new TextBox();
             btnLimpiar = new Button();
             btnReactivar = new Button();
             btnEliminar = new Button();
@@ -146,7 +147,7 @@ namespace Gestion_de_Turnos_Medicos
             chkMostrarInactivos.ForeColor = Color.FromArgb(71, 85, 105);
             chkMostrarInactivos.Location = new Point(300, 11);
             chkMostrarInactivos.Name = "chkMostrarInactivos";
-            chkMostrarInactivos.Size = new Size(252, 21);
+            chkMostrarInactivos.Size = new Size(278, 21);
             chkMostrarInactivos.TabIndex = 2;
             chkMostrarInactivos.Text = "Mostrar usuarios dados de baja (inactivos)";
             chkMostrarInactivos.UseVisualStyleBackColor = true;
@@ -199,6 +200,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             pnlAcciones.BackColor = Color.FromArgb(248, 250, 252);
             pnlAcciones.BorderStyle = BorderStyle.FixedSingle;
+            pnlAcciones.Controls.Add(txtBuscarUsuario);
             pnlAcciones.Controls.Add(btnLimpiar);
             pnlAcciones.Controls.Add(btnReactivar);
             pnlAcciones.Controls.Add(btnEliminar);
@@ -209,6 +211,18 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.Name = "pnlAcciones";
             pnlAcciones.Size = new Size(1122, 52);
             pnlAcciones.TabIndex = 2;
+            // 
+            // txtBuscarUsuario
+            // 
+            txtBuscarUsuario.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            txtBuscarUsuario.Font = new Font("Segoe UI", 9.75F);
+            txtBuscarUsuario.Location = new Point(720, 13);
+            txtBuscarUsuario.Name = "txtBuscarUsuario";
+            txtBuscarUsuario.PlaceholderText = "🔍 Buscar personal / usuario...";
+            txtBuscarUsuario.Size = new Size(235, 25);
+            txtBuscarUsuario.TabIndex = 5;
+            txtBuscarUsuario.TextChanged += txtBuscarUsuario_TextChanged;
+            txtBuscarUsuario.KeyDown += txtBuscarUsuario_KeyDown;
             // 
             // btnLimpiar
             // 
@@ -239,7 +253,7 @@ namespace Gestion_de_Turnos_Medicos
             btnReactivar.Name = "btnReactivar";
             btnReactivar.Size = new Size(160, 34);
             btnReactivar.TabIndex = 4;
-            btnReactivar.Text = "♻ Re-dar de Alta";
+            btnReactivar.Text = "♻ Reactivar Usuario";
             btnReactivar.UseVisualStyleBackColor = false;
             btnReactivar.Click += btnReactivar_Click;
             // 
@@ -703,6 +717,7 @@ namespace Gestion_de_Turnos_Medicos
             ((System.ComponentModel.ISupportInitialize)dgvPersonal).EndInit();
             pnlFormularioDatos.ResumeLayout(false);
             pnlAcciones.ResumeLayout(false);
+            pnlAcciones.PerformLayout();
             pnlDatosMedicos.ResumeLayout(false);
             pnlDatosMedicos.PerformLayout();
             pnlDatosPersonales.ResumeLayout(false);
@@ -758,6 +773,7 @@ namespace Gestion_de_Turnos_Medicos
         private Button btnModificar;
         private Button btnEliminar;
         private Button btnReactivar;
+        private TextBox txtBuscarUsuario;
         private Button btnLimpiar;
         private Panel pnlGrillaCard;
         private Label lblTituloGrilla;

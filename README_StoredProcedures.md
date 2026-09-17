@@ -133,6 +133,8 @@ GO
 
 ### 1.4 `sp_ListarUsuarios`
 - **Descripción:** Obtiene el listado de usuarios del sistema para la grilla de administración, concatenando sus especialidades médicas y salas asignadas. Soporta el parámetro opcional `@IncluirInactivos` para listar tanto usuarios activos como aquellos dados de baja lógica.
+- **Resolución de Producto Cartesiano:** Utiliza subconsultas correlacionadas con `DISTINCT` y `STRING_AGG` en lugar de `LEFT JOIN` simultáneos a `MedicosEspecialidades` y `DetallesSalas`, evitando la duplicación combinatoria de nombres de salas o especialidades (ej. *"Sala I, Sala I"*).
+- **Preservación de Atributos:** Incluye la condición `(me2.Activo = 1 OR u.Activo = 0)` y `(ds2.Activo = 1 OR u.Activo = 0)` para que los usuarios inactivos conserven y muestren sus consultorios y especialidades asignadas históricamente en la grilla y en el formulario.
 - **Entidad:** Usuario
 - **Operación:** Listado / Grilla
 - **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `DetallesSalas`, `Salas`
@@ -150,6 +152,9 @@ GO
 -- Procedimiento: sp_ListarUsuarios
 -- Descripción: Obtiene el listado de usuarios con roles, salas y especialidades.
 -- Soporta filtrado opcional de usuarios dados de baja (@IncluirInactivos).
+-- Optimización: Resuelve el producto cartesiano de múltiples salas y especialidades
+-- mediante subconsultas correlacionadas con DISTINCT, evitando duplicaciones ("Sala I, Sala I").
+-- Preserva asignaciones de salas y especialidades tanto para usuarios activos como inactivos.
 -- =========================================================================
 CREATE OR ALTER PROCEDURE sp_ListarUsuarios
     @IncluirInactivos BIT = 0 -- 0: solo activos (por defecto), 1: activos e inactivos
@@ -166,18 +171,35 @@ BEGIN
         u.Telefono,
         r.Descripcion AS Rol,
         ISNULL(u.NroMatricula, '') AS NroMatricula,
-        ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
-        ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+        -- Subconsulta correlacionada con DISTINCT para evitar productos cartesianos y duplicaciones de especialidades
+        ISNULL((
+            SELECT STRING_AGG(subE.Nombre, ', ')
+            FROM (
+                SELECT DISTINCT e2.Nombre
+                FROM MedicosEspecialidades me2
+                INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
+                WHERE me2.IdUsuario = u.IdUsuario
+                  AND (me2.Activo = 1 OR u.Activo = 0)
+                  AND e2.Activo = 1
+            ) subE
+        ), '') AS Especialidades,
+        -- Subconsulta correlacionada con DISTINCT para evitar duplicaciones de salas ("Sala I, Sala I")
+        ISNULL((
+            SELECT STRING_AGG(subS.NombreSala, ', ')
+            FROM (
+                SELECT DISTINCT s2.NombreSala
+                FROM DetallesSalas ds2
+                INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
+                WHERE ds2.IdUsuario = u.IdUsuario
+                  AND (ds2.Activo = 1 OR u.Activo = 0)
+                  AND s2.Activo = 1
+            ) subS
+        ), '') AS Salas,
         u.Activo -- Proyección del estado de auditoría para la grilla
     FROM Usuarios u
     INNER JOIN Roles r ON u.IdRol = r.IdRol
-    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
-    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
-    LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
-    LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
     -- Filtrado condicional: si @IncluirInactivos = 1 devuelve todos; si es 0, solo u.Activo = 1
     WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
-    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo
     ORDER BY u.Activo DESC, u.Apellido, u.Nombre;
 END;
 GO
@@ -343,11 +365,13 @@ GO
 
 ---
 
-### 1.7 `sp_EliminarUsuario` (Baja Lógica)
-- **Descripción:** Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja, y dando de baja en cascada sus asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
-- **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
-- **Operación:** Baja lógica / Desactivación en cascada
-- **Tablas:** `Usuarios`, `DetallesSalas`, `MedicosEspecialidades`, `Turnos`, `HistoriasClinicas`
+### 1.7 `sp_EliminarUsuario` (Baja Lógica y Preservación de Atributos)
+- **Descripción:** Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja (`FechaBaja = GETDATE()`). Protege a la cuenta principal `admin@gmail.com` con inmunidad total y **preserva íntegramente los atributos y asignaciones de salas y especialidades** sin eliminarlos ni borrarlos, permitiendo reactivaciones futuras completas.
+- **Inmunidad Administrativa:** La cuenta `admin@gmail.com` está blindada tanto a nivel de interfaz de usuario como en este Stored Procedure arrojando el error `50037`.
+- **Preservación de Atributos:** A diferencia de versiones preliminares que desactivaban en cascada `DetallesSalas` y `MedicosEspecialidades`, ahora se conserva la vinculación de consultorios y especialidades intacta para que el usuario no pierda sus configuraciones médicas previas.
+- **Entidad:** Usuario
+- **Operación:** Baja lógica
+- **Tablas:** `Usuarios`, `Turnos`, `HistoriasClinicas`
 - **Forms que lo utilizan:** `FrmGestionUsuarios2`
 - **Acción:** Botón `btnEliminar`
 - **Estado:** `EN USO`
@@ -360,8 +384,14 @@ GO
   | :--- | :--- | :--- |
   | `50035` | *El usuario a desactivar no existe o ya se encuentra inactivo.* | `@IdUsuario` inexistente o con `Activo = 0`. |
   | `50036` | *No se puede desactivar el usuario porque actualmente posee turnos en consulta o llamados activos.* | El médico tiene turnos en curso en estado 'Llamado' o 'En Consulta'. |
+  | `50037` | *La cuenta administradora principal (admin@gmail.com) posee inmunidad total y no puede ser desactivada.* | Intento de baja sobre la cuenta con correo `admin@gmail.com`. |
 
 ```sql
+-- =========================================================================
+-- Procedimiento: sp_EliminarUsuario
+-- Descripción: Baja lógica de usuario protegiendo la cuenta admin@gmail.com
+-- y preservando intactas las asignaciones de salas y especialidades médicas.
+-- =========================================================================
 CREATE OR ALTER PROCEDURE sp_EliminarUsuario
     @IdUsuario INT
 AS
@@ -375,7 +405,13 @@ BEGIN
             THROW 50035, 'El usuario a desactivar no existe o ya se encuentra inactivo.', 1;
         END
 
-        -- 2. Validar que no tenga turnos activos en atención o llamado en este momento
+        -- 2. Inmunidad para la cuenta administradora principal
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Correo = 'admin@gmail.com')
+        BEGIN
+            THROW 50037, 'La cuenta administradora principal (admin@gmail.com) posee inmunidad total y no puede ser desactivada.', 1;
+        END
+
+        -- 3. Validar que no tenga turnos activos en atención o llamado en este momento
         IF EXISTS (
             SELECT 1 
             FROM Turnos t
@@ -390,22 +426,11 @@ BEGIN
 
         BEGIN TRANSACTION;
 
-        -- 3. Baja lógica del usuario
+        -- 4. Baja lógica del usuario exclusivamente (se conservan intactas las asignaciones en DetallesSalas y MedicosEspecialidades)
         UPDATE Usuarios
         SET Activo = 0,
             FechaBaja = GETDATE()
         WHERE IdUsuario = @IdUsuario;
-
-        -- 4. Baja lógica en cascada de sus asignaciones de salas y especialidades
-        UPDATE DetallesSalas
-        SET Activo = 0,
-            FechaBaja = GETDATE()
-        WHERE IdUsuario = @IdUsuario AND Activo = 1;
-
-        UPDATE MedicosEspecialidades
-        SET Activo = 0,
-            FechaBaja = GETDATE()
-        WHERE IdUsuario = @IdUsuario AND Activo = 1;
 
         COMMIT TRANSACTION;
     END TRY
@@ -421,10 +446,10 @@ GO
 ---
 
 ### 1.8 `sp_ReactivarUsuario` (Re-dar de Alta / Reactivación Lógica)
-- **Descripción:** Restablece el estado activo (`Activo = 1`) de un usuario que se encontraba previamente con baja lógica (`Activo = 0`), eliminando la marca temporal de baja (`FechaBaja = NULL`) y actualizando su fecha de modificación.
-- **Entidad:** Usuario
+- **Descripción:** Restablece el estado activo (`Activo = 1`) de un usuario que se encontraba previamente con baja lógica (`Activo = 0`), eliminando la marca temporal de baja (`FechaBaja = NULL`) y actualizando su fecha de modificación. Asimismo, reactiva y restaura sus asignaciones históricas de salas y especialidades médicas (`DetallesSalas` y `MedicosEspecialidades`).
+- **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
 - **Operación:** Reactivación / Alta lógica
-- **Tablas:** `Usuarios`
+- **Tablas:** `Usuarios`, `DetallesSalas`, `MedicosEspecialidades`
 - **Forms que lo utilizan:** `FrmGestionUsuarios2`
 - **Acción:** Botón `btnReactivar` ("Re-dar de Alta")
 - **Estado:** `EN USO`
@@ -443,6 +468,7 @@ GO
 -- Procedimiento: sp_ReactivarUsuario
 -- Descripción: Reactiva lógicamente a un usuario en el sistema (Activo = 1),
 -- limpiando la fecha de baja y registrando la fecha de modificación.
+-- Restaura además sus relaciones previas de salas y especialidades médicas.
 -- =========================================================================
 CREATE OR ALTER PROCEDURE sp_ReactivarUsuario
     @IdUsuario INT -- Identificador del usuario inactivo a dar de alta
@@ -470,6 +496,17 @@ BEGIN
         SET Activo = 1,
             FechaBaja = NULL,
             FechaModificacion = GETDATE()
+        WHERE IdUsuario = @IdUsuario;
+
+        -- 4. Restaurar estado Activo en relaciones médicas asignadas previamente
+        UPDATE DetallesSalas
+        SET Activo = 1,
+            FechaBaja = NULL
+        WHERE IdUsuario = @IdUsuario;
+
+        UPDATE MedicosEspecialidades
+        SET Activo = 1,
+            FechaBaja = NULL
         WHERE IdUsuario = @IdUsuario;
 
         COMMIT TRANSACTION;
@@ -2584,15 +2621,15 @@ A continuación se detalla el universo completo de los **45 Stored Procedures** 
 - `sp_ListarRoles` → Carga inicial del desplegable de roles (`CargarRolesDesdeBD`). Soporta los 4 roles: Administrador, Personal médico, Recepcionista y Usuario Ventana.
 - `sp_ListarEspecialidades` → Carga del listado con selección múltiple (`CargarEspecialidadesDesdeBD`).
 - `sp_ObtenerSalas` → Carga del listado con selección múltiple de consultorios (`CargarSalasDesdeBD`).
-- `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios (`CargarUsuariosDesdeBD`). Soporta el parámetro opcional `@IncluirInactivos` vinculado al checkbox `chkMostrarInactivos`.
+- `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios (`CargarUsuariosDesdeBD`). Resuelve productos cartesianos con `DISTINCT`, eliminando duplicaciones de salas/especialidades, y preserva asignaciones para registros inactivos.
 - `sp_BuscarPacientePorDNI` → Utilizado internamente para validar que un DNI ingresado para un usuario no esté asignado a un paciente.
 - `sp_ObtenerEspecialidadesPorMedico` → Precarga de las especialidades activas vinculadas al médico al seleccionarlo en la grilla o buscarlo por DNI.
 - `sp_InsertarUsuario` → Botón "Registrar Nuevo Usuario" (`btnGuardar_Click`). Da de alta el usuario y orquesta asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
 - `sp_ModificarUsuario` → Botón "Modificar Datos" (`btnModificar_Click`). Actualiza datos personales y delega reasignación atómica de salas y especialidades con control de excepciones.
 - `sp_AsignarEspecialidadMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada especialidad tildada al usuario.
 - `sp_AsignarSalaMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada sala tildada al usuario.
-- `sp_EliminarUsuario` → Botón "Desactivar Usuario" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario y de sus asignaciones en cascada.
-- `sp_ReactivarUsuario` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Reactiva lógicamente a un usuario en estado inactivo (`Activo = 1`, `FechaBaja = NULL`) permitiendo actualizar sus datos en la misma acción.
+- `sp_EliminarUsuario` → Botón "Desactivar Usuario" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario protegiendo con inmunidad a `admin@gmail.com` y preservando íntegramente las salas y especialidades asignadas.
+- `sp_ReactivarUsuario` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Reactiva lógicamente a un usuario inactivo (`Activo = 1`, `FechaBaja = NULL`), restaurando sus asignaciones y permitiendo actualizar sus datos en la misma acción.
 
 ### `FrmSalasAdmin`
 - `sp_ListarPersonalMedico` → Carga del listado de médicos asignables a consultorios (`CargarPersonalMedicoDesdeBD`).

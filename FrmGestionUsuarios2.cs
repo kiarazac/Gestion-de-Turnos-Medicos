@@ -32,6 +32,9 @@ namespace Gestion_de_Turnos_Medicos
         // Identificador del usuario que se está editando (0 para nuevo registro)
         private int _idUsuarioSeleccionado = 0;
 
+        // Usuario autenticado en el sistema (para verificar inmunidad y prevenir auto-eliminación)
+        private readonly UsuarioLoginResult? _usuarioActual;
+
         // Clase auxiliar para vincular identificadores de BD con el texto de presentación
         private sealed class ItemConId
         {
@@ -40,9 +43,14 @@ namespace Gestion_de_Turnos_Medicos
             public override string ToString() => Texto;
         }
 
-        public FrmGestionUsuarios2()
+        public FrmGestionUsuarios2() : this(null)
+        {
+        }
+
+        public FrmGestionUsuarios2(UsuarioLoginResult? usuarioActual)
         {
             InitializeComponent();
+            _usuarioActual = usuarioActual;
             this.Load += FrmGestionUsuarios2_Load;
         }
 
@@ -97,6 +105,7 @@ namespace Gestion_de_Turnos_Medicos
             btnEliminar.Enabled = false;
             btnReactivar.Enabled = false;
 
+            txtBuscarUsuario.Clear();
             txtDniBusqueda.Clear();
             txtDniBusqueda.Focus();
         }
@@ -415,6 +424,12 @@ namespace Gestion_de_Turnos_Medicos
                             fila.DefaultCellStyle.BackColor = Color.FromArgb(254, 242, 242); // Fondo tenue rojizo
                         }
                     }
+
+                    // Si existía un criterio de búsqueda previo en la caja de búsqueda, reaplicamos el filtro
+                    if (txtBuscarUsuario != null && !string.IsNullOrWhiteSpace(txtBuscarUsuario.Text))
+                    {
+                        txtBuscarUsuario_TextChanged(this, EventArgs.Empty);
+                    }
                 }
             }
             catch (Exception ex)
@@ -673,8 +688,24 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
+            // 1. Inmunidad absoluta de la cuenta administradora principal
+            if (txtCorreo.Text.Trim().Equals("admin@gmail.com", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("La cuenta administradora principal ('admin@gmail.com') posee inmunidad total y no puede ser desactivada ni eliminada del sistema.",
+                    "Operación Denegada", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                return;
+            }
+
+            // 2. Prevención de auto-eliminación: un usuario no puede desactivar su propia cuenta en sesión activa
+            if (_usuarioActual != null && _idUsuarioSeleccionado == _usuarioActual.IdUsuario)
+            {
+                MessageBox.Show("No puede desactivar su propia cuenta de usuario con la que tiene la sesión iniciada en este momento.",
+                    "Operación Denegada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             string nombreCompleto = $"{txtNombre.Text.Trim()} {txtApellido.Text.Trim()}";
-            var resultado = MessageBox.Show($"¿Está seguro de que desea desactivar al usuario '{nombreCompleto}'?",
+            var resultado = MessageBox.Show($"¿Está seguro de que desea desactivar al usuario '{nombreCompleto}'?\nSus asignaciones de salas y especialidades se conservarán para futuras reactivaciones.",
                 "Confirmar Desactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
             if (resultado != DialogResult.Yes)
@@ -783,6 +814,82 @@ namespace Gestion_de_Turnos_Medicos
         private void btnLimpiar_Click(object sender, EventArgs e)
         {
             BloquearFormularioEnPaso1();
+        }
+
+        // ---------------------------------------------------------------------
+        // Buscador de usuarios en tiempo real en la grilla
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Filtra en tiempo real los registros visibles del personal en el DataGridView
+        /// según el texto ingresado (coincidencias en DNI, Nombre, Apellido, Rol, Correo, etc.).
+        /// </summary>
+        private void txtBuscarUsuario_TextChanged(object? sender, EventArgs e)
+        {
+            string filtro = txtBuscarUsuario.Text.Trim();
+
+            // Quitamos la celda actual seleccionada para evitar que Windows Forms lance excepciones al ocultar la fila
+            dgvPersonal.CurrentCell = null;
+
+            foreach (DataGridViewRow fila in dgvPersonal.Rows)
+            {
+                if (fila.IsNewRow) continue;
+
+                if (string.IsNullOrWhiteSpace(filtro))
+                {
+                    fila.Visible = true;
+                    continue;
+                }
+
+                string dni = fila.Cells["Dni"].Value?.ToString() ?? "";
+                string nombre = fila.Cells["Nombre"].Value?.ToString() ?? "";
+                string apellido = fila.Cells["Apellido"].Value?.ToString() ?? "";
+                string rol = fila.Cells["Rol"].Value?.ToString() ?? "";
+                string correo = fila.Cells["Correo"].Value?.ToString() ?? "";
+                string matricula = fila.Cells["NroMatricula"].Value?.ToString() ?? "";
+                string especialidades = fila.Cells["Especialidades"].Value?.ToString() ?? "";
+                string salas = fila.Cells["Salas"].Value?.ToString() ?? "";
+                string estado = fila.Cells["Estado"].Value?.ToString() ?? "";
+
+                bool coincide = dni.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                nombre.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                apellido.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                $"{nombre} {apellido}".Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                rol.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                correo.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                matricula.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                especialidades.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                salas.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                                estado.Contains(filtro, StringComparison.OrdinalIgnoreCase);
+
+                fila.Visible = coincide;
+            }
+        }
+
+        /// <summary>
+        /// Al presionar Enter dentro del buscador, selecciona y carga en el formulario al primer usuario visible que coincida.
+        /// </summary>
+        private void txtBuscarUsuario_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true; // Suprime el sonido beep de Windows
+
+                foreach (DataGridViewRow fila in dgvPersonal.Rows)
+                {
+                    if (fila.Visible)
+                    {
+                        fila.Selected = true;
+                        string dni = fila.Cells["Dni"].Value?.ToString() ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(dni))
+                        {
+                            txtDniBusqueda.Text = dni;
+                            EjecutarVerificacionDni();
+                        }
+                        break;
+                    }
+                }
+            }
         }
 
         // ---------------------------------------------------------------------
