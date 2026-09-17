@@ -22,11 +22,13 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloHeader = new Label();
             pnlContenedorPrincipal = new Panel();
             pnlGrillaCard = new Panel();
+            chkMostrarInactivos = new CheckBox();
             lblTituloGrilla = new Label();
             dgvPersonal = new DataGridView();
             pnlFormularioDatos = new Panel();
             pnlAcciones = new Panel();
             btnLimpiar = new Button();
+            btnReactivar = new Button();
             btnEliminar = new Button();
             btnModificar = new Button();
             btnGuardar = new Button();
@@ -126,6 +128,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             pnlGrillaCard.BackColor = Color.White;
             pnlGrillaCard.BorderStyle = BorderStyle.FixedSingle;
+            pnlGrillaCard.Controls.Add(chkMostrarInactivos);
             pnlGrillaCard.Controls.Add(lblTituloGrilla);
             pnlGrillaCard.Controls.Add(dgvPersonal);
             pnlGrillaCard.Dock = DockStyle.Top;
@@ -134,6 +137,20 @@ namespace Gestion_de_Turnos_Medicos
             pnlGrillaCard.Padding = new Padding(12);
             pnlGrillaCard.Size = new Size(1148, 230);
             pnlGrillaCard.TabIndex = 2;
+            // 
+            // chkMostrarInactivos
+            // 
+            chkMostrarInactivos.AutoSize = true;
+            chkMostrarInactivos.Cursor = Cursors.Hand;
+            chkMostrarInactivos.Font = new Font("Segoe UI", 9.25F);
+            chkMostrarInactivos.ForeColor = Color.FromArgb(71, 85, 105);
+            chkMostrarInactivos.Location = new Point(300, 11);
+            chkMostrarInactivos.Name = "chkMostrarInactivos";
+            chkMostrarInactivos.Size = new Size(252, 21);
+            chkMostrarInactivos.TabIndex = 2;
+            chkMostrarInactivos.Text = "Mostrar usuarios dados de baja (inactivos)";
+            chkMostrarInactivos.UseVisualStyleBackColor = true;
+            chkMostrarInactivos.CheckedChanged += chkMostrarInactivos_CheckedChanged;
             // 
             // lblTituloGrilla
             // 
@@ -183,6 +200,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.BackColor = Color.FromArgb(248, 250, 252);
             pnlAcciones.BorderStyle = BorderStyle.FixedSingle;
             pnlAcciones.Controls.Add(btnLimpiar);
+            pnlAcciones.Controls.Add(btnReactivar);
             pnlAcciones.Controls.Add(btnEliminar);
             pnlAcciones.Controls.Add(btnModificar);
             pnlAcciones.Controls.Add(btnGuardar);
@@ -208,6 +226,22 @@ namespace Gestion_de_Turnos_Medicos
             btnLimpiar.Text = "🔄 Reiniciar / Limpiar";
             btnLimpiar.UseVisualStyleBackColor = false;
             btnLimpiar.Click += btnLimpiar_Click;
+            // 
+            // btnReactivar
+            // 
+            btnReactivar.BackColor = Color.FromArgb(13, 148, 136);
+            btnReactivar.Cursor = Cursors.Hand;
+            btnReactivar.FlatAppearance.BorderSize = 0;
+            btnReactivar.FlatStyle = FlatStyle.Flat;
+            btnReactivar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnReactivar.ForeColor = Color.White;
+            btnReactivar.Location = new Point(585, 8);
+            btnReactivar.Name = "btnReactivar";
+            btnReactivar.Size = new Size(160, 34);
+            btnReactivar.TabIndex = 4;
+            btnReactivar.Text = "♻ Re-dar de Alta";
+            btnReactivar.UseVisualStyleBackColor = false;
+            btnReactivar.Click += btnReactivar_Click;
             // 
             // btnEliminar
             // 
@@ -723,9 +757,11 @@ namespace Gestion_de_Turnos_Medicos
         private Button btnGuardar;
         private Button btnModificar;
         private Button btnEliminar;
+        private Button btnReactivar;
         private Button btnLimpiar;
         private Panel pnlGrillaCard;
         private Label lblTituloGrilla;
+        private CheckBox chkMostrarInactivos;
         private DataGridView dgvPersonal;
     }
 }

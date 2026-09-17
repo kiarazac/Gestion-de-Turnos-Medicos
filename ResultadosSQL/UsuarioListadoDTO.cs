@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
@@ -17,5 +17,6 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public string? NroMatricula { get; set; }
         public string? Especialidades { get; set; }
         public string? Salas { get; set; }
+        public bool Activo { get; set; } = true;
     }
 }

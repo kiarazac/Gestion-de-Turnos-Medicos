@@ -39,9 +39,17 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return ObtenerPersonalMedico();
         }
 
-        public List<UsuarioListadoDTO> ObtenerUsuarios()
+        public List<UsuarioListadoDTO> ObtenerUsuarios(bool incluirInactivos = false)
         {
-            return _usuarioDAL.ListarUsuarios();
+            return _usuarioDAL.ListarUsuarios(incluirInactivos);
+        }
+
+        public UsuarioListadoDTO? ObtenerUsuarioPorDni(string dni, bool incluirInactivos = true)
+        {
+            if (string.IsNullOrWhiteSpace(dni))
+                return null;
+
+            return _usuarioDAL.ObtenerUsuarioPorDni(dni.Trim(), incluirInactivos);
         }
 
         public void EliminarUsuario(int idUsuario)
@@ -50,6 +58,43 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("El ID de usuario proporcionado no es válido.");
 
             _usuarioDAL.EliminarUsuario(idUsuario);
+        }
+
+        /// <summary>
+        /// Reactiva o re-da de alta lógicamente a un usuario previamente dado de baja (Activo = 0).
+        /// </summary>
+        /// <param name="idUsuario">ID del usuario a reactivar.</param>
+        public void ReactivarUsuario(int idUsuario)
+        {
+            if (idUsuario <= 0)
+                throw new ArgumentException("El ID de usuario proporcionado no es válido.");
+
+            _usuarioDAL.ReactivarUsuario(idUsuario);
+        }
+
+        /// <summary>
+        /// Reactiva lógicamente a un usuario y aplica inmediatamente la actualización de sus datos personales,
+        /// rol, matrícula médica, especialidades y asignación de salas en una sola operación controlada.
+        /// </summary>
+        public void ReactivarUsuario(
+            int idUsuario,
+            string nombre,
+            string apellido,
+            string correo,
+            string dni,
+            string telefono,
+            string? matricula,
+            int? idRol,
+            List<int>? salasIds,
+            string? descripcionAtencion,
+            List<int>? especialidadesIds,
+            string? nuevaContrasena = null)
+        {
+            // 1. Primero reactivamos lógicamente al usuario en la base de datos
+            ReactivarUsuario(idUsuario);
+
+            // 2. Con el usuario ya activo, aplicamos las modificaciones solicitadas
+            ModificarUsuario(idUsuario, nombre, apellido, correo, dni, telefono, matricula, idRol, salasIds, descripcionAtencion, especialidadesIds, nuevaContrasena);
         }
 
         public void RegistrarUsuario(string nombre, string apellido, string correo, string contrasena, string dni, string telefono, string nroMatricula, int idRol, List<int> especialidadesIds)

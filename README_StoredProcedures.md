@@ -132,18 +132,27 @@ GO
 ---
 
 ### 1.4 `sp_ListarUsuarios`
-- **Descripción:** Obtiene el listado completo de usuarios activos del sistema para la grilla de administración, concatenando sus especialidades médicas y salas asignadas.
+- **Descripción:** Obtiene el listado de usuarios del sistema para la grilla de administración, concatenando sus especialidades médicas y salas asignadas. Soporta el parámetro opcional `@IncluirInactivos` para listar tanto usuarios activos como aquellos dados de baja lógica.
 - **Entidad:** Usuario
 - **Operación:** Listado / Grilla
 - **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `DetallesSalas`, `Salas`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
-- **Acción:** Evento `Load` / `CargarUsuariosDesdeBD`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Parámetros:** Ninguno.
-- **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `Dni`, `Telefono`, `Rol`, `NroMatricula`, `Especialidades`, `Salas`.
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
+- **Acción:** Evento `Load` / `CargarUsuariosDesdeBD` / CheckBox `chkMostrarInactivos`
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IncluirInactivos` | `BIT` | IN | Opcional (por defecto `0`). Si es `0`, lista solo usuarios con `Activo = 1`. Si es `1`, incluye también usuarios con `Activo = 0`. |
+- **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `Dni`, `Telefono`, `Rol`, `NroMatricula`, `Especialidades`, `Salas`, `Activo`.
 
 ```sql
+-- =========================================================================
+-- Procedimiento: sp_ListarUsuarios
+-- Descripción: Obtiene el listado de usuarios con roles, salas y especialidades.
+-- Soporta filtrado opcional de usuarios dados de baja (@IncluirInactivos).
+-- =========================================================================
 CREATE OR ALTER PROCEDURE sp_ListarUsuarios
+    @IncluirInactivos BIT = 0 -- 0: solo activos (por defecto), 1: activos e inactivos
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -158,16 +167,18 @@ BEGIN
         r.Descripcion AS Rol,
         ISNULL(u.NroMatricula, '') AS NroMatricula,
         ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
-        ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas
+        ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+        u.Activo -- Proyección del estado de auditoría para la grilla
     FROM Usuarios u
     INNER JOIN Roles r ON u.IdRol = r.IdRol
     LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
     LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
     LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
     LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
-    WHERE u.Activo = 1
-    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula
-    ORDER BY u.Apellido, u.Nombre;
+    -- Filtrado condicional: si @IncluirInactivos = 1 devuelve todos; si es 0, solo u.Activo = 1
+    WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
+    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo
+    ORDER BY u.Activo DESC, u.Apellido, u.Nombre;
 END;
 GO
 ```
@@ -409,7 +420,72 @@ GO
 
 ---
 
-### 1.8 `sp_ListarPersonalMedico`
+### 1.8 `sp_ReactivarUsuario` (Re-dar de Alta / Reactivación Lógica)
+- **Descripción:** Restablece el estado activo (`Activo = 1`) de un usuario que se encontraba previamente con baja lógica (`Activo = 0`), eliminando la marca temporal de baja (`FechaBaja = NULL`) y actualizando su fecha de modificación.
+- **Entidad:** Usuario
+- **Operación:** Reactivación / Alta lógica
+- **Tablas:** `Usuarios`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
+- **Acción:** Botón `btnReactivar` ("Re-dar de Alta")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | Identificador del usuario a reactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50035` | *El usuario a reactivar no existe en el sistema.* | `@IdUsuario` inexistente en la tabla `Usuarios`. |
+  | `50039` | *El usuario ya se encuentra activo en el sistema.* | `@IdUsuario` ya posee `Activo = 1`. |
+
+```sql
+-- =========================================================================
+-- Procedimiento: sp_ReactivarUsuario
+-- Descripción: Reactiva lógicamente a un usuario en el sistema (Activo = 1),
+-- limpiando la fecha de baja y registrando la fecha de modificación.
+-- =========================================================================
+CREATE OR ALTER PROCEDURE sp_ReactivarUsuario
+    @IdUsuario INT -- Identificador del usuario inactivo a dar de alta
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar que el usuario exista en la base de datos
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario)
+        BEGIN
+            THROW 50035, 'El usuario a reactivar no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que el usuario se encuentre inactivo (Activo = 0)
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50039, 'El usuario ya se encuentra activo en el sistema.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Reactivación lógica: restaurar estado Activo, limpiar fecha de baja y registrar modificación
+        UPDATE Usuarios
+        SET Activo = 1,
+            FechaBaja = NULL,
+            FechaModificacion = GETDATE()
+        WHERE IdUsuario = @IdUsuario;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+```
+
+---
+
+### 1.9 `sp_ListarPersonalMedico`
 - **Descripción:** Obtiene los usuarios activos con rol de "Personal médico" para la asignación de profesionales a consultorios y salas.
 - **Entidad:** Usuario / Rol
 - **Operación:** Listado / Selector
@@ -2445,54 +2521,55 @@ GO
 
 ## 8. Tabla Resumen General de Stored Procedures (dbGestionTurnos)
 
-A continuación se detalla el universo completo de los **44 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
+A continuación se detalla el universo completo de los **45 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
 
 | N° | Stored Procedure | Entidad | Operación | Componente / Form(s) | Acción dentro del Sistema | Estado en Proyecto |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | `sp_ValidarLogin` | Usuario / Rol | Autenticación | `FrmLogin` | Botón `button1` (Iniciar sesión) | `EN USO` |
 | 2 | `sp_ListarRoles` | Rol | Listado | `FrmGestionUsuarios2` | Cargar selector desplegable de roles | `EN USO` |
 | 3 | `sp_InsertarRol` | Rol | Alta | Ninguno | Script de datos iniciales (`Seeds`) | `NO UTILIZADO` |
-| 4 | `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios2` | Cargar grilla general de usuarios activos | `EN USO` |
+| 4 | `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios2` | Cargar grilla general de usuarios (activos e inactivos opcional) | `EN USO` |
 | 5 | `sp_InsertarUsuario` | Usuario | Alta | `FrmGestionUsuarios2` | Botón `btnGuardar` (Registrar nuevo) | `EN USO` |
 | 6 | `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios2` | Botón `btnModificar` (Actualizar datos) | `EN USO` |
 | 7 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios2` | Botón `btnEliminar` (Desactivar) | `EN USO` |
-| 8 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `EN USO` |
-| 9 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
-| 10 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
-| 11 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
-| 12 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios activos | `EN USO` |
-| 13 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
-| 14 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
-| 15 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a En Mantenimiento) | `EN USO` |
-| 16 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
-| 17 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas activas | `EN USO` |
-| 18 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
-| 19 | `sp_ModificarEspecialidad`| Especialidad | Modificación | Ninguno | Sin botón ni pantalla en el sistema | `NO UTILIZADO` |
-| 20 | `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
-| 21 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
-| 22 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
-| 23 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
-| 24 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
-| 25 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
-| 26 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
-| 27 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
-| 28 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
-| 29 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
-| 30 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
-| 31 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
-| 32 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
-| 33 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
-| 34 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
-| 35 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
-| 36 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
-| 37 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
-| 38 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
-| 39 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
-| 40 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
-| 41 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
-| 42 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
-| 43 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
-| 44 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
+| 8 | `sp_ReactivarUsuario` | Usuario | Reactivación / Alta | `FrmGestionUsuarios2` | Botón `btnReactivar` (Re-dar de Alta) | `EN USO` |
+| 9 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `EN USO` |
+| 10 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
+| 11 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
+| 12 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
+| 13 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios activos | `EN USO` |
+| 14 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 15 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
+| 16 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a En Mantenimiento) | `EN USO` |
+| 17 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
+| 18 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas activas | `EN USO` |
+| 19 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
+| 20 | `sp_ModificarEspecialidad`| Especialidad | Modificación | Ninguno | Sin botón ni pantalla en el sistema | `NO UTILIZADO` |
+| 21 | `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
+| 22 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 23 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
+| 24 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
+| 25 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
+| 26 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
+| 27 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
+| 28 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
+| 29 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
+| 30 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
+| 31 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
+| 32 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
+| 33 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
+| 34 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
+| 35 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
+| 36 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
+| 37 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
+| 38 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
+| 39 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
+| 40 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
+| 41 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
+| 42 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
+| 43 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
+| 44 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
+| 45 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
 | * | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Módulo Médico (DAL/BLL) | Consulta histórica por paciente (pendiente de visor UI) | `PREPARADO EN BD` |
 
 ---
@@ -2507,7 +2584,7 @@ A continuación se detalla el universo completo de los **44 Stored Procedures** 
 - `sp_ListarRoles` → Carga inicial del desplegable de roles (`CargarRolesDesdeBD`). Soporta los 4 roles: Administrador, Personal médico, Recepcionista y Usuario Ventana.
 - `sp_ListarEspecialidades` → Carga del listado con selección múltiple (`CargarEspecialidadesDesdeBD`).
 - `sp_ObtenerSalas` → Carga del listado con selección múltiple de consultorios (`CargarSalasDesdeBD`).
-- `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios activos (`CargarUsuariosDesdeBD`).
+- `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios (`CargarUsuariosDesdeBD`). Soporta el parámetro opcional `@IncluirInactivos` vinculado al checkbox `chkMostrarInactivos`.
 - `sp_BuscarPacientePorDNI` → Utilizado internamente para validar que un DNI ingresado para un usuario no esté asignado a un paciente.
 - `sp_ObtenerEspecialidadesPorMedico` → Precarga de las especialidades activas vinculadas al médico al seleccionarlo en la grilla o buscarlo por DNI.
 - `sp_InsertarUsuario` → Botón "Registrar Nuevo Usuario" (`btnGuardar_Click`). Da de alta el usuario y orquesta asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
@@ -2515,6 +2592,7 @@ A continuación se detalla el universo completo de los **44 Stored Procedures** 
 - `sp_AsignarEspecialidadMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada especialidad tildada al usuario.
 - `sp_AsignarSalaMedico` → Invocado atómicamente por `UsuarioDAL` para asociar cada sala tildada al usuario.
 - `sp_EliminarUsuario` → Botón "Desactivar Usuario" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario y de sus asignaciones en cascada.
+- `sp_ReactivarUsuario` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Reactiva lógicamente a un usuario en estado inactivo (`Activo = 1`, `FechaBaja = NULL`) permitiendo actualizar sus datos en la misma acción.
 
 ### `FrmSalasAdmin`
 - `sp_ListarPersonalMedico` → Carga del listado de médicos asignables a consultorios (`CargarPersonalMedicoDesdeBD`).

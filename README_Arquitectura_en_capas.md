@@ -435,6 +435,8 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | | `UsuarioDAL.AsignarSala` | `sp_AsignarSalaMedico` |
 | | `UsuarioBLL.ModificarUsuario` | `UsuarioDAL.ModificarUsuario` | `sp_ModificarUsuario` + `sp_AsignarSalaMedico` + `sp_AsignarEspecialidadMedico` + `sp_ActualizarContrasenaHash` |
 | | `UsuarioBLL.EliminarUsuario` | `UsuarioDAL.EliminarUsuario` | `sp_EliminarUsuario` |
+| | `UsuarioBLL.ReactivarUsuario` | `UsuarioDAL.ReactivarUsuario` | `sp_ReactivarUsuario` |
+| | `UsuarioBLL.ObtenerUsuarioPorDni` | `UsuarioDAL.ObtenerUsuarioPorDni` | Consulta atómica por DNI (activos e inactivos) |
 | **`FrmSalasAdmin`** | `UsuarioBLL.ObtenerMedicos` | `UsuarioDAL.ListarPersonalMedico` | `sp_ListarPersonalMedico` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.RegistrarSala` | `SalaDAL.InsertarSala` | `sp_InsertarSala` |

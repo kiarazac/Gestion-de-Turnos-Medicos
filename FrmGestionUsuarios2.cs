@@ -95,6 +95,7 @@ namespace Gestion_de_Turnos_Medicos
             btnGuardar.Enabled = false;
             btnModificar.Enabled = false;
             btnEliminar.Enabled = false;
+            btnReactivar.Enabled = false;
 
             txtDniBusqueda.Clear();
             txtDniBusqueda.Focus();
@@ -146,91 +147,54 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // 2. Consultamos los usuarios activos en la base de datos
-                var usuarios = _usuarioBLL.ObtenerUsuarios();
-                var usuarioExistente = usuarios?.FirstOrDefault(u => u.Dni.Trim() == dniIngresado);
+                // 2. Consultamos el usuario en la base de datos (incluyendo registros con baja lógica)
+                var usuarioExistente = _usuarioBLL.ObtenerUsuarioPorDni(dniIngresado, incluirInactivos: true);
 
                 // Habilitamos el panel de carga de datos
                 pnlFormularioDatos.Enabled = true;
 
                 if (usuarioExistente != null)
                 {
-                    // -------------------------------------------------------------
-                    // CASO A: EL USUARIO YA EXISTE -> MODO MODIFICACIÓN
-                    // -------------------------------------------------------------
-                    _idUsuarioSeleccionado = usuarioExistente.IdUsuario;
-
-                    lblEstadoDni.Text = $"✓ Usuario Registrado: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Modificación)";
-                    lblEstadoDni.BackColor = Color.FromArgb(209, 250, 229); // Verde suave
-                    lblEstadoDni.ForeColor = Color.FromArgb(6, 95, 70);    // Verde oscuro
-
-                    // Precargamos los datos personales existentes
-                    txtDniVerificado.Text = usuarioExistente.Dni;
-                    txtNombre.Text = usuarioExistente.Nombre;
-                    txtApellido.Text = usuarioExistente.Apellido;
-                    txtTelefono.Text = usuarioExistente.Telefono;
-                    txtCorreo.Text = usuarioExistente.Correo;
-                    txtContrasena.Clear(); // La contraseña se deja en blanco si no se desea modificar
-
-                    // Seleccionamos el rol del usuario
-                    for (int i = 0; i < cmbRol.Items.Count; i++)
+                    if (usuarioExistente.Activo)
                     {
-                        if (cmbRol.Items[i] is ItemConId item)
-                        {
-                            if (item.Texto.Equals(usuarioExistente.Rol, StringComparison.OrdinalIgnoreCase) ||
-                                (!string.IsNullOrWhiteSpace(usuarioExistente.Rol) &&
-                                 (item.Texto.Contains(usuarioExistente.Rol, StringComparison.OrdinalIgnoreCase) ||
-                                  usuarioExistente.Rol.Contains(item.Texto, StringComparison.OrdinalIgnoreCase))))
-                            {
-                                cmbRol.SelectedIndex = i;
-                                break;
-                            }
-                        }
+                        // -------------------------------------------------------------
+                        // CASO A: EL USUARIO ESTÁ ACTIVO -> MODO MODIFICACIÓN
+                        // -------------------------------------------------------------
+                        lblEstadoDni.Text = $"✓ Usuario Registrado: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Modificación)";
+                        lblEstadoDni.BackColor = Color.FromArgb(209, 250, 229); // Verde suave
+                        lblEstadoDni.ForeColor = Color.FromArgb(6, 95, 70);    // Verde oscuro
+
+                        PrecargarDatosUsuario(usuarioExistente);
+
+                        btnGuardar.Enabled = false;
+                        btnModificar.Enabled = true;
+                        btnEliminar.Enabled = true;
+                        btnReactivar.Enabled = false;
                     }
-
-                    // Sincronizamos sección médica si aplica
-                    ActualizarSeccionMedica();
-
-                    if (EsPersonalMedico())
+                    else
                     {
-                        txtMatricula.Text = usuarioExistente.NroMatricula ?? string.Empty;
+                        // -------------------------------------------------------------
+                        // CASO B: EL USUARIO ESTÁ INACTIVO -> MODO REACTIVACIÓN / RE-DAR DE ALTA
+                        // -------------------------------------------------------------
+                        lblEstadoDni.Text = $"⚠️ Usuario Inactivo / Dado de Baja: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Reactivación)";
+                        lblEstadoDni.BackColor = Color.FromArgb(254, 243, 199); // Ámbar suave
+                        lblEstadoDni.ForeColor = Color.FromArgb(146, 64, 14);   // Ámbar oscuro
 
-                        // Marcamos las especialidades asignadas
-                        string espTexto = usuarioExistente.Especialidades ?? string.Empty;
-                        var espArray = espTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                        for (int i = 0; i < clbEspecialidades.Items.Count; i++)
-                        {
-                            if (clbEspecialidades.Items[i] is ItemConId espItem)
-                            {
-                                bool marcada = espArray.Any(e => e.Equals(espItem.Texto, StringComparison.OrdinalIgnoreCase));
-                                clbEspecialidades.SetItemChecked(i, marcada);
-                            }
-                        }
+                        PrecargarDatosUsuario(usuarioExistente);
 
-                        // Marcamos las salas asignadas
-                        string salasTexto = usuarioExistente.Salas ?? string.Empty;
-                        var salasArray = salasTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                        for (int i = 0; i < clbSala.Items.Count; i++)
-                        {
-                            if (clbSala.Items[i] is ItemConId salaItem)
-                            {
-                                bool marcada = salasArray.Any(s => s.Equals(salaItem.Texto, StringComparison.OrdinalIgnoreCase));
-                                clbSala.SetItemChecked(i, marcada);
-                            }
-                        }
+                        // En modo reactivación, se habilita el botón simple de Re-dar de Alta
+                        btnGuardar.Enabled = false;
+                        btnModificar.Enabled = false;
+                        btnEliminar.Enabled = false;
+                        btnReactivar.Enabled = true;
                     }
-
-                    // Botones de acción para modo modificación
-                    btnGuardar.Enabled = false;
-                    btnModificar.Enabled = true;
-                    btnEliminar.Enabled = true;
 
                     txtNombre.Focus();
                 }
                 else
                 {
                     // -------------------------------------------------------------
-                    // CASO B: EL USUARIO NO EXISTE -> MODO ALTA / REGISTRO
+                    // CASO C: EL USUARIO NO EXISTE -> MODO ALTA / REGISTRO
                     // -------------------------------------------------------------
                     _idUsuarioSeleccionado = 0;
 
@@ -258,6 +222,7 @@ namespace Gestion_de_Turnos_Medicos
                     btnGuardar.Enabled = true;
                     btnModificar.Enabled = false;
                     btnEliminar.Enabled = false;
+                    btnReactivar.Enabled = false;
 
                     txtNombre.Focus();
                 }
@@ -272,6 +237,71 @@ namespace Gestion_de_Turnos_Medicos
         private void btnReiniciarDni_Click(object sender, EventArgs e)
         {
             BloquearFormularioEnPaso1();
+        }
+
+        /// <summary>
+        /// Precarga los datos personales, de contacto, credenciales, rol, matrícula y asignaciones
+        /// de un usuario existente (sea activo o para reactivar) en los controles del formulario.
+        /// </summary>
+        /// <param name="usuario">Objeto DTO con los datos del usuario recuperado de la BD.</param>
+        private void PrecargarDatosUsuario(UsuarioListadoDTO usuario)
+        {
+            _idUsuarioSeleccionado = usuario.IdUsuario;
+
+            txtDniVerificado.Text = usuario.Dni;
+            txtNombre.Text = usuario.Nombre;
+            txtApellido.Text = usuario.Apellido;
+            txtTelefono.Text = usuario.Telefono;
+            txtCorreo.Text = usuario.Correo;
+            txtContrasena.Clear(); // La contraseña se deja en blanco si no se desea modificar
+
+            // Seleccionamos el rol del usuario
+            for (int i = 0; i < cmbRol.Items.Count; i++)
+            {
+                if (cmbRol.Items[i] is ItemConId item)
+                {
+                    if (item.Texto.Equals(usuario.Rol, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrWhiteSpace(usuario.Rol) &&
+                         (item.Texto.Contains(usuario.Rol, StringComparison.OrdinalIgnoreCase) ||
+                          usuario.Rol.Contains(item.Texto, StringComparison.OrdinalIgnoreCase))))
+                    {
+                        cmbRol.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Sincronizamos sección médica si aplica
+            ActualizarSeccionMedica();
+
+            if (EsPersonalMedico())
+            {
+                txtMatricula.Text = usuario.NroMatricula ?? string.Empty;
+
+                // Marcamos las especialidades asignadas
+                string espTexto = usuario.Especialidades ?? string.Empty;
+                var espArray = espTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < clbEspecialidades.Items.Count; i++)
+                {
+                    if (clbEspecialidades.Items[i] is ItemConId espItem)
+                    {
+                        bool marcada = espArray.Any(e => e.Equals(espItem.Texto, StringComparison.OrdinalIgnoreCase));
+                        clbEspecialidades.SetItemChecked(i, marcada);
+                    }
+                }
+
+                // Marcamos las salas asignadas
+                string salasTexto = usuario.Salas ?? string.Empty;
+                var salasArray = salasTexto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < clbSala.Items.Count; i++)
+                {
+                    if (clbSala.Items[i] is ItemConId salaItem)
+                    {
+                        bool marcada = salasArray.Any(s => s.Equals(salaItem.Texto, StringComparison.OrdinalIgnoreCase));
+                        clbSala.SetItemChecked(i, marcada);
+                    }
+                }
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -357,7 +387,8 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                var usuarios = _usuarioBLL.ObtenerUsuarios();
+                bool mostrarInactivos = chkMostrarInactivos.Checked;
+                var usuarios = _usuarioBLL.ObtenerUsuarios(incluirInactivos: mostrarInactivos);
                 if (usuarios != null)
                 {
                     foreach (var u in usuarios)
@@ -375,6 +406,14 @@ namespace Gestion_de_Turnos_Medicos
                         fila.Cells["NroMatricula"].Value = !string.IsNullOrWhiteSpace(u.NroMatricula) ? u.NroMatricula : "--";
                         fila.Cells["Especialidades"].Value = !string.IsNullOrWhiteSpace(u.Especialidades) ? u.Especialidades : "--";
                         fila.Cells["Salas"].Value = !string.IsNullOrWhiteSpace(u.Salas) ? u.Salas : "--";
+                        fila.Cells["Estado"].Value = u.Activo ? "Activo" : "Inactivo";
+
+                        // Estilo visual diferenciado para registros dados de baja
+                        if (!u.Activo)
+                        {
+                            fila.DefaultCellStyle.ForeColor = Color.FromArgb(120, 113, 108); // Gris atenuado
+                            fila.DefaultCellStyle.BackColor = Color.FromArgb(254, 242, 242); // Fondo tenue rojizo
+                        }
                     }
                 }
             }
@@ -383,6 +422,11 @@ namespace Gestion_de_Turnos_Medicos
                 MessageBox.Show("No se pudo cargar el listado de personal:\n" + ex.Message,
                     "Error de Consulta", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void chkMostrarInactivos_CheckedChanged(object? sender, EventArgs e)
+        {
+            CargarUsuariosDesdeBD();
         }
 
         // ---------------------------------------------------------------------
@@ -423,6 +467,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "NroMatricula", HeaderText = "Matrícula", Width = 90, ReadOnly = true });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Especialidades", HeaderText = "Especialidades", Width = 160, ReadOnly = true });
             dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Salas", HeaderText = "Salas Asignadas", Width = 130, ReadOnly = true });
+            dgvPersonal.Columns.Add(new DataGridViewTextBoxColumn { Name = "Estado", HeaderText = "Estado", Width = 80, ReadOnly = true });
         }
 
         // ---------------------------------------------------------------------
@@ -648,6 +693,90 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("Error al desactivar el usuario:\n" + ex.Message,
                     "Error de Desactivación", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Evento disparado al presionar el botón 'Re-dar de Alta' (btnReactivar).
+        /// Reactiva al usuario seleccionado en la base de datos (Activo = 1, FechaBaja = NULL)
+        /// y actualiza los datos y asignaciones modificados en el formulario.
+        /// </summary>
+        private void btnReactivar_Click(object? sender, EventArgs e)
+        {
+            if (_idUsuarioSeleccionado <= 0)
+            {
+                MessageBox.Show("Debe seleccionar o verificar un usuario inactivo para reactivar.",
+                    "Sin Selección", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Validamos los campos (esAlta = false permite mantener la contraseña previa si no se tipea una nueva)
+            if (!ValidarCampos(esAlta: false))
+                return;
+
+            string nombre = txtNombre.Text.Trim();
+            string apellido = txtApellido.Text.Trim();
+            string correo = txtCorreo.Text.Trim();
+            string dni = txtDniVerificado.Text.Trim();
+            string telefono = txtTelefono.Text.Trim();
+            var rolSeleccionado = (ItemConId)cmbRol.SelectedItem!;
+            bool esMedico = EsPersonalMedico();
+
+            string? matricula = esMedico ? txtMatricula.Text.Trim() : null;
+            string notaSala = txtNotaSala.Text.Trim();
+            string? nuevaContrasena = !string.IsNullOrWhiteSpace(txtContrasena.Text) ? txtContrasena.Text : null;
+
+            List<int>? salasIds = esMedico ? new List<int>() : new List<int>();
+            List<int>? especialidadesIds = esMedico ? new List<int>() : new List<int>();
+
+            if (esMedico)
+            {
+                foreach (var item in clbSala.CheckedItems)
+                    if (item is ItemConId sala) salasIds.Add(sala.Id);
+
+                foreach (var item in clbEspecialidades.CheckedItems)
+                    if (item is ItemConId esp) especialidadesIds.Add(esp.Id);
+            }
+
+            string nombreCompleto = $"{nombre} {apellido}";
+            var confirmacion = MessageBox.Show(
+                $"¿Está seguro de que desea reactivar y dar de alta nuevamente al usuario '{nombreCompleto}'?",
+                "Confirmar Reactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            try
+            {
+                // Invocamos la Capa de Negocio para reactivar al usuario y persistir sus datos
+                _usuarioBLL.ReactivarUsuario(
+                    _idUsuarioSeleccionado,
+                    nombre,
+                    apellido,
+                    correo,
+                    dni,
+                    telefono,
+                    matricula,
+                    rolSeleccionado.Id,
+                    salasIds,
+                    notaSala,
+                    especialidadesIds,
+                    nuevaContrasena);
+
+                MessageBox.Show($"Usuario '{nombreCompleto}' reactivado exitosamente en el sistema.",
+                    "Reactivación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Refrescamos la grilla
+                CargarUsuariosDesdeBD();
+
+                // Re-verificamos con el DNI para posicionar la vista directamente en Modo Modificación activo
+                txtDniBusqueda.Text = dni;
+                EjecutarVerificacionDni();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo reactivar el usuario:\n" + ex.Message,
+                    "Error al Reactivar", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

@@ -97,22 +97,134 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     pIdSala, pIdUsuario, pDesc);
             }
         }
-        public List<UsuarioListadoDTO> ListarUsuarios()
+        /// <summary>
+        /// Obtiene el listado de usuarios del sistema a través del procedimiento sp_ListarUsuarios.
+        /// Permite incluir usuarios con baja lógica mediante el parámetro opcional incluirInactivos.
+        /// Cuenta con mecanismo de contingencia para ejecutar consulta SQL parametrizada directa si el SP local no está actualizado.
+        /// </summary>
+        /// <param name="incluirInactivos">Si es true, retorna tanto usuarios activos como inactivos; si es false, solo activos.</param>
+        public List<UsuarioListadoDTO> ListarUsuarios(bool incluirInactivos = false)
         {
             using (var context = new dbTurnosMedicos())
             {
-                return context.Database
-                    .SqlQueryRaw<UsuarioListadoDTO>("EXEC sp_ListarUsuarios")
-                    .ToList();
+                var pIncluir = new SqlParameter("@IncluirInactivos", incluirInactivos);
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<UsuarioListadoDTO>("EXEC sp_ListarUsuarios @IncluirInactivos", pIncluir)
+                        .ToList();
+                }
+                catch (Exception)
+                {
+                    // Fallback directo con consulta SQL para garantizar disponibilidad inmediata
+                    // si la base de datos local aún no actualizó el procedimiento sp_ListarUsuarios o no proyecta Activo.
+                    string sql = @"
+                        SELECT 
+                            u.IdUsuario,
+                            u.Nombre,
+                            u.Apellido,
+                            u.Correo,
+                            u.Dni,
+                            u.Telefono,
+                            r.Descripcion AS Rol,
+                            ISNULL(u.NroMatricula, '') AS NroMatricula,
+                            ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
+                            ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+                            u.Activo
+                        FROM Usuarios u
+                        INNER JOIN Roles r ON u.IdRol = r.IdRol
+                        LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+                        LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
+                        LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
+                        LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
+                        WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
+                        GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo
+                        ORDER BY u.Activo DESC, u.Apellido, u.Nombre;";
+
+                    return context.Database
+                        .SqlQueryRaw<UsuarioListadoDTO>(sql, pIncluir)
+                        .ToList();
+                }
             }
         }
 
+        /// <summary>
+        /// Obtiene un usuario específico buscando por su número de DNI.
+        /// Permite encontrar registros con baja lógica para posibilitar su re-dar de alta / reactivación.
+        /// </summary>
+        /// <param name="dni">DNI a verificar.</param>
+        /// <param name="incluirInactivos">Si es true, busca tanto en usuarios activos como inactivos.</param>
+        public UsuarioListadoDTO? ObtenerUsuarioPorDni(string dni, bool incluirInactivos = true)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pDni = new SqlParameter("@Dni", dni.Trim());
+                var pIncluir = new SqlParameter("@IncluirInactivos", incluirInactivos);
+
+                string sql = @"
+                    SELECT 
+                        u.IdUsuario,
+                        u.Nombre,
+                        u.Apellido,
+                        u.Correo,
+                        u.Dni,
+                        u.Telefono,
+                        r.Descripcion AS Rol,
+                        ISNULL(u.NroMatricula, '') AS NroMatricula,
+                        ISNULL(STRING_AGG(e.Nombre, ', '), '') AS Especialidades,
+                        ISNULL(STRING_AGG(s.NombreSala, ', '), '') AS Salas,
+                        u.Activo
+                    FROM Usuarios u
+                    INNER JOIN Roles r ON u.IdRol = r.IdRol
+                    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+                    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad AND e.Activo = 1
+                    LEFT JOIN DetallesSalas ds ON u.IdUsuario = ds.IdUsuario AND ds.Activo = 1
+                    LEFT JOIN Salas s ON ds.IdSala = s.IdSala AND s.Activo = 1
+                    WHERE u.Dni = @Dni AND (@IncluirInactivos = 1 OR u.Activo = 1)
+                    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.Correo, u.Dni, u.Telefono, r.Descripcion, u.NroMatricula, u.Activo;";
+
+                return context.Database
+                    .SqlQueryRaw<UsuarioListadoDTO>(sql, pDni, pIncluir)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Da de baja lógica a un usuario en el sistema a través de sp_EliminarUsuario.
+        /// </summary>
+        /// <param name="idUsuario">ID único del usuario a desactivar.</param>
         public void EliminarUsuario(int idUsuario)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
                 context.Database.ExecuteSqlRaw("EXEC sp_EliminarUsuario @IdUsuario", pIdUsuario);
+            }
+        }
+
+        /// <summary>
+        /// Reactiva o re-da de alta a un usuario con baja lógica previa (Activo = 0),
+        /// restaurando Activo = 1 y limpiando la fecha de baja.
+        /// Ejecuta sp_ReactivarUsuario con contingencia SQL directa en caso de no estar creado en el motor SQL Server.
+        /// </summary>
+        /// <param name="idUsuario">ID único del usuario a reactivar.</param>
+        public void ReactivarUsuario(int idUsuario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                try
+                {
+                    context.Database.ExecuteSqlRaw("EXEC sp_ReactivarUsuario @IdUsuario", pIdUsuario);
+                }
+                catch (SqlException ex) when (ex.Number == 2812) // Error 2812: No se encontró el SP sp_ReactivarUsuario
+                {
+                    // Contingencia directa para compatibilidad inmediata si la BD aún no tiene el procedimiento almacenado creado
+                    context.Database.ExecuteSqlRaw(
+                        "UPDATE Usuarios SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdUsuario = @IdUsuario",
+                        pIdUsuario);
+                }
             }
         }
 
