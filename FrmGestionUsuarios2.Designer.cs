@@ -86,7 +86,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Location = new Point(0, 0);
             pnlHeader.Name = "pnlHeader";
-            pnlHeader.Size = new Size(1180, 60);
+            pnlHeader.Size = new Size(1293, 60);
             pnlHeader.TabIndex = 0;
             // 
             // lblSubtituloHeader
@@ -122,7 +122,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenedorPrincipal.Location = new Point(0, 60);
             pnlContenedorPrincipal.Name = "pnlContenedorPrincipal";
             pnlContenedorPrincipal.Padding = new Padding(16);
-            pnlContenedorPrincipal.Size = new Size(1180, 690);
+            pnlContenedorPrincipal.Size = new Size(1293, 689);
             pnlContenedorPrincipal.TabIndex = 1;
             // 
             // pnlGrillaCard
@@ -136,7 +136,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlGrillaCard.Location = new Point(16, 442);
             pnlGrillaCard.Name = "pnlGrillaCard";
             pnlGrillaCard.Padding = new Padding(12);
-            pnlGrillaCard.Size = new Size(1148, 230);
+            pnlGrillaCard.Size = new Size(1261, 230);
             pnlGrillaCard.TabIndex = 2;
             // 
             // chkMostrarInactivos
@@ -178,7 +178,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.ReadOnly = true;
             dgvPersonal.RowHeadersVisible = false;
             dgvPersonal.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvPersonal.Size = new Size(1122, 178);
+            dgvPersonal.Size = new Size(1235, 178);
             dgvPersonal.TabIndex = 1;
             dgvPersonal.CellClick += dgvPersonal_CellClick;
             // 
@@ -193,7 +193,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlFormularioDatos.Location = new Point(16, 88);
             pnlFormularioDatos.Name = "pnlFormularioDatos";
             pnlFormularioDatos.Padding = new Padding(12);
-            pnlFormularioDatos.Size = new Size(1148, 354);
+            pnlFormularioDatos.Size = new Size(1261, 354);
             pnlFormularioDatos.TabIndex = 1;
             // 
             // pnlAcciones
@@ -209,14 +209,14 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.Dock = DockStyle.Bottom;
             pnlAcciones.Location = new Point(12, 288);
             pnlAcciones.Name = "pnlAcciones";
-            pnlAcciones.Size = new Size(1122, 52);
+            pnlAcciones.Size = new Size(1235, 52);
             pnlAcciones.TabIndex = 2;
             // 
             // txtBuscarUsuario
             // 
             txtBuscarUsuario.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             txtBuscarUsuario.Font = new Font("Segoe UI", 9.75F);
-            txtBuscarUsuario.Location = new Point(720, 13);
+            txtBuscarUsuario.Location = new Point(829, 14);
             txtBuscarUsuario.Name = "txtBuscarUsuario";
             txtBuscarUsuario.PlaceholderText = "🔍 Buscar personal / usuario...";
             txtBuscarUsuario.Size = new Size(235, 25);
@@ -233,9 +233,9 @@ namespace Gestion_de_Turnos_Medicos
             btnLimpiar.FlatStyle = FlatStyle.Flat;
             btnLimpiar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             btnLimpiar.ForeColor = Color.White;
-            btnLimpiar.Location = new Point(965, 8);
+            btnLimpiar.Location = new Point(1126, 8);
             btnLimpiar.Name = "btnLimpiar";
-            btnLimpiar.Size = new Size(144, 34);
+            btnLimpiar.Size = new Size(96, 34);
             btnLimpiar.TabIndex = 3;
             btnLimpiar.Text = "🔄 Reiniciar / Limpiar";
             btnLimpiar.UseVisualStyleBackColor = false;
@@ -616,7 +616,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlPaso1Dni.Location = new Point(16, 16);
             pnlPaso1Dni.Name = "pnlPaso1Dni";
             pnlPaso1Dni.Padding = new Padding(12);
-            pnlPaso1Dni.Size = new Size(1148, 72);
+            pnlPaso1Dni.Size = new Size(1261, 72);
             pnlPaso1Dni.TabIndex = 0;
             // 
             // btnReiniciarDni
@@ -628,7 +628,7 @@ namespace Gestion_de_Turnos_Medicos
             btnReiniciarDni.FlatStyle = FlatStyle.Flat;
             btnReiniciarDni.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnReiniciarDni.ForeColor = Color.White;
-            btnReiniciarDni.Location = new Point(995, 18);
+            btnReiniciarDni.Location = new Point(1108, 18);
             btnReiniciarDni.Name = "btnReiniciarDni";
             btnReiniciarDni.Size = new Size(138, 34);
             btnReiniciarDni.TabIndex = 5;
@@ -704,7 +704,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1180, 750);
+            ClientSize = new Size(1293, 749);
             Controls.Add(pnlContenedorPrincipal);
             Controls.Add(pnlHeader);
             Name = "FrmGestionUsuarios2";

@@ -49,6 +49,13 @@ Este documento centraliza y especifica todos los **Stored Procedures** del siste
   | `@Correo` | `NVARCHAR(150)` | IN | Correo electrónico de acceso. |
   | `@Contrasena` | `NVARCHAR(255)` | IN | Contraseña (o hash de contraseña). |
 - **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `IdRol`, `NombreRol`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50020` | *Debe ingresar obligatoriamente el correo electrónico y la contraseña.* | `@Correo` o `@Contrasena` vacíos o nulos. |
+  | `50021` | *El correo electrónico ingresado no se encuentra registrado en el sistema.* | `@Correo` no existe en la tabla `Usuarios`. |
+  | `50022` | *Este usuario se encuentra dado de baja en el sistema. Contacte al administrador.* | Usuario registrado pero con `Activo = 0`. |
+  | `50023` | *La contraseña ingresada es incorrecta. Verifique sus datos e intente nuevamente.* | Contraseña no coincide para el usuario activo. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ValidarLogin
@@ -58,18 +65,67 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        u.IdUsuario, 
-        u.Nombre, 
-        u.Apellido, 
-        u.Correo, 
-        u.IdRol, 
-        r.Descripcion AS NombreRol
-    FROM Usuarios u
-    INNER JOIN Roles r ON u.IdRol = r.IdRol
-    WHERE u.Correo = @Correo 
-      AND u.Contrasena = @Contrasena 
-      AND u.Activo = 1;
+    BEGIN TRY
+        -- 1. Validación de campos vacíos
+        IF LTRIM(RTRIM(ISNULL(@Correo, ''))) = '' OR LTRIM(RTRIM(ISNULL(@Contrasena, ''))) = ''
+        BEGIN
+            THROW 50020, 'Debe ingresar obligatoriamente el correo electrónico y la contraseña.', 1;
+        END
+
+        -- 2. Verificar si el correo existe en la base de datos (independientemente de si está activo o no)
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo)
+        BEGIN
+            THROW 50021, 'El correo electrónico ingresado no se encuentra registrado en el sistema.', 1;
+        END
+
+        -- 3. Verificar si el usuario está dado de baja (Activo = 0)
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Activo = 0)
+        BEGIN
+            THROW 50022, 'Este usuario se encuentra dado de baja en el sistema. Contacte al administrador.', 1;
+        END
+
+        -- 4. Verificar si la contraseña es incorrecta para ese correo
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Contrasena = @Contrasena AND Activo = 1)
+        BEGIN
+            THROW 50023, 'La contraseña ingresada es incorrecta. Verifique sus datos e intente nuevamente.', 1;
+        END
+
+        -- 5. Si todo es correcto, devolvemos los datos del usuario y su rol
+        SELECT 
+            u.IdUsuario, 
+            u.Nombre, 
+            u.Apellido, 
+            u.Correo, 
+            u.IdRol, 
+            r.Descripcion AS NombreRol
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        WHERE u.Correo = @Correo 
+          AND u.Contrasena = @Contrasena 
+          AND u.Activo = 1;
+
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000);
+        DECLARE @ErrorSeverity INT;
+        DECLARE @ErrorState INT;
+
+        SET @ErrorSeverity = ERROR_SEVERITY();
+        SET @ErrorState = ERROR_STATE();
+
+        IF ERROR_NUMBER() NOT BETWEEN 50020 AND 50029
+        BEGIN
+            SET @ErrorMessage = 'El sistema no se encuentra disponible temporalmente o hay problemas de conexión con la Base de Datos. Intente más tarde.';
+            SET @ErrorSeverity = 16;
+            SET @ErrorState = 1;
+        END
+        ELSE
+        BEGIN
+            SET @ErrorMessage = ERROR_MESSAGE();
+        END
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
 END;
 GO
 ```
@@ -226,7 +282,12 @@ GO
   | `@Telefono` | `NVARCHAR(20)` | IN | Teléfono de contacto. |
   | `@NroMatricula` | `NVARCHAR(50)` | IN | Número de matrícula (opcional/médicos). |
   | `@IdRol` | `INT` | IN | ID del rol asignado. |
-- **Devuelve:** `IdNuevoUsuario` (`SCOPE_IDENTITY()`).
+- **Devuelve:** `IdNuevoUsuario` (`CAST(SCOPE_IDENTITY() AS INT)`).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50011` | *Ya existe un paciente registrado en el sistema con este mismo número de DNI. Un usuario del sistema no puede duplicar el DNI de un paciente.* | `@Dni` coincide con un paciente activo en `Pacientes`. |
+  | `50012` | *Ya existe otro usuario registrado con este número de DNI.* | `@Dni` ya asignado a un usuario activo en `Usuarios`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarUsuario
@@ -242,10 +303,32 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
-    VALUES (@Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol, 1, GETDATE());
+    BEGIN TRY
+        -- Validar si el DNI ya existe como Paciente activo en el sistema
+        IF EXISTS (SELECT 1 FROM Pacientes WHERE Dni = @Dni AND Activo = 1)
+        BEGIN
+            THROW 50011, 'Ya existe un paciente registrado en el sistema con este mismo número de DNI. Un usuario del sistema no puede duplicar el DNI de un paciente.', 1;
+        END
 
-    SELECT SCOPE_IDENTITY() AS IdNuevoUsuario;
+        -- Validar también si ya existe en la misma tabla de Usuarios por seguridad
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
+        BEGIN
+            THROW 50012, 'Ya existe otro usuario registrado con este número de DNI.', 1;
+        END
+
+        INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
+        VALUES (@Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol, 1, GETDATE());
+
+        -- Se castea explícitamente el resultado a INT para que EF Core lo pueda mapear al DTO
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS IdNuevoUsuario;
+
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
 END;
 GO
 ```
@@ -942,7 +1025,7 @@ GO
 ---
 
 ### 2.7 `sp_CerrarSala`
-- **Descripción:** Cambia el estado de la sala a `'Cerrada'` / `'En Mantenimiento'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`).
+- **Descripción:** Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`).
 - **Entidad:** Sala
 - **Operación:** Cambio de Estado / Validación de Negocio
 - **Tablas:** `Salas`
@@ -971,7 +1054,7 @@ BEGIN
     END
 
     UPDATE Salas
-    SET EstadoSala = 'En Mantenimiento',
+    SET EstadoSala = 'Cerrada',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
 END;
@@ -2066,8 +2149,8 @@ GO
 - **Tablas:** `Turnos`, `Pacientes`, `Prioridades`, `Especialidades`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Evento `Load` / `CargarTurnosDesdeBD`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `Estado`, `Especialidad`, `Triage`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`.
+- **Estado:** `EN USO`
+- **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `Estado`, `Especialidad`, `Triage`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `NombreSala`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarTurnosAtencion
@@ -2085,11 +2168,13 @@ BEGIN
         p.Nombre AS NombrePaciente,
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
-        p.ObraSocial
+        p.ObraSocial,
+        ISNULL(s.NombreSala, 'Sin Asignar') AS NombreSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.Estado = 'En Espera'
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
@@ -2424,36 +2509,37 @@ GO
 
 ---
 
-### 6.9 `sp_ListarTurnosGeneralesPantalla`
-- **Descripción:** Obtiene los turnos programados y de especialidad del día para la grilla general de la pantalla pública de sala de espera (`FrmUsuarioVentana`). Muestra el código de turno, horario, fecha, especialidad médica, estado de atención y consultorio asignado.
-- **Entidad:** Turno / Especialidad / Sala
-- **Operación:** Monitor Público / Consulta Pantalla
-- **Tablas:** `Turnos`, `Especialidades`, `Salas`
-- **Forms que lo utilizan:** `FrmUsuarioVentana`
-- **Acción:** Carga inicial y refresco automático periódico (`dgvGeneral`)
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Devuelve:** `Turno`, `Hora`, `Fecha`, `Especialidad`, `Estado`, `Sala`.
+### 6.9 `sp_FinalizarAtencion`
+- **Descripción:** Versión previa para la finalización de atención de turnos y liberación de salas. Superado por `sp_FinalizarAtencionTurno` (que incorpora validación con THROW 50084, registro de evolución diagnóstica y control transaccional).
+- **Entidad:** Turno / Sala
+- **Operación:** Cierre Consulta (Legado)
+- **Tablas:** `Turnos`, `Salas`
+- **Forms que lo utilizan:** Ninguno actualmente (superado por `sp_FinalizarAtencionTurno`).
+- **Acción:** N/A
+- **Estado:** `NO UTILIZADO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdTurno` | `INT` | IN | ID del turno a finalizar. |
+  | `@IdSala` | `INT` | IN | ID de la sala a liberar. |
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_ListarTurnosGeneralesPantalla
+CREATE OR ALTER PROCEDURE sp_FinalizarAtencion
+    @IdTurno INT,
+    @IdSala INT
 AS
 BEGIN
-    SET NOCOUNT ON;
+    -- 1. Marcar el turno como Atendido
+    UPDATE Turnos
+    SET Estado = 'Atendido',
+        FechaModificacion = GETDATE()
+    WHERE IdTurno = @IdTurno;
 
-    SELECT 
-        t.NroOrden AS Turno,
-        CONVERT(VARCHAR(5), t.Horario, 108) AS Hora,
-        CONVERT(VARCHAR(10), t.Fecha, 103) AS Fecha,
-        ISNULL(e.Nombre, 'General') AS Especialidad,
-        t.Estado,
-        ISNULL(s.NombreSala, '--') AS Sala
-    FROM Turnos t
-    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
-    LEFT JOIN Salas s ON t.IdSala = s.IdSala
-    WHERE t.Activo = 1 
-      AND (t.TipoTurno <> 'Emergencia' OR t.TipoTurno IS NULL)
-      AND CAST(t.Fecha AS DATE) = CAST(GETDATE() AS DATE)
-    ORDER BY t.Horario ASC, t.FechaCreacion ASC;
+    -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
+    UPDATE Salas
+    SET EstadoSala = 'Libre',
+        FechaModificacion = GETDATE()
+    WHERE IdSala = @IdSala;
 END;
 GO
 ```
@@ -2558,7 +2644,7 @@ GO
 
 ## 8. Tabla Resumen General de Stored Procedures (dbGestionTurnos)
 
-A continuación se detalla el universo completo de los **45 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
+A continuación se detalla el universo completo de los **46 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
 
 | N° | Stored Procedure | Entidad | Operación | Componente / Form(s) | Acción dentro del Sistema | Estado en Proyecto |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -2577,7 +2663,7 @@ A continuación se detalla el universo completo de los **45 Stored Procedures** 
 | 13 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios activos | `EN USO` |
 | 14 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 15 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
-| 16 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a En Mantenimiento) | `EN USO` |
+| 16 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
 | 17 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
 | 18 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas activas | `EN USO` |
 | 19 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
@@ -2675,7 +2761,7 @@ A continuación se detalla el universo completo de los **45 Stored Procedures** 
 ### `MisSalas_PM`
 - `sp_ObtenerSalas` (`@IdUsuario = médico`) → Carga de la grilla de salas asignadas al médico logueado (`CargarMisSalas`).
 - `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando que el médico no tenga otra abierta.
-- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'En Mantenimiento' controlando que no esté ocupada con atención activa.
+- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
 - Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin` y `FrmGestionEspecialidades`.
