@@ -40,6 +40,8 @@ namespace Gestion_de_Turnos_Medicos
             ConfigurarDataGrid();
             CargarEstados();
             CargarPersonalMedicoDesdeBD();
+            chkMostrarInactivas.CheckedChanged += (s, e) => CargarSalasDesdeBD();
+            btnReactivar.Enabled = false;
             CargarSalasDesdeBD();
         }
 
@@ -115,7 +117,9 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Carga todas las salas registradas y activas desde la Capa de Negocio (BLL).
+        /// <summary>
+        /// Carga todas las salas registradas desde la Capa de Negocio (BLL).
+        /// Si chkMostrarInactivas está tildado, incluye también salas dadas de baja lógica.
         /// Agrupa las asignaciones de profesionales para mostrar una única fila por sala física en la grilla.
         /// </summary>
         private void CargarSalasDesdeBD()
@@ -126,7 +130,8 @@ namespace Gestion_de_Turnos_Medicos
             try
             {
                 // 1. Invocamos a la Capa de Negocio (SalaBLL) -> SalaDAL -> sp_ObtenerSalas
-                var salas = _salaBLL.ObtenerSalas(null);
+                bool mostrarInactivas = chkMostrarInactivas.Checked;
+                var salas = _salaBLL.ObtenerSalas(null, mostrarInactivas);
                 _salasCache = salas ?? new List<SalaDTO>();
 
                 if (_salasCache.Count > 0)
@@ -142,9 +147,16 @@ namespace Gestion_de_Turnos_Medicos
 
                         fila.Cells["id_sala"].Value = primera.IdSala;
                         fila.Cells["nombreSala"].Value = primera.NombreSala;
-                        fila.Cells["estadoSala"].Value = primera.EstadoSala;
+                        fila.Cells["estadoSala"].Value = primera.Activo ? primera.EstadoSala : $"{primera.EstadoSala} (Inactiva)";
 
-                        // 3. Concatenamos los nombres de los profesionales médicos asignados
+                        // 3. Estilo visual diferenciado si la sala está desactivada
+                        if (!primera.Activo)
+                        {
+                            fila.DefaultCellStyle.ForeColor = Color.FromArgb(120, 113, 108); // Gris atenuado
+                            fila.DefaultCellStyle.BackColor = Color.FromArgb(254, 242, 242); // Fondo tenue rojizo
+                        }
+
+                        // 4. Concatenamos los nombres de los profesionales médicos asignados
                         var medicos = grupo
                             .Where(g => !string.IsNullOrWhiteSpace(g.ApellidoMedico))
                             .Select(g => $"{g.ApellidoMedico}, {g.NombreMedico}")
@@ -197,6 +209,12 @@ namespace Gestion_de_Turnos_Medicos
             txtNombreSala.Text = fila.Cells["nombreSala"].Value?.ToString() ?? string.Empty;
 
             string estado = fila.Cells["estadoSala"].Value?.ToString() ?? "Disponible";
+            // Si tiene sufijo (Inactiva), limpiamos para el ComboBox
+            if (estado.EndsWith(" (Inactiva)"))
+            {
+                estado = estado.Replace(" (Inactiva)", "").Trim();
+            }
+
             int indiceEstado = cmbEstadoSala.FindStringExact(estado);
             if (indiceEstado >= 0)
             {
@@ -221,6 +239,25 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     clbPersonal.SetItemChecked(i, medicosAsignadosIds.Contains(med.IdUsuario));
                 }
+            }
+
+            // 5. Ajustamos disponibilidad de botones según si la sala está activa o inactiva
+            var salaObj = _salasCache.FirstOrDefault(s => s.IdSala == _idSalaSeleccionada);
+            bool esInactiva = salaObj != null && !salaObj.Activo;
+
+            if (esInactiva)
+            {
+                btnReactivar.Enabled = true;
+                btnEliminar.Enabled = false;
+                btnModificar.Enabled = true;
+                btnGuardar.Enabled = false;
+            }
+            else
+            {
+                btnReactivar.Enabled = false;
+                btnEliminar.Enabled = true;
+                btnModificar.Enabled = true;
+                btnGuardar.Enabled = true;
             }
         }
 
@@ -392,8 +429,59 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Evento del botón 'Limpiar' para cancelar la edición actual y resetear el formulario.
+        /// Evento disparado al presionar 'Re-dar de Alta Sala'.
+        /// Reactiva la sala seleccionada en la base de datos (Activo = 1, FechaBaja = NULL)
+        /// y aplica las modificaciones de nombre, estado o asignaciones médicas realizadas en el formulario.
         /// </summary>
+        private void btnReactivar_Click(object? sender, EventArgs e)
+        {
+            if (_idSalaSeleccionada <= 0)
+            {
+                MessageBox.Show("Por favor, seleccione una sala inactiva de la lista para reactivar.",
+                    "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!ValidarCampos())
+                return;
+
+            string nombreSala = txtNombreSala.Text.Trim();
+            string estadoSala = cmbEstadoSala.SelectedItem!.ToString()!;
+
+            var confirmar = MessageBox.Show($"¿Está seguro de que desea reactivar y dar de alta nuevamente la sala '{nombreSala}'?",
+                "Confirmar Reactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirmar != DialogResult.Yes)
+                return;
+
+            try
+            {
+                // 1. Reactivamos la sala y restauramos sus relaciones
+                _salaBLL.ReactivarSala(_idSalaSeleccionada);
+
+                // 2. Persistimos los datos del formulario (nombre, estado y médicos asignados)
+                List<int> idsMedicosSeleccionados = new List<int>();
+                foreach (var item in clbPersonal.CheckedItems)
+                {
+                    if (item is ItemMedico med)
+                        idsMedicosSeleccionados.Add(med.IdUsuario);
+                }
+
+                _salaBLL.ModificarSala(_idSalaSeleccionada, nombreSala, estadoSala, idsMedicosSeleccionados);
+
+                MessageBox.Show($"La sala '{nombreSala}' fue reactivada exitosamente.",
+                    "Reactivación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                CargarSalasDesdeBD();
+                LimpiarCampos();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al reactivar la sala:\n" + ex.Message,
+                    "Error al Reactivar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void btnLimpiar_Click(object? sender, EventArgs e)
         {
             LimpiarCampos();
@@ -431,6 +519,11 @@ namespace Gestion_de_Turnos_Medicos
             {
                 clbPersonal.SetItemChecked(i, false);
             }
+
+            btnReactivar.Enabled = false;
+            btnEliminar.Enabled = false;
+            btnModificar.Enabled = false;
+            btnGuardar.Enabled = true;
 
             dgvSalas.ClearSelection();
             txtNombreSala.Focus();

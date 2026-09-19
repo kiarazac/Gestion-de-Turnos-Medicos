@@ -11,9 +11,10 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         private readonly EspecialidadDAL _especialidadDAL = new EspecialidadDAL();
 
         // Método invocado por la UI para llenar listas desplegables o tablas[cite: 2].
-        public List<EspecialidadDTO> ObtenerEspecialidades()
+        // Soporta el parámetro opcional incluirInactivas para administración y auditoría de bajas.
+        public List<EspecialidadDTO> ObtenerEspecialidades(bool incluirInactivas = false)
         {
-            return _especialidadDAL.ListarEspecialidades();
+            return _especialidadDAL.ListarEspecialidades(incluirInactivas);
         }
 
         // Método invocado al querer crear una especialidad.
@@ -23,7 +24,33 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (string.IsNullOrWhiteSpace(nombre))
                 throw new ArgumentException("El nombre de la especialidad es obligatorio y no puede estar vacío.");
 
+            if (nombre.Trim().Length > 100)
+                throw new ArgumentException("El nombre de la especialidad no puede exceder los 100 caracteres.");
+
+            if (!Validaciones.EsNombreValido(nombre.Trim()))
+                throw new ArgumentException("El nombre de la especialidad solo debe contener letras y espacios.");
+
             _especialidadDAL.InsertarEspecialidad(nombre.Trim());
+        }
+
+        /// <summary>
+        /// Aplica reglas de negocio y delega en DAL la actualización del nombre de una especialidad existente.
+        /// </summary>
+        public void ModificarEspecialidad(int idEspecialidad, string nombre)
+        {
+            if (idEspecialidad <= 0)
+                throw new ArgumentException("El ID de la especialidad no es válido.");
+
+            if (string.IsNullOrWhiteSpace(nombre))
+                throw new ArgumentException("El nombre de la especialidad no puede estar vacío.");
+
+            if (nombre.Trim().Length > 100)
+                throw new ArgumentException("El nombre de la especialidad no puede superar los 100 caracteres.");
+
+            if (!Validaciones.EsNombreValido(nombre.Trim()))
+                throw new ArgumentException("El nombre de la especialidad solo debe contener letras y espacios.");
+
+            _especialidadDAL.ModificarEspecialidad(idEspecialidad, nombre.Trim());
         }
 
         // Método invocado para la baja de una especialidad.
@@ -34,6 +61,17 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("El ID de la especialidad proporcionado no es válido.");
 
             _especialidadDAL.EliminarEspecialidad(idEspecialidad);
+        }
+
+        /// <summary>
+        /// Valida el identificador y delega en DAL la reactivación lógica de la especialidad y sus asignaciones médicas.
+        /// </summary>
+        public void ReactivarEspecialidad(int idEspecialidad)
+        {
+            if (idEspecialidad <= 0)
+                throw new ArgumentException("El ID de la especialidad no es válido para reactivación.");
+
+            _especialidadDAL.ReactivarEspecialidad(idEspecialidad);
         }
 
         public List<EspecialidadDTO> ObtenerEspecialidadesPorMedico(int idUsuario)

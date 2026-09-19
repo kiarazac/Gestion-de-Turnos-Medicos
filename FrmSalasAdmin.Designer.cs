@@ -33,11 +33,13 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloHeader = new Label();
             pnlContenedorPrincipal = new Panel();
             pnlCardGrilla = new Panel();
+            chkMostrarInactivas = new CheckBox();
             lblTituloGrilla = new Label();
             dgvSalas = new DataGridView();
             pnlCardDatos = new Panel();
             pnlAcciones = new Panel();
             btnLimpiar = new Button();
+            btnReactivar = new Button();
             btnEliminar = new Button();
             btnModificar = new Button();
             btnGuardar = new Button();
@@ -74,7 +76,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubtituloHeader.ForeColor = Color.FromArgb(204, 251, 241);
             lblSubtituloHeader.Location = new Point(18, 34);
             lblSubtituloHeader.Name = "lblSubtituloHeader";
-            lblSubtituloHeader.Size = new Size(328, 15);
+            lblSubtituloHeader.Size = new Size(330, 15);
             lblSubtituloHeader.TabIndex = 1;
             lblSubtituloHeader.Text = "Administración de consultorios y asignación de profesionales";
             // 
@@ -85,7 +87,7 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloHeader.ForeColor = Color.White;
             lblTituloHeader.Location = new Point(16, 8);
             lblTituloHeader.Name = "lblTituloHeader";
-            lblTituloHeader.Size = new Size(295, 25);
+            lblTituloHeader.Size = new Size(289, 25);
             lblTituloHeader.TabIndex = 0;
             lblTituloHeader.Text = "Gestión de Consultorios y Salas";
             // 
@@ -106,6 +108,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             pnlCardGrilla.BackColor = Color.White;
             pnlCardGrilla.BorderStyle = BorderStyle.FixedSingle;
+            pnlCardGrilla.Controls.Add(chkMostrarInactivas);
             pnlCardGrilla.Controls.Add(lblTituloGrilla);
             pnlCardGrilla.Controls.Add(dgvSalas);
             pnlCardGrilla.Dock = DockStyle.Fill;
@@ -115,6 +118,19 @@ namespace Gestion_de_Turnos_Medicos
             pnlCardGrilla.Size = new Size(1101, 199);
             pnlCardGrilla.TabIndex = 1;
             // 
+            // chkMostrarInactivas
+            // 
+            chkMostrarInactivas.AutoSize = true;
+            chkMostrarInactivas.Cursor = Cursors.Hand;
+            chkMostrarInactivas.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            chkMostrarInactivas.ForeColor = Color.FromArgb(71, 85, 105);
+            chkMostrarInactivas.Location = new Point(310, 9);
+            chkMostrarInactivas.Name = "chkMostrarInactivas";
+            chkMostrarInactivas.Size = new Size(149, 19);
+            chkMostrarInactivas.TabIndex = 2;
+            chkMostrarInactivas.Text = "Mostrar salas inactivas";
+            chkMostrarInactivas.UseVisualStyleBackColor = true;
+            // 
             // lblTituloGrilla
             // 
             lblTituloGrilla.AutoSize = true;
@@ -122,7 +138,7 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloGrilla.ForeColor = Color.FromArgb(30, 41, 59);
             lblTituloGrilla.Location = new Point(12, 8);
             lblTituloGrilla.Name = "lblTituloGrilla";
-            lblTituloGrilla.Size = new Size(270, 20);
+            lblTituloGrilla.Size = new Size(285, 20);
             lblTituloGrilla.TabIndex = 0;
             lblTituloGrilla.Text = "📋 Salas Registradas en el Sistema (BD)";
             // 
@@ -167,6 +183,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.BackColor = Color.FromArgb(248, 250, 252);
             pnlAcciones.BorderStyle = BorderStyle.FixedSingle;
             pnlAcciones.Controls.Add(btnLimpiar);
+            pnlAcciones.Controls.Add(btnReactivar);
             pnlAcciones.Controls.Add(btnEliminar);
             pnlAcciones.Controls.Add(btnModificar);
             pnlAcciones.Controls.Add(btnGuardar);
@@ -192,6 +209,22 @@ namespace Gestion_de_Turnos_Medicos
             btnLimpiar.Text = "🔄 Limpiar Campos";
             btnLimpiar.UseVisualStyleBackColor = false;
             btnLimpiar.Click += btnLimpiar_Click;
+            // 
+            // btnReactivar
+            // 
+            btnReactivar.BackColor = Color.FromArgb(13, 148, 136);
+            btnReactivar.Cursor = Cursors.Hand;
+            btnReactivar.FlatAppearance.BorderSize = 0;
+            btnReactivar.FlatStyle = FlatStyle.Flat;
+            btnReactivar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnReactivar.ForeColor = Color.White;
+            btnReactivar.Location = new Point(535, 8);
+            btnReactivar.Name = "btnReactivar";
+            btnReactivar.Size = new Size(175, 32);
+            btnReactivar.TabIndex = 4;
+            btnReactivar.Text = "♻ Reactivar";
+            btnReactivar.UseVisualStyleBackColor = false;
+            btnReactivar.Click += btnReactivar_Click;
             // 
             // btnEliminar
             // 
@@ -248,7 +281,7 @@ namespace Gestion_de_Turnos_Medicos
             clbPersonal.FormattingEnabled = true;
             clbPersonal.Location = new Point(460, 48);
             clbPersonal.Name = "clbPersonal";
-            clbPersonal.Size = new Size(360, 80);
+            clbPersonal.Size = new Size(360, 76);
             clbPersonal.TabIndex = 6;
             // 
             // lblPersonal
@@ -258,7 +291,7 @@ namespace Gestion_de_Turnos_Medicos
             lblPersonal.ForeColor = Color.FromArgb(15, 118, 110);
             lblPersonal.Location = new Point(460, 30);
             lblPersonal.Name = "lblPersonal";
-            lblPersonal.Size = new Size(183, 15);
+            lblPersonal.Size = new Size(168, 15);
             lblPersonal.TabIndex = 5;
             lblPersonal.Text = "👨‍⚕️ Personal Médico Asignado:";
             // 
@@ -279,7 +312,7 @@ namespace Gestion_de_Turnos_Medicos
             lblEstadoSala.ForeColor = Color.FromArgb(51, 65, 85);
             lblEstadoSala.Location = new Point(16, 87);
             lblEstadoSala.Name = "lblEstadoSala";
-            lblEstadoSala.Size = new Size(149, 15);
+            lblEstadoSala.Size = new Size(143, 15);
             lblEstadoSala.TabIndex = 3;
             lblEstadoSala.Text = "Estado de Disponibilidad:";
             // 
@@ -299,7 +332,7 @@ namespace Gestion_de_Turnos_Medicos
             lblNombreSala.ForeColor = Color.FromArgb(51, 65, 85);
             lblNombreSala.Location = new Point(16, 34);
             lblNombreSala.Name = "lblNombreSala";
-            lblNombreSala.Size = new Size(198, 15);
+            lblNombreSala.Size = new Size(184, 15);
             lblNombreSala.TabIndex = 1;
             lblNombreSala.Text = "Nombre de la Sala / Consultorio:";
             // 
@@ -310,7 +343,7 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloDatos.ForeColor = Color.FromArgb(30, 41, 59);
             lblTituloDatos.Location = new Point(12, 10);
             lblTituloDatos.Name = "lblTituloDatos";
-            lblTituloDatos.Size = new Size(279, 19);
+            lblTituloDatos.Size = new Size(275, 19);
             lblTituloDatos.TabIndex = 0;
             lblTituloDatos.Text = "🏢 Configuración del Consultorio / Sala";
             // 
@@ -353,9 +386,11 @@ namespace Gestion_de_Turnos_Medicos
         private Button btnGuardar;
         private Button btnModificar;
         private Button btnEliminar;
+        private Button btnReactivar;
         private Button btnLimpiar;
         private Panel pnlCardGrilla;
         private Label lblTituloGrilla;
+        private CheckBox chkMostrarInactivas;
         private DataGridView dgvSalas;
     }
 }

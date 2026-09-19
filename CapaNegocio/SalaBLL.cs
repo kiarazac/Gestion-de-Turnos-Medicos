@@ -13,9 +13,17 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         private readonly SalaDAL _salaDAL = new SalaDAL();
 
         // Método que la interfaz llama para obtener las salas. Pasa la responsabilidad a la DAL.
-        public List<SalaDTO> ObtenerSalas(int? idUsuario = null)
+        public List<SalaDTO> ObtenerSalas(int? idUsuario = null, bool incluirInactivas = false)
         {
-            return _salaDAL.ObtenerSalas(idUsuario);
+            return _salaDAL.ObtenerSalas(idUsuario, incluirInactivas);
+        }
+
+        public void ReactivarSala(int idSala)
+        {
+            if (idSala <= 0)
+                throw new ArgumentException("El identificador de la sala a reactivar no es válido.");
+
+            _salaDAL.ReactivarSala(idSala);
         }
 
         // Método invocado cuando un médico intenta abrir una sala al iniciar su jornada[cite: 1].

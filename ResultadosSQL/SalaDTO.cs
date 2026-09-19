@@ -15,5 +15,6 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public string? NombreMedico { get; set; }
         public string? ApellidoMedico { get; set; }
         public string? DescripcionAtencion { get; set; }
+        public bool Activo { get; set; } = true;
     }
 }

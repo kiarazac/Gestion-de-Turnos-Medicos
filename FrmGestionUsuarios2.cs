@@ -94,11 +94,7 @@ namespace Gestion_de_Turnos_Medicos
                 cmbRol.SelectedIndex = 0;
 
             DesmarcarChecklists();
-
-            // Configuramos el distintivo de estado inicial
-            lblEstadoDni.Text = "Esperando ingreso de DNI...";
-            lblEstadoDni.BackColor = Color.FromArgb(241, 245, 249);
-            lblEstadoDni.ForeColor = Color.FromArgb(100, 116, 139);
+            lblTituloDatosPersonales.Text = "👤 Datos Personales y de Cuenta";
 
             btnGuardar.Enabled = false;
             btnModificar.Enabled = false;
@@ -169,9 +165,7 @@ namespace Gestion_de_Turnos_Medicos
                         // -------------------------------------------------------------
                         // CASO A: EL USUARIO ESTÁ ACTIVO -> MODO MODIFICACIÓN
                         // -------------------------------------------------------------
-                        lblEstadoDni.Text = $"✓ Usuario Registrado: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Modificación)";
-                        lblEstadoDni.BackColor = Color.FromArgb(209, 250, 229); // Verde suave
-                        lblEstadoDni.ForeColor = Color.FromArgb(6, 95, 70);    // Verde oscuro
+                        lblTituloDatosPersonales.Text = $"👤 Datos Personales: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Modificación)";
 
                         PrecargarDatosUsuario(usuarioExistente);
 
@@ -185,9 +179,7 @@ namespace Gestion_de_Turnos_Medicos
                         // -------------------------------------------------------------
                         // CASO B: EL USUARIO ESTÁ INACTIVO -> MODO REACTIVACIÓN / RE-DAR DE ALTA
                         // -------------------------------------------------------------
-                        lblEstadoDni.Text = $"⚠️ Usuario Inactivo / Dado de Baja: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Reactivación)";
-                        lblEstadoDni.BackColor = Color.FromArgb(254, 243, 199); // Ámbar suave
-                        lblEstadoDni.ForeColor = Color.FromArgb(146, 64, 14);   // Ámbar oscuro
+                        lblTituloDatosPersonales.Text = $"⚠️ Usuario Inactivo: {usuarioExistente.Apellido}, {usuarioExistente.Nombre} (Modo Reactivación)";
 
                         PrecargarDatosUsuario(usuarioExistente);
 
@@ -207,9 +199,7 @@ namespace Gestion_de_Turnos_Medicos
                     // -------------------------------------------------------------
                     _idUsuarioSeleccionado = 0;
 
-                    lblEstadoDni.Text = "＋ Nuevo Usuario: Ingrese los datos para el alta (Modo Registro)";
-                    lblEstadoDni.BackColor = Color.FromArgb(224, 242, 254); // Azul suave
-                    lblEstadoDni.ForeColor = Color.FromArgb(7, 89, 133);    // Azul oscuro
+                    lblTituloDatosPersonales.Text = "👤 Nuevo Usuario: Ingrese los datos para el alta (Modo Registro)";
 
                     // Fijamos el DNI verificado y limpiamos el resto de campos
                     txtDniVerificado.Text = dniIngresado;

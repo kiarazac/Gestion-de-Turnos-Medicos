@@ -62,7 +62,6 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloDatosPersonales = new Label();
             pnlPaso1Dni = new Panel();
             btnReiniciarDni = new Button();
-            lblEstadoDni = new Label();
             btnVerificarDni = new Button();
             txtDniBusqueda = new TextBox();
             lblInstruccionDni = new Label();
@@ -86,7 +85,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Location = new Point(0, 0);
             pnlHeader.Name = "pnlHeader";
-            pnlHeader.Size = new Size(1180, 60);
+            pnlHeader.Size = new Size(1168, 60);
             pnlHeader.TabIndex = 0;
             // 
             // lblSubtituloHeader
@@ -122,7 +121,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenedorPrincipal.Location = new Point(0, 60);
             pnlContenedorPrincipal.Name = "pnlContenedorPrincipal";
             pnlContenedorPrincipal.Padding = new Padding(16);
-            pnlContenedorPrincipal.Size = new Size(1180, 690);
+            pnlContenedorPrincipal.Size = new Size(1168, 690);
             pnlContenedorPrincipal.TabIndex = 1;
             // 
             // pnlGrillaCard
@@ -136,7 +135,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlGrillaCard.Location = new Point(16, 442);
             pnlGrillaCard.Name = "pnlGrillaCard";
             pnlGrillaCard.Padding = new Padding(12);
-            pnlGrillaCard.Size = new Size(1148, 230);
+            pnlGrillaCard.Size = new Size(1136, 230);
             pnlGrillaCard.TabIndex = 2;
             // 
             // chkMostrarInactivos
@@ -178,7 +177,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvPersonal.ReadOnly = true;
             dgvPersonal.RowHeadersVisible = false;
             dgvPersonal.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvPersonal.Size = new Size(1122, 178);
+            dgvPersonal.Size = new Size(1110, 178);
             dgvPersonal.TabIndex = 1;
             dgvPersonal.CellClick += dgvPersonal_CellClick;
             // 
@@ -193,14 +192,13 @@ namespace Gestion_de_Turnos_Medicos
             pnlFormularioDatos.Location = new Point(16, 88);
             pnlFormularioDatos.Name = "pnlFormularioDatos";
             pnlFormularioDatos.Padding = new Padding(12);
-            pnlFormularioDatos.Size = new Size(1148, 354);
+            pnlFormularioDatos.Size = new Size(1136, 354);
             pnlFormularioDatos.TabIndex = 1;
             // 
             // pnlAcciones
             // 
             pnlAcciones.BackColor = Color.FromArgb(248, 250, 252);
             pnlAcciones.BorderStyle = BorderStyle.FixedSingle;
-            pnlAcciones.Controls.Add(txtBuscarUsuario);
             pnlAcciones.Controls.Add(btnLimpiar);
             pnlAcciones.Controls.Add(btnReactivar);
             pnlAcciones.Controls.Add(btnEliminar);
@@ -209,20 +207,8 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.Dock = DockStyle.Bottom;
             pnlAcciones.Location = new Point(12, 288);
             pnlAcciones.Name = "pnlAcciones";
-            pnlAcciones.Size = new Size(1122, 52);
+            pnlAcciones.Size = new Size(1110, 52);
             pnlAcciones.TabIndex = 2;
-            // 
-            // txtBuscarUsuario
-            // 
-            txtBuscarUsuario.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            txtBuscarUsuario.Font = new Font("Segoe UI", 9.75F);
-            txtBuscarUsuario.Location = new Point(720, 13);
-            txtBuscarUsuario.Name = "txtBuscarUsuario";
-            txtBuscarUsuario.PlaceholderText = "🔍 Buscar personal / usuario...";
-            txtBuscarUsuario.Size = new Size(235, 25);
-            txtBuscarUsuario.TabIndex = 5;
-            txtBuscarUsuario.TextChanged += txtBuscarUsuario_TextChanged;
-            txtBuscarUsuario.KeyDown += txtBuscarUsuario_KeyDown;
             // 
             // btnLimpiar
             // 
@@ -233,7 +219,7 @@ namespace Gestion_de_Turnos_Medicos
             btnLimpiar.FlatStyle = FlatStyle.Flat;
             btnLimpiar.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             btnLimpiar.ForeColor = Color.White;
-            btnLimpiar.Location = new Point(965, 8);
+            btnLimpiar.Location = new Point(953, 8);
             btnLimpiar.Name = "btnLimpiar";
             btnLimpiar.Size = new Size(144, 34);
             btnLimpiar.TabIndex = 3;
@@ -607,7 +593,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlPaso1Dni.BackColor = Color.White;
             pnlPaso1Dni.BorderStyle = BorderStyle.FixedSingle;
             pnlPaso1Dni.Controls.Add(btnReiniciarDni);
-            pnlPaso1Dni.Controls.Add(lblEstadoDni);
+            pnlPaso1Dni.Controls.Add(txtBuscarUsuario);
             pnlPaso1Dni.Controls.Add(btnVerificarDni);
             pnlPaso1Dni.Controls.Add(txtDniBusqueda);
             pnlPaso1Dni.Controls.Add(lblInstruccionDni);
@@ -616,7 +602,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlPaso1Dni.Location = new Point(16, 16);
             pnlPaso1Dni.Name = "pnlPaso1Dni";
             pnlPaso1Dni.Padding = new Padding(12);
-            pnlPaso1Dni.Size = new Size(1148, 72);
+            pnlPaso1Dni.Size = new Size(1136, 72);
             pnlPaso1Dni.TabIndex = 0;
             // 
             // btnReiniciarDni
@@ -628,7 +614,7 @@ namespace Gestion_de_Turnos_Medicos
             btnReiniciarDni.FlatStyle = FlatStyle.Flat;
             btnReiniciarDni.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnReiniciarDni.ForeColor = Color.White;
-            btnReiniciarDni.Location = new Point(995, 18);
+            btnReiniciarDni.Location = new Point(983, 18);
             btnReiniciarDni.Name = "btnReiniciarDni";
             btnReiniciarDni.Size = new Size(138, 34);
             btnReiniciarDni.TabIndex = 5;
@@ -636,18 +622,17 @@ namespace Gestion_de_Turnos_Medicos
             btnReiniciarDni.UseVisualStyleBackColor = false;
             btnReiniciarDni.Click += btnReiniciarDni_Click;
             // 
-            // lblEstadoDni
+            // txtBuscarUsuario
             // 
-            lblEstadoDni.AutoSize = true;
-            lblEstadoDni.BackColor = Color.FromArgb(241, 245, 249);
-            lblEstadoDni.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblEstadoDni.ForeColor = Color.FromArgb(71, 85, 105);
-            lblEstadoDni.Location = new Point(479, 24);
-            lblEstadoDni.Name = "lblEstadoDni";
-            lblEstadoDni.Padding = new Padding(8, 4, 8, 4);
-            lblEstadoDni.Size = new Size(197, 25);
-            lblEstadoDni.TabIndex = 4;
-            lblEstadoDni.Text = "Esperando ingreso de DNI...";
+            txtBuscarUsuario.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            txtBuscarUsuario.Font = new Font("Segoe UI", 10.5F);
+            txtBuscarUsuario.Location = new Point(485, 22);
+            txtBuscarUsuario.Name = "txtBuscarUsuario";
+            txtBuscarUsuario.PlaceholderText = "🔍 Buscar personal / usuario en la grilla...";
+            txtBuscarUsuario.Size = new Size(480, 26);
+            txtBuscarUsuario.TabIndex = 4;
+            txtBuscarUsuario.TextChanged += txtBuscarUsuario_TextChanged;
+            txtBuscarUsuario.KeyDown += txtBuscarUsuario_KeyDown;
             // 
             // btnVerificarDni
             // 
@@ -704,7 +689,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1180, 750);
+            ClientSize = new Size(1168, 750);
             Controls.Add(pnlContenedorPrincipal);
             Controls.Add(pnlHeader);
             Name = "FrmGestionUsuarios2";
@@ -738,7 +723,6 @@ namespace Gestion_de_Turnos_Medicos
         private Label lblInstruccionDni;
         private TextBox txtDniBusqueda;
         private Button btnVerificarDni;
-        private Label lblEstadoDni;
         private Button btnReiniciarDni;
         private Panel pnlFormularioDatos;
         private Panel pnlDatosPersonales;
