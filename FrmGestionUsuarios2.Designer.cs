@@ -85,6 +85,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Location = new Point(0, 0);
             pnlHeader.Name = "pnlHeader";
+
             pnlHeader.Size = new Size(1168, 60);
             pnlHeader.TabIndex = 0;
             // 
@@ -121,6 +122,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenedorPrincipal.Location = new Point(0, 60);
             pnlContenedorPrincipal.Name = "pnlContenedorPrincipal";
             pnlContenedorPrincipal.Padding = new Padding(16);
+
             pnlContenedorPrincipal.Size = new Size(1168, 690);
             pnlContenedorPrincipal.TabIndex = 1;
             // 
@@ -192,8 +194,8 @@ namespace Gestion_de_Turnos_Medicos
             pnlFormularioDatos.Location = new Point(16, 88);
             pnlFormularioDatos.Name = "pnlFormularioDatos";
             pnlFormularioDatos.Padding = new Padding(12);
-            pnlFormularioDatos.Size = new Size(1136, 354);
-            pnlFormularioDatos.TabIndex = 1;
+           pnlFormularioDatos.Size = new Size(1136, 354);
+           pnlFormularioDatos.TabIndex = 1;
             // 
             // pnlAcciones
             // 
@@ -210,6 +212,21 @@ namespace Gestion_de_Turnos_Medicos
             pnlAcciones.Size = new Size(1110, 52);
             pnlAcciones.TabIndex = 2;
             // 
+            // txtBuscarUsuario
+            // 
+            txtBuscarUsuario.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            txtBuscarUsuario.Font = new Font("Segoe UI", 9.75F);
+            txtBuscarUsuario.Location = new Point(829, 14);
+            txtBuscarUsuario.Name = "txtBuscarUsuario";
+            txtBuscarUsuario.PlaceholderText = "🔍 Buscar personal / usuario...";
+            txtBuscarUsuario.Size = new Size(235, 25);
+            txtBuscarUsuario.TabIndex = 5;
+            txtBuscarUsuario.TextChanged += txtBuscarUsuario_TextChanged;
+            txtBuscarUsuario.KeyDown += txtBuscarUsuario_KeyDown;
+            // 
+
+            
+            // 
             // btnLimpiar
             // 
             btnLimpiar.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -221,7 +238,7 @@ namespace Gestion_de_Turnos_Medicos
             btnLimpiar.ForeColor = Color.White;
             btnLimpiar.Location = new Point(953, 8);
             btnLimpiar.Name = "btnLimpiar";
-            btnLimpiar.Size = new Size(144, 34);
+            btnLimpiar.Size = new Size(96, 34);
             btnLimpiar.TabIndex = 3;
             btnLimpiar.Text = "🔄 Reiniciar / Limpiar";
             btnLimpiar.UseVisualStyleBackColor = false;
