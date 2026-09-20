@@ -12,20 +12,72 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
     // La Capa de Datos (DAL) es la ÚNICA que se comunica con SQL Server, utilizando exclusivamente dbTurnosMedicos (EF Core)[cite: 2].
     public class SalaDAL
     {
-        // Ejecuta el procedimiento sp_ObtenerSalas.
-        // Retorna una lista de SalaDTO. Si se le pasa un idUsuario, trae solo las de ese médico; si es null, trae todas (ideal para el administrador)[cite: 2].
-        public List<SalaDTO> ObtenerSalas(int? idUsuario = null)
+        /// <summary>
+        /// Ejecuta el procedimiento sp_ObtenerSalas o consulta directa resiliente.
+        /// Retorna una lista de SalaDTO. Si se le pasa un idUsuario, trae solo las de ese médico; si es null, trae todas.
+        /// Soporta el parámetro opcional incluirInactivas para listar salas dadas de baja lógica.
+        /// </summary>
+        public List<SalaDTO> ObtenerSalas(int? idUsuario = null, bool incluirInactivas = false)
         {
-            // Instanciamos tu contexto personalizado de Entity Framework Core[cite: 2].
             using (var context = new dbTurnosMedicos())
             {
-                // Preparamos el parámetro SQL de forma segura y tipada para evitar ataques de inyección SQL[cite: 2].
                 var paramUsuario = new SqlParameter("@IdUsuario", (object)idUsuario ?? DBNull.Value);
+                var paramInactivas = new SqlParameter("@IncluirInactivas", incluirInactivas);
 
-                // SqlQueryRaw se usa cuando esperamos que la base de datos nos devuelva registros (filas y columnas) que debemos mapear a una clase[cite: 2].
-                return context.Database
-                    .SqlQueryRaw<SalaDTO>("EXEC sp_ObtenerSalas @IdUsuario", paramUsuario)
-                    .ToList(); // Materializamos el resultado a una lista genérica de C#.
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<SalaDTO>("EXEC sp_ObtenerSalas @IdUsuario, @IncluirInactivas", paramUsuario, paramInactivas)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    // Fallback SQL directo con soporte de filtrado activo e histórico:
+                    string sql = @"
+                        SELECT 
+                            s.IdSala,
+                            s.NombreSala,
+                            s.EstadoSala,
+                            ds.IdUsuario,
+                            u.Nombre AS NombreMedico,
+                            u.Apellido AS ApellidoMedico,
+                            ISNULL(ds.DescripcionAtencion, '') AS DescripcionAtencion,
+                            s.Activo
+                        FROM Salas s
+                        LEFT JOIN DetallesSalas ds ON s.IdSala = ds.IdSala AND (ds.Activo = 1 OR s.Activo = 0)
+                        LEFT JOIN Usuarios u ON ds.IdUsuario = u.IdUsuario AND u.Activo = 1
+                        WHERE (@IncluirInactivas = 1 OR s.Activo = 1)
+                          AND (@IdUsuario IS NULL OR ds.IdUsuario = @IdUsuario)
+                        ORDER BY s.Activo DESC, s.NombreSala ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<SalaDTO>(sql, paramInactivas, paramUsuario)
+                        .ToList();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reactiva o re-da de alta lógicamente una sala en el sistema (Activo = 1, FechaBaja = NULL)
+        /// y restaura sus asignaciones históricas en DetallesSalas.
+        /// </summary>
+        /// <param name="idSala">Identificador único de la sala a reactivar.</param>
+        public void ReactivarSala(int idSala)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdSala = new SqlParameter("@IdSala", idSala);
+                try
+                {
+                    context.Database.ExecuteSqlRaw("EXEC sp_ReactivarSala @IdSala", pIdSala);
+                }
+                catch (SqlException ex) when (ex.Number == 2812) // Si no existe el SP en el motor
+                {
+                    context.Database.ExecuteSqlRaw(
+                        @"UPDATE Salas SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdSala = @IdSala;
+                          UPDATE DetallesSalas SET Activo = 1, FechaBaja = NULL WHERE IdSala = @IdSala;",
+                        pIdSala);
+                }
             }
         }
 

@@ -846,22 +846,24 @@ GO
 ---
 
 ### 2.4 `sp_ObtenerSalas`
-- **Descripción:** Lista las salas activas. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil.
+- **Descripción:** Lista las salas de atención médica. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar salas dadas de baja lógica en `FrmSalasAdmin`.
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Listado / Consulta
 - **Tablas:** `Salas`, `DetallesSalas`, `Usuarios`
 - **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM`
-- **Acción:** Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`)
+- **Acción:** Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`, `chkMostrarInactivas_CheckedChanged`)
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@IdUsuario` | `INT = NULL` | IN | ID opcional del médico. |
-- **Devuelve:** `IdSala`, `NombreSala`, `EstadoSala`, `IdUsuario`, `NombreMedico`, `ApellidoMedico`, `DescripcionAtencion`.
+  | `@IdUsuario` | `INT = NULL` | IN | ID opcional del médico. Si es NULL, lista todos los consultorios. |
+  | `@IncluirInactivas` | `BIT = 0` | IN | Si es 1, incluye salas dadas de baja lógica (`Activo = 0`). |
+- **Devuelve:** `IdSala`, `NombreSala`, `EstadoSala`, `IdUsuario`, `NombreMedico`, `ApellidoMedico`, `DescripcionAtencion`, `Activo`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ObtenerSalas
-    @IdUsuario INT = NULL
+    @IdUsuario INT = NULL,
+    @IncluirInactivas BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -873,13 +875,14 @@ BEGIN
         ds.IdUsuario,
         u.Nombre AS NombreMedico,
         u.Apellido AS ApellidoMedico,
-        ISNULL(ds.DescripcionAtencion, '') AS DescripcionAtencion
+        ISNULL(ds.DescripcionAtencion, '') AS DescripcionAtencion,
+        s.Activo
     FROM Salas s
-    LEFT JOIN DetallesSalas ds ON s.IdSala = ds.IdSala AND ds.Activo = 1
+    LEFT JOIN DetallesSalas ds ON s.IdSala = ds.IdSala AND (ds.Activo = 1 OR s.Activo = 0)
     LEFT JOIN Usuarios u ON ds.IdUsuario = u.IdUsuario AND u.Activo = 1
-    WHERE s.Activo = 1
+    WHERE (@IncluirInactivas = 1 OR s.Activo = 1)
       AND (@IdUsuario IS NULL OR ds.IdUsuario = @IdUsuario)
-    ORDER BY s.NombreSala ASC;
+    ORDER BY s.Activo DESC, s.NombreSala ASC;
 END;
 GO
 ```
@@ -1117,29 +1120,103 @@ GO
 
 ---
 
-## Módulo 3: Especialidades Médicas
-
-### 3.1 `sp_ListarEspecialidades` / `sp_ObtenerEspecialidades`
-- **Descripción:** Obtiene la lista completa de especialidades médicas activas para grillas de administración y selectores de turnos.
-- **Entidad:** Especialidad
-- **Operación:** Listado
-- **Tablas:** `Especialidades`
-- **Forms que lo utilizan:** `FrmGestionEspecialidades`, `FrmGestionUsuarios`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion`
-- **Acción:** Carga de catálogos y selectores
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
-- **Parámetros:** Ninguno.
-- **Devuelve:** `IdEspecialidad`, `Nombre`.
+### 2.9 `sp_ReactivarSala`
+- **Descripción:** Reactiva lógicamente una sala dada de baja previamente (`Activo = 1`, `FechaBaja = NULL`), restaura sus asignaciones históricas en `DetallesSalas` y valida existencia y estado actual.
+- **Entidad:** Sala / DetalleSala
+- **Operación:** Reactivación / Alta lógica
+- **Tablas:** `Salas`, `DetallesSalas`
+- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Acción:** Botón `btnReactivar` ("♻ Re-dar de Alta Sala")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdSala` | `INT` | IN | ID de la sala a reactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50043` | *La sala especificada no existe en el sistema.* | `@IdSala` inexistente en la tabla `Salas`. |
+  | `50044` | *La sala ya se encuentra activa en el sistema.* | La sala posee `Activo = 1`. |
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_ListarEspecialidades
+CREATE OR ALTER PROCEDURE sp_ReactivarSala
+    @IdSala INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT IdEspecialidad, Nombre
+    BEGIN TRY
+        -- 1. Validar existencia
+        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala)
+        BEGIN
+            THROW 50043, 'La sala especificada no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que no esté activa ya
+        IF EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
+        BEGIN
+            THROW 50044, 'La sala ya se encuentra activa en el sistema.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Reactivar sala
+        UPDATE Salas
+        SET Activo = 1,
+            FechaBaja = NULL,
+            FechaModificacion = GETDATE(),
+            EstadoSala = CASE WHEN EstadoSala = 'En Mantenimiento' THEN 'Disponible' ELSE EstadoSala END
+        WHERE IdSala = @IdSala;
+
+        -- 4. Reactivar asignaciones en DetallesSalas
+        UPDATE DetallesSalas
+        SET Activo = 1,
+            FechaBaja = NULL
+        WHERE IdSala = @IdSala;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+```
+
+---
+
+## Módulo 3: Especialidades Médicas
+
+### 3.1 `sp_ListarEspecialidades` / `sp_ObtenerEspecialidades`
+- **Descripción:** Obtiene la lista completa de especialidades médicas. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar especialidades dadas de baja lógica en `FrmGestionEspecialidades`.
+- **Entidad:** Especialidad
+- **Operación:** Listado
+- **Tablas:** `Especialidades`
+- **Forms que lo utilizan:** `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion`
+- **Acción:** Carga de catálogos, selectores y grilla administrativa (`chkMostrarInactivas_CheckedChanged`)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IncluirInactivas` | `BIT = 0` | IN | Si es 1, incluye especialidades dadas de baja lógica (`Activo = 0`). |
+- **Devuelve:** `IdEspecialidad`, `Nombre`, `Activo`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ListarEspecialidades
+    @IncluirInactivas BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        IdEspecialidad, 
+        Nombre,
+        Activo
     FROM Especialidades
-    WHERE Activo = 1
-    ORDER BY Nombre ASC;
+    WHERE (@IncluirInactivas = 1 OR Activo = 1)
+    ORDER BY Activo DESC, Nombre ASC;
 END;
 GO
 ```
@@ -1210,18 +1287,24 @@ GO
 ---
 
 ### 3.3 `sp_ModificarEspecialidad`
-- **Descripción:** Modifica el nombre de una especialidad existente.
+- **Descripción:** Modifica la denominación de una especialidad médica existente con validación de no duplicados y nombre no vacío.
 - **Entidad:** Especialidad
 - **Operación:** Modificación
 - **Tablas:** `Especialidades`
-- **Forms que lo utilizan:** Ninguno actualmente (`FrmGestionEspecialidades` gestiona altas y bajas).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO`
+- **Forms que lo utilizan:** `FrmGestionEspecialidades`
+- **Acción:** Botón `btnModificar` ("💾 Modificar Especialidad")
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
-  | `@Nombre` | `NVARCHAR(100)` | IN | Nuevo nombre. |
+  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad a modificar. |
+  | `@Nombre` | `NVARCHAR(100)` | IN | Nuevo nombre asignado. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50050` | *El nombre de la especialidad es obligatorio y no puede quedar vacío.* | `@Nombre` es nulo o cadena en blanco. |
+  | `50054` | *La especialidad a modificar no existe en el sistema.* | `@IdEspecialidad` no existe. |
+  | `50051` | *Ya existe otra especialidad activa registrada con este mismo nombre.* | `@Nombre` coincide con otra especialidad activa. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarEspecialidad
@@ -1231,10 +1314,36 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE Especialidades
-    SET Nombre = @Nombre,
-        FechaModificacion = GETDATE()
-    WHERE IdEspecialidad = @IdEspecialidad;
+    BEGIN TRY
+        -- 1. Validar existencia
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad)
+        BEGIN
+            THROW 50054, 'La especialidad a modificar no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que el nombre no esté en blanco
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50050, 'El nombre de la especialidad es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        -- 3. Validar unicidad entre especialidades activas
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND IdEspecialidad <> @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50051, 'Ya existe otra especialidad activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 4. Actualización
+        UPDATE Especialidades
+        SET Nombre = @Nombre,
+            FechaModificacion = GETDATE()
+        WHERE IdEspecialidad = @IdEspecialidad;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -1418,6 +1527,72 @@ BEGIN
       AND me.Activo = 1 
       AND e.Activo = 1
     ORDER BY e.Nombre ASC;
+END;
+GO
+```
+
+---
+
+### 3.7 `sp_ReactivarEspecialidad`
+- **Descripción:** Reactiva lógicamente una especialidad médica previamente desactivada (`Activo = 1`, `FechaBaja = NULL`), restaura sus vínculos históricos con profesionales médicos en `MedicosEspecialidades` y valida su existencia.
+- **Entidad:** Especialidad / MedicoEspecialidad
+- **Operación:** Reactivación / Alta lógica
+- **Tablas:** `Especialidades`, `MedicosEspecialidades`
+- **Forms que lo utilizan:** `FrmGestionEspecialidades`
+- **Acción:** Botón `btnReactivar` ("♻ Re-dar de Alta")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad a reactivar. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50055` | *La especialidad a reactivar no existe en el sistema.* | `@IdEspecialidad` inexistente en la tabla `Especialidades`. |
+  | `50056` | *La especialidad ya se encuentra activa en el sistema.* | La especialidad posee `Activo = 1`. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReactivarEspecialidad
+    @IdEspecialidad INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar existencia
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad)
+        BEGIN
+            THROW 50055, 'La especialidad a reactivar no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que no se encuentre activa ya
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50056, 'La especialidad ya se encuentra activa en el sistema.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Reactivación de la especialidad
+        UPDATE Especialidades
+        SET Activo = 1,
+            FechaBaja = NULL,
+            FechaModificacion = GETDATE()
+        WHERE IdEspecialidad = @IdEspecialidad;
+
+        -- 4. Reactivación en cascada de vínculos médicos en MedicosEspecialidades
+        UPDATE MedicosEspecialidades
+        SET Activo = 1,
+            FechaBaja = NULL
+        WHERE IdEspecialidad = @IdEspecialidad;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END;
 GO
 ```
@@ -2644,7 +2819,7 @@ GO
 
 ## 8. Tabla Resumen General de Stored Procedures (dbGestionTurnos)
 
-A continuación se detalla el universo completo de los **46 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
+A continuación se detalla el universo completo de los **47 Stored Procedures** principales (48 incluyendo `sp_ObtenerHistoriaClinicaPaciente`) existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
 
 | N° | Stored Procedure | Entidad | Operación | Componente / Form(s) | Acción dentro del Sistema | Estado en Proyecto |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -2660,39 +2835,41 @@ A continuación se detalla el universo completo de los **46 Stored Procedures** 
 | 10 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
 | 11 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
 | 12 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
-| 13 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios activos | `EN USO` |
-| 14 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
-| 15 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
-| 16 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
-| 17 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
-| 18 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas activas | `EN USO` |
-| 19 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
-| 20 | `sp_ModificarEspecialidad`| Especialidad | Modificación | Ninguno | Sin botón ni pantalla en el sistema | `NO UTILIZADO` |
-| 21 | `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
-| 22 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
-| 23 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
-| 24 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
-| 25 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
-| 26 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
-| 27 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
-| 28 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
-| 29 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
-| 30 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
-| 31 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
-| 32 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
-| 33 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
-| 34 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
-| 35 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
-| 36 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
-| 37 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
-| 38 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
-| 39 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
-| 40 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
-| 41 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
-| 42 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
-| 43 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
-| 44 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
-| 45 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
+| 13 | `sp_ReactivarSala` | Sala | Reactivación / Alta | `FrmSalasAdmin` | Botón `btnReactivar` (Re-dar de Alta Sala) | `EN USO` |
+| 14 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios (con soporte de inactivas) | `EN USO` |
+| 15 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 16 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
+| 17 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
+| 18 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
+| 19 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas (con soporte de inactivas) | `EN USO` |
+| 20 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
+| 21 | `sp_ModificarEspecialidad`| Especialidad | Modificación | `FrmGestionEspecialidades` | Botón `btnModificar` (Actualizar denominación) | `EN USO` |
+| 22 | `sp_EliminarEspecialidad`| Especialidad | Baja lógica | `FrmGestionEspecialidades` | Botón `btnDesactivar` | `EN USO` |
+| 23 | `sp_ReactivarEspecialidad`| Especialidad | Reactivación / Alta | `FrmGestionEspecialidades` | Botón `btnReactivar` (Re-dar de Alta Especialidad) | `EN USO` |
+| 24 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 25 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
+| 26 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
+| 27 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
+| 28 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
+| 29 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
+| 30 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
+| 31 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
+| 32 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
+| 33 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
+| 34 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
+| 35 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
+| 36 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
+| 37 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
+| 38 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
+| 39 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
+| 40 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
+| 41 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
+| 42 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
+| 43 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
+| 44 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
+| 45 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
+| 46 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
+| 47 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
 | * | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Módulo Médico (DAL/BLL) | Consulta histórica por paciente (pendiente de visor UI) | `PREPARADO EN BD` |
 
 ---
@@ -2719,16 +2896,19 @@ A continuación se detalla el universo completo de los **46 Stored Procedures** 
 
 ### `FrmSalasAdmin`
 - `sp_ListarPersonalMedico` → Carga del listado de médicos asignables a consultorios (`CargarPersonalMedicoDesdeBD`).
-- `sp_ObtenerSalas` → Carga y refresco de la grilla de salas (`CargarSalasDesdeBD`).
+- `sp_ObtenerSalas` → Carga y refresco de la grilla de salas (`CargarSalasDesdeBD`). Admite parámetro `@IncluirInactivas` según el estado del selector `chkMostrarInactivas`.
 - `sp_InsertarSala` → Botón "Guardar" (`btnGuardar_Click`). Registra la nueva sala con control de duplicados y estado válido.
-- `sp_ModificarSala` → Botón "Modificar" y edición directa en celdas de la grilla. Valida nombre y unicidad.
-- `sp_AsignarSalaMedico` → Botón "Guardar". Vincula los médicos seleccionados a la sala creada.
+- `sp_ModificarSala` → Botón "Modificar" (`btnModificar_Click`) y edición directa en celdas de la grilla. Actualiza nombre y estado operativo atómicamente.
+- `sp_AsignarSalaMedico` → Botón "Guardar" y "Modificar". Vincula los médicos seleccionados en el CheckedListBox a la sala física.
 - `sp_EliminarSala` → Botón "Eliminar" (`btnEliminar_Click`). Ejecuta la baja lógica de la sala y de sus asignaciones en cascada.
+- `sp_ReactivarSala` → Botón "Re-dar de Alta Sala" (`btnReactivar_Click`). Reactiva lógicamente salas dadas de baja lógica, restaurando sus vínculos históricos con médicos.
 
 ### `FrmGestionEspecialidades`
-- `sp_ListarEspecialidades` → Carga y refresco de la grilla de especialidades (`CargarEspecialidadesDesdeBD`).
-- `sp_InsertarEspecialidad` → Botón "Guardar" (`btnGuardar_Click`). Da de alta o reactiva una especialidad médica.
-- `sp_EliminarEspecialidad` → Botón "Desactivar" (`btnDesactivar_Click`). Ejecuta la baja lógica validando que no posea turnos activos.
+- `sp_ListarEspecialidades` → Carga y refresco de la grilla de especialidades (`CargarEspecialidadesDesdeBD`). Admite parámetro `@IncluirInactivas` mediante el selector `chkMostrarInactivas`.
+- `sp_InsertarEspecialidad` → Botón "Guardar Especialidad" (`btnGuardar_Click`). Registra una nueva especialidad médica en el catálogo.
+- `sp_ModificarEspecialidad` → Botón "Modificar Especialidad" (`btnModificar_Click`). Permite actualizar la denominación de la especialidad seleccionada con validaciones de unicidad.
+- `sp_EliminarEspecialidad` → Botón "Desactivar Especialidad" (`btnDesactivar_Click`). Ejecuta la baja lógica validando que no posea turnos activos y desactivando asignaciones médicas en cascada.
+- `sp_ReactivarEspecialidad` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Restituye lógicamente una especialidad inactiva y reactiva en cascada sus asignaciones profesionales.
 
 ### `FrmTurnoEmergencia`
 - `sp_ObtenerSintomas` → Carga del catálogo para categorización de triage (`CargarCatalogoSintomas`).
@@ -2780,7 +2960,7 @@ A continuación se detalla el universo completo de los **46 Stored Procedures** 
 
 ---
 
-## 9.1 Registro de Correcciones y Ajustes en Flujos de Modificación (Salas y Usuarios)
+## 9.1 Registro de Correcciones y Ajustes en Flujos de Modificación (Salas, Usuarios y Especialidades)
 
 A partir de la revisión técnica del flujo de modificación de entidades se detectaron y corrigieron los siguientes comportamientos en SQL Server y la Capa DAL/UI:
 
@@ -2800,13 +2980,18 @@ A partir de la revisión técnica del flujo de modificación de entidades se det
 - **Mejora aplicada:** Se garantizó que la comprobación de rol valide que el rol exista y esté activo (`Roles.Activo = 1`). Se protegió la actualización con `CASE WHEN @IdRol IS NOT NULL AND @IdRol > 0 THEN @IdRol ELSE IdRol END` para impedir que valores nulos o cero corrompan la clave foránea del usuario.
 
 ### 5. Resiliencia en Interfaz de Usuario (`FrmGestionUsuarios2.cs`)
-- **Mejora aplicada:** El método `EsPersonalMedico()` se generalizó para evaluar coincidencias insensibles a mayúsculas y acentos (`Contains("médic") || Contains("medic")`), asegurando que la sección médica (matrícula, especialidades y consultorios) se despliegue y valide con exactitud ante cualquier variación de catálogo.
+- **Mejora aplicada:** El método `EsPersonalMedico()` se generalizó para evaluar coincidencias insensibles a mayúsculas y acentos (`Contains("médic") || Contains("medic")`), asegurando que la sección médica (matrícula, especialidades y consultorios) se despliegue y valide con exactitud ante cualquier variación de catálogo. Además, se reubicó la barra de búsqueda en `pnlPaso1Dni` en sustitución de la etiqueta estática de espera, optimizando el espacio visual de los botones de acción en `pnlAcciones`.
+
+### 6. Habilitación de Modificación y Re-dar de Alta en Salas y Especialidades
+- **Mejora aplicada:**
+  - En **Salas (`FrmSalasAdmin`)**: Se añadió el botón `btnReactivar` y el filtro `chkMostrarInactivas` para listar salas inactivas con estilo visual diferenciado tenue y reactivarlas mediante `sp_ReactivarSala`. Se habilitó la modificación completa mediante `sp_ModificarSala` y `ReasignarMedicosASala`.
+  - En **Especialidades (`FrmGestionEspecialidades`)**: Se activó `sp_ModificarEspecialidad` vinculado al nuevo botón `btnModificar`, se incorporó `sp_ReactivarEspecialidad` con el botón `btnReactivar`, se agregó la columna "Estado" y el filtro `chkMostrarInactivas` para auditar e interactuar con especialidades inactivas.
 
 ---
 
 ## 10. Procedimientos Almacenados No Utilizados en el Proyecto
 
-A continuación se detallan exhaustivamente los **5 procedimientos almacenados** que se encuentran creados en la base de datos `dbGestionTurnos` pero que **NO son utilizados hasta el momento por el código del proyecto** (ni en la capa de interfaz WinForms ni en la lógica de negocio):
+A continuación se detallan exhaustivamente los **4 procedimientos almacenados** que se encuentran creados en la base de datos `dbGestionTurnos` pero que **NO son utilizados hasta el momento por el código del proyecto** (ni en la capa de interfaz WinForms ni en la lógica de negocio):
 
 ### 1. `sp_FinalizarAtencion`
 - **Firma en Base de Datos:** `@IdTurno INT, @IdSala INT`
@@ -2830,10 +3015,6 @@ A continuación se detallan exhaustivamente los **5 procedimientos almacenados**
   - **`sp_CrearTurnoEspecialidad`**: Genera automáticamente el código con la inicial de la especialidad (ej. `C-001`, `P-001`), asocia fecha y franja horaria y valida paciente y especialidad (códigos `50001` y `50003`).
   - **`sp_CrearTurnoEmergencia`**: Genera automáticamente el código de guardia `E-001`, asigna el nivel de triage y vincula el servicio de emergencias (códigos `50001` y `50002`).
 
-### 5. `sp_ModificarEspecialidad`
-- **Firma en Base de Datos:** `@IdEspecialidad INT, @Nombre NVARCHAR(100)`
-- **Motivo de no uso:** El formulario administrativo `FrmGestionEspecialidades` implementa exclusivamente las acciones de alta de nuevas especialidades (`btnGuardar` -> `sp_InsertarEspecialidad`) y de baja lógica (`btnDesactivar` -> `sp_EliminarEspecialidad`). No existe en la interfaz ningún botón, diálogo ni evento programado para editar o renombrar una especialidad ya registrada.
-- **Estado actual:** Permanece disponible en la base de datos para una eventual incorporación futura de funcionalidad de edición en pantalla.
-
 *(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra definido e implementado en la base de datos y referenciado en las capas de acceso a datos, pero la pantalla de visor de antecedentes médicos aún no ha sido incorporada al frontend WinForms).*
+
 

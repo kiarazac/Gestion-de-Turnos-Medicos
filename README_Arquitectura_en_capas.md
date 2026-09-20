@@ -145,6 +145,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string NombreMedico { get; set; }
   public string ApellidoMedico { get; set; }
   public string DescripcionAtencion { get; set; }
+  public bool Activo { get; set; } = true;
   ```
 
 ### 3.6 `EspecialidadDTO`
@@ -153,6 +154,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```csharp
   public int IdEspecialidad { get; set; }
   public string Nombre { get; set; }
+  public bool Activo { get; set; } = true;
   ```
 
 ### 3.7 `SintomaDTO`
@@ -438,14 +440,17 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `UsuarioBLL.ReactivarUsuario` | `UsuarioDAL.ReactivarUsuario` | `sp_ReactivarUsuario` |
 | | `UsuarioBLL.ObtenerUsuarioPorDni` | `UsuarioDAL.ObtenerUsuarioPorDni` | Consulta atómica por DNI (activos e inactivos) |
 | **`FrmSalasAdmin`** | `UsuarioBLL.ObtenerMedicos` | `UsuarioDAL.ListarPersonalMedico` | `sp_ListarPersonalMedico` |
-| | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
+| | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` (`@IdUsuario`, `@IncluirInactivas`) |
 | | `SalaBLL.RegistrarSala` | `SalaDAL.InsertarSala` | `sp_InsertarSala` |
 | | | `SalaDAL.AsignarSalaMedico` | `sp_AsignarSalaMedico` |
 | | `SalaBLL.ModificarSala` | `SalaDAL.ModificarSala` | `sp_ModificarSala` + `sp_AsignarSalaMedico` |
 | | `SalaBLL.EliminarSala` | `SalaDAL.EliminarSala` | `sp_EliminarSala` |
-| **`FrmGestionEspecialidades`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
+| | `SalaBLL.ReactivarSala` | `SalaDAL.ReactivarSala` | `sp_ReactivarSala` |
+| **`FrmGestionEspecialidades`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` (`@IncluirInactivas`) |
 | | `EspecialidadBLL.RegistrarEspecialidad`| `EspecialidadDAL.InsertarEspecialidad` | `sp_InsertarEspecialidad` |
+| | `EspecialidadBLL.ModificarEspecialidad`| `EspecialidadDAL.ModificarEspecialidad` | `sp_ModificarEspecialidad` |
 | | `EspecialidadBLL.EliminarEspecialidad` | `EspecialidadDAL.EliminarEspecialidad` | `sp_EliminarEspecialidad` |
+| | `EspecialidadBLL.ReactivarEspecialidad`| `EspecialidadDAL.ReactivarEspecialidad` | `sp_ReactivarEspecialidad` |
 | **`FrmTurnoEmergencia`** | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` |
 | | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_CrearTurnoEmergencia` |
