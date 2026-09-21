@@ -9,6 +9,11 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de atención médica integral en consultorio.
+    /// Gestiona la llamada al siguiente paciente en espera, el inicio y finalización del acto médico,
+    /// la redacción de diagnósticos y prescripción de fármacos, y la persistencia en historia clínica.
+    /// </summary>
     public partial class FrmListaTurnosAtencion : Form
     {
         // Estados posibles del puesto de trabajo (médico + consultorio).

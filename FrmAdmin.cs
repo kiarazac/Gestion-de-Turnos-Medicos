@@ -1,79 +1,92 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Contenedor principal para el panel de control del perfil Administrador.
+    /// Implementa un patrón de navegación por formularios hijos embebidos en el panel central.
+    /// </summary>
     public partial class FrmAdmin : Form
     {
-        // 1. Declaramos la variable privada para guardar los datos del usuario logueado en la memoria de este formulario
-        private ResultadosSQL.UsuarioLoginResult _usuarioActual;
+        private readonly UsuarioLoginResult _usuarioActual;
+        private Form? formularioActivo = null;
 
-        public FrmAdmin(ResultadosSQL.UsuarioLoginResult usuario)
+        /// <summary>
+        /// Inicializa el formulario principal de administración inyectando la sesión del usuario autenticado.
+        /// </summary>
+        /// <param name="usuario">Contexto de la sesión del usuario administrador (<see cref="UsuarioLoginResult"/>).</param>
+        public FrmAdmin(UsuarioLoginResult usuario)
         {
             InitializeComponent();
-
-            // 2. Atrapamos el objeto que nos envió el Login y lo guardamos
             _usuarioActual = usuario;
         }
 
-        // Variable para recordar qué formulario está abierto actualmente
-        private Form formularioActivo = null;
-
+        /// <summary>
+        /// Embebe un formulario hijo dentro del panel central (<c>pnlContenedor</c>), cerrando previamente el formulario activo si existiese.
+        /// </summary>
+        /// <param name="formHijo">Instancia del formulario a incrustar.</param>
         private void AbrirFormularioHijo(Form formHijo)
         {
-            // Si ya hay un formulario abierto, lo cerramos para no superponerlos
             if (formularioActivo != null)
             {
                 formularioActivo.Close();
             }
 
             formularioActivo = formHijo;
-
-            // Configuramos el formulario hijo para que se comporte como un control interno
             formHijo.TopLevel = false;
             formHijo.FormBorderStyle = FormBorderStyle.None;
             formHijo.Dock = DockStyle.Fill;
 
-            // pnlContenedor debe ser el nombre del panel central
             pnlContenedor.Controls.Add(formHijo);
             pnlContenedor.Tag = formHijo;
             formHijo.BringToFront();
             formHijo.Show();
         }
 
+        /// <summary>
+        /// Abre el módulo de gestión de usuarios y personal médico pasando el contexto de sesión.
+        /// </summary>
         private void btnPersonalMedico_Click(object sender, EventArgs e)
         {
-            // Se utiliza exclusivamente FrmGestionUsuarios2 pasando la sesión activa del administrador
             AbrirFormularioHijo(new FrmGestionUsuarios2(_usuarioActual));
         }
 
+        /// <summary>
+        /// Abre el módulo de administración de salas y consultorios físicos.
+        /// </summary>
         private void btnSalas_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmSalasAdmin());
         }
 
+        /// <summary>
+        /// Abre el módulo de administración de especialidades médicas.
+        /// </summary>
         private void btnEspecialidades_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmGestionEspecialidades());
         }
 
+        /// <summary>
+        /// Abre la versión 2.0 del módulo de gestión de usuarios con auditoría de bajas.
+        /// </summary>
         private void btnUsuarios2_Click(object sender, EventArgs e)
         {
-            // Abre la versión 2.0 pasando la sesión activa para control de auto-eliminación
             AbrirFormularioHijo(new FrmGestionUsuarios2(_usuarioActual));
         }
 
+        /// <summary>
+        /// Cierra la sesión activa del administrador y reabre el formulario de login.
+        /// </summary>
         private void btnSalir_Click(object sender, EventArgs e)
         {
-            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
-            Application.OpenForms["FrmLogin"].Show();
-
-            // 2. Cerramos la ventana actual por completo para liberar la memoria
+            var frmLogin = Application.OpenForms["FrmLogin"];
+            if (frmLogin != null)
+            {
+                frmLogin.Show();
+            }
             this.Close();
         }
     }

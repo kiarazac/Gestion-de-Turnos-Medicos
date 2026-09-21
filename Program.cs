@@ -1,16 +1,25 @@
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Clase principal que define el punto de entrada de la aplicación Windows Forms.
+    /// </summary>
     internal static class Program
     {
         /// <summary>
-        ///  The main entry point for the application.
+        /// Punto de entrada principal para la aplicación.
+        /// Configura el entorno de alta resolución (DPI), estilos visuales e inicia el ciclo de vida del formulario de Login.
         /// </summary>
+        /// <remarks>
+        /// El atributo [STAThread] (Single-Threaded Apartment) es mandatorio para aplicaciones Windows Forms
+        /// para permitir la correcta interacción con componentes COM del sistema operativo (cuadros de diálogo de archivos, portapapeles, etc.).
+        /// </remarks>
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            // Inicializa la configuración de la aplicación (DPI, renderizado de texto, fuentes del sistema)
             ApplicationConfiguration.Initialize();
+
+            // Inicia el bucle de mensajes de Windows ejecutando el formulario de autenticación inicial
             Application.Run(new FrmLogin());
         }
     }

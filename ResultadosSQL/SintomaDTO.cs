@@ -1,15 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
-    // Retorno del procedimiento sp_ObtenerSintomas. Sirve para cargar el triage dinámico en el formulario de recepción de emergencias (FrmTurnoEmergencia)[cite: 2].
+    /// <summary>
+    /// Objeto de transferencia de datos (DTO) que representa un síntoma clínico y su severidad de triage
+    /// retornado por el procedimiento almacenado <c>sp_ObtenerSintomas</c>.
+    /// </summary>
     public class SintomaDTO
     {
+        /// <summary>Identificador único del síntoma.</summary>
         public int IdSintoma { get; set; }
+
+        /// <summary>Descripción clínica o manifestación del síntoma.</summary>
         public string Descripcion { get; set; }
-        // La gravedad determina la prioridad automática en la cola FIFO del sistema[cite: 1].
+
+        /// <summary>Gravedad asociada al síntoma ('Alta', 'Media', 'Baja') determinante de la prioridad de atención.</summary>
         public string Gravedad { get; set; }
     }
 }

@@ -6,6 +6,10 @@ using Gestion_de_Turnos_Medicos.Negocio;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de administración de usuarios y personal médico (Versión 1.0 heredada).
+    /// Permite el alta, modificación y baja lógica de usuarios con asignación de roles, consultorios y especialidades.
+    /// </summary>
     public partial class FrmGestionUsuarios : Form
     {
         private const string ROL_PERSONAL_MEDICO = "Personal Médico";

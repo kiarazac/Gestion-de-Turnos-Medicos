@@ -1,22 +1,25 @@
-using Gestion_de_Turnos_Medicos;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 {
-    // La Capa de Datos (DAL) es la ÚNICA que se comunica con SQL Server, utilizando exclusivamente dbTurnosMedicos (EF Core)[cite: 2].
+    /// <summary>
+    /// Capa de acceso a datos (DAL) para la administración y persistencia de salas de atención médica,
+    /// estados operativos, apertura/cierre de consultorios y asignación de profesionales mediante Stored Procedures.
+    /// </summary>
     public class SalaDAL
     {
         /// <summary>
-        /// Ejecuta el procedimiento sp_ObtenerSalas o consulta directa resiliente.
-        /// Retorna una lista de SalaDTO. Si se le pasa un idUsuario, trae solo las de ese médico; si es null, trae todas.
-        /// Soporta el parámetro opcional incluirInactivas para listar salas dadas de baja lógica.
+        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerSalas</c> o consulta SQL resiliente.
+        /// Retorna una lista de <see cref="SalaDTO"/>. Permite filtrar por profesional médico e incluir salas inactivas.
         /// </summary>
+        /// <param name="idUsuario">ID del médico asignado (opcional).</param>
+        /// <param name="incluirInactivas">Si es <c>true</c>, incluye salas dadas de baja lógica.</param>
+        /// <returns>Lista de objetos <see cref="SalaDTO"/>.</returns>
         public List<SalaDTO> ObtenerSalas(int? idUsuario = null, bool incluirInactivas = false)
         {
             using (var context = new dbTurnosMedicos())
@@ -32,7 +35,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
                 catch (SqlException)
                 {
-                    // Fallback SQL directo con soporte de filtrado activo e histórico:
                     string sql = @"
                         SELECT 
                             s.IdSala,
@@ -58,8 +60,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Reactiva o re-da de alta lógicamente una sala en el sistema (Activo = 1, FechaBaja = NULL)
-        /// y restaura sus asignaciones históricas en DetallesSalas.
+        /// Reactiva una sala médica con baja lógica previa (<c>Activo = 1, FechaBaja = NULL</c>)
+        /// mediante <c>sp_ReactivarSala</c> con fallback SQL directo.
         /// </summary>
         /// <param name="idSala">Identificador único de la sala a reactivar.</param>
         public void ReactivarSala(int idSala)
@@ -71,7 +73,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 {
                     context.Database.ExecuteSqlRaw("EXEC sp_ReactivarSala @IdSala", pIdSala);
                 }
-                catch (SqlException ex) when (ex.Number == 2812) // Si no existe el SP en el motor
+                catch (SqlException ex) when (ex.Number == 2812)
                 {
                     context.Database.ExecuteSqlRaw(
                         @"UPDATE Salas SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdSala = @IdSala;
@@ -81,7 +83,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        // Ejecuta el procedimiento sp_AbrirSala.
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_AbrirSala</c> para habilitar el consultorio y vincular al médico presente.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala.</param>
+        /// <param name="idUsuario">Identificador del médico que abre la sala.</param>
         public void AbrirSala(int idSala, int idUsuario)
         {
             using (var context = new dbTurnosMedicos())
@@ -89,21 +95,29 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
 
-                // ExecuteSqlRaw se utiliza cuando hacemos operaciones (como cambios de estado, inserts o updates) que NO retornan tablas[cite: 2].
                 context.Database.ExecuteSqlRaw("EXEC sp_AbrirSala @IdSala, @IdUsuario", pIdSala, pIdUsuario);
             }
         }
 
-        // Ejecuta el procedimiento sp_CerrarSala.
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_CerrarSala</c> al finalizar la atención médica o jornada de trabajo.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala a cerrar.</param>
         public void CerrarSala(int idSala)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 context.Database.ExecuteSqlRaw("EXEC sp_CerrarSala @IdSala", pIdSala);
-    }
+            }
         }
 
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_InsertarSala</c> para dar de alta una nueva sala en el establecimiento.
+        /// </summary>
+        /// <param name="nombreSala">Nombre o número del consultorio.</param>
+        /// <param name="estadoSala">Estado operativo inicial ('Disponible', 'Ocupada').</param>
+        /// <returns>ID autogenerado de la nueva sala (<c>IdNuevaSala</c>).</returns>
         public int InsertarSala(string nombreSala, string estadoSala)
         {
             using (var context = new dbTurnosMedicos())
@@ -119,6 +133,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 return resultado != null ? resultado.IdNuevaSala : 0;
             }
         }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_EliminarSala</c> para aplicar la baja lógica a una sala médica.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala a dar de baja.</param>
         public void EliminarSala(int idSala)
         {
             using (var context = new dbTurnosMedicos())
@@ -128,6 +147,12 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_AsignarSalaMedico</c> para registrar la asignación de un profesional a una sala.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala.</param>
+        /// <param name="idUsuario">Identificador del médico.</param>
+        /// <param name="descripcionAtencion">Notas u observaciones sobre la atención prestada.</param>
         public void AsignarSalaMedico(int idSala, int idUsuario, string? descripcionAtencion = null)
         {
             using (var context = new dbTurnosMedicos())
@@ -140,7 +165,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        // Actualiza de manera genérica el estado operativo de una sala.
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ActualizarEstadoSala</c> para modificar el estado de disponibilidad del consultorio.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala.</param>
+        /// <param name="nuevoEstado">Nuevo estado ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
         public void ActualizarEstadoSala(int idSala, string nuevoEstado)
         {
             using (var context = new dbTurnosMedicos())
@@ -153,13 +182,12 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado sp_ModificarSala para actualizar el nombre de una sala existente.
-        /// Respeta la firma real de 2 parámetros en dbGestionTurnos (@IdSala, @NombreSala) y actualiza el campo EstadoSala si se especifica.
-        /// Utiliza parámetros tipados para proteger contra inyección SQL.
+        /// Ejecuta el procedimiento almacenado <c>sp_ModificarSala</c> para actualizar la denominación y estado operativo de un consultorio.
+        /// Cuenta con mecanismo de fallback si el procedimiento en la base de datos solo admite 2 parámetros.
         /// </summary>
         /// <param name="idSala">Identificador único de la sala a modificar.</param>
-        /// <param name="nombreSala">Nuevo nombre descriptivo para la sala.</param>
-        /// <param name="estadoSala">Estado operativo de la sala ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada').</param>
+        /// <param name="nombreSala">Nuevo nombre para la sala.</param>
+        /// <param name="estadoSala">Nuevo estado operativo de la sala (opcional).</param>
         public void ModificarSala(int idSala, string nombreSala, string? estadoSala = null)
         {
             using (var context = new dbTurnosMedicos())
@@ -170,16 +198,14 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
                 try
                 {
-                    // 2. Ejecutamos sp_ModificarSala con los 3 parámetros (@IdSala, @NombreSala, @EstadoSala)
                     context.Database.ExecuteSqlRaw("EXEC sp_ModificarSala @IdSala, @NombreSala, @EstadoSala", pIdSala, pNombreSala, pEstadoSala);
                 }
-                catch (SqlException ex) when (ex.Number == 8144) // Error 8144: Si el procedimiento en una BD legacy tuviera solo 2 parámetros
+                catch (SqlException ex) when (ex.Number == 8144)
                 {
                     var pIdSala2 = new SqlParameter("@IdSala", idSala);
                     var pNombreSala2 = new SqlParameter("@NombreSala", nombreSala);
                     context.Database.ExecuteSqlRaw("EXEC sp_ModificarSala @IdSala, @NombreSala", pIdSala2, pNombreSala2);
 
-                    // 3. Fallback: Si se especificó un estado de sala, actualizamos el campo EstadoSala manualmente
                     if (!string.IsNullOrWhiteSpace(estadoSala))
                     {
                         var pEstado = new SqlParameter("@EstadoSala", estadoSala);
@@ -194,8 +220,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Reasigna los profesionales médicos asignados a una sala de atención.
-        /// Aplica una baja lógica a las asignaciones activas existentes en DetallesSalas
-        /// y luego inserta las nuevas vinculaciones seleccionadas mediante el Stored Procedure existente sp_AsignarSalaMedico.
+        /// Aplica una baja lógica a las vinculaciones activas existentes en <c>DetallesSalas</c>
+        /// e inserta las nuevas vinculaciones mediante el procedimiento <c>sp_AsignarSalaMedico</c>.
         /// </summary>
         /// <param name="idSala">Identificador de la sala.</param>
         /// <param name="idsMedicos">Lista de identificadores de los usuarios médicos a vincular.</param>
@@ -203,11 +229,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         {
             using (var context = new dbTurnosMedicos())
             {
-                // 1. Damos de baja lógica las asignaciones activas actuales de la sala
                 var pIdSala = new SqlParameter("@IdSala", idSala);
                 context.Database.ExecuteSqlRaw("UPDATE DetallesSalas SET Activo = 0, FechaBaja = GETDATE() WHERE IdSala = @IdSala AND Activo = 1", pIdSala);
 
-                // 2. Insertamos las nuevas asignaciones seleccionadas por el administrador mediante sp_AsignarSalaMedico
                 if (idsMedicos != null && idsMedicos.Count > 0)
                 {
                     foreach (int idUsuario in idsMedicos)

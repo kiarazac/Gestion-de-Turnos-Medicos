@@ -1,24 +1,30 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
 using Gestion_de_Turnos_Medicos.CapaDeDatos;
 
 namespace Gestion_de_Turnos_Medicos.Negocio
 {
-    // Aísla la interfaz visual de la persistencia de datos y se asegura de que la información del paciente sea consistente[cite: 2].
+    /// <summary>
+    /// Capa de lógica de negocio para la gestión de pacientes y validación de datos filiatorios.
+    /// </summary>
     public class PacienteBLL
     {
         private readonly PacienteDAL _pacienteDAL = new PacienteDAL();
 
-        // Método que invoca el recepcionista (por ejemplo en FrmTurnoEmergencia o FrmTurnoEspecialidad) para registrar al paciente en el sistema mediante sus datos filiatorios[cite: 1, 2].
+        /// <summary>
+        /// Valida los datos filiatorios básicos y registra o actualiza un paciente en el sistema.
+        /// </summary>
+        /// <param name="nombre">Nombre(s) del paciente.</param>
+        /// <param name="apellido">Apellido(s) del paciente.</param>
+        /// <param name="dni">Documento Nacional de Identidad.</param>
+        /// <param name="obraSocial">Cobertura médica u obra social (opcional).</param>
+        /// <returns>Identificador único (<c>IdPaciente</c>) generado o existente en la base de datos.</returns>
+        /// <exception cref="ArgumentException">Se lanza si el nombre, apellido o DNI están vacíos.</exception>
         public int GuardarPaciente(string nombre, string apellido, string dni, string obraSocial)
         {
-            // Validación de negocio fundamental: no se puede registrar un paciente sin sus datos básicos identificatorios.
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido) || string.IsNullOrWhiteSpace(dni))
                 throw new ArgumentException("Nombre, apellido y DNI son campos obligatorios para registrar al paciente.");
 
-            // Pasamos los datos limpios de espacios extra a la capa de datos.
-            return _pacienteDAL.GuardarPaciente(nombre.Trim(), apellido.Trim(), dni.Trim(), obraSocial?.Trim());
+            return _pacienteDAL.GuardarPaciente(nombre.Trim(), apellido.Trim(), dni.Trim(), obraSocial?.Trim() ?? string.Empty);
         }
     }
 }
