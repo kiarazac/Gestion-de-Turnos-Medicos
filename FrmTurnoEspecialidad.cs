@@ -7,6 +7,10 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario para la gestión y programación de turnos médicos por especialidad.
+    /// Permite la búsqueda de pacientes por DNI, selección de especialidad médica, consulta de horarios disponibles y emisión del ticket de turno.
+    /// </summary>
     public partial class FrmTurnoEspecialidad : Form
     {
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();

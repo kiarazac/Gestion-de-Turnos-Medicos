@@ -5,19 +5,30 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos.Negocio
 {
-    // La Capa de Negocio (BLL) funciona como puente entre la Interfaz Gráfica (Formularios) y la Capa de Datos (DAL)[cite: 2].
-    // Su propósito es procesar las reglas de dominio médico y administrativo antes de interactuar con la base de datos[cite: 2].
+    /// <summary>
+    /// Capa de lógica de negocio para la administración de salas y consultorios médicos,
+    /// control de disponibilidad física, apertura y cierre de jornada, y asignación de profesionales de la salud.
+    /// </summary>
     public class SalaBLL
     {
-        // Instancia privada de la clase DAL. Los formularios de la UI nunca ven ni tocan esta instancia[cite: 2].
         private readonly SalaDAL _salaDAL = new SalaDAL();
 
-        // Método que la interfaz llama para obtener las salas. Pasa la responsabilidad a la DAL.
+        /// <summary>
+        /// Obtiene el catálogo de salas físicas, permitiendo filtrar por profesional asignado e incluir salas dadas de baja lógica.
+        /// </summary>
+        /// <param name="idUsuario">Identificador opcional del médico para filtrar sus salas asignadas.</param>
+        /// <param name="incluirInactivas">Indica si se deben incorporar salas desactivadas (<c>Activo = 0</c>).</param>
+        /// <returns>Lista de objetos <see cref="SalaDTO"/>.</returns>
         public List<SalaDTO> ObtenerSalas(int? idUsuario = null, bool incluirInactivas = false)
         {
             return _salaDAL.ObtenerSalas(idUsuario, incluirInactivas);
         }
 
+        /// <summary>
+        /// Reactiva lógicamente una sala médica que se encontraba dada de baja en el sistema.
+        /// </summary>
+        /// <param name="idSala">Identificador único de la sala.</param>
+        /// <exception cref="ArgumentException">Se lanza si el ID es menor o igual a cero.</exception>
         public void ReactivarSala(int idSala)
         {
             if (idSala <= 0)
@@ -26,19 +37,25 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             _salaDAL.ReactivarSala(idSala);
         }
 
-        // Método invocado cuando un médico intenta abrir una sala al iniciar su jornada[cite: 1].
+        /// <summary>
+        /// Registra la apertura de una sala por parte de un profesional médico al iniciar su turno o jornada.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala a abrir.</param>
+        /// <param name="idUsuario">Identificador del médico que toma posesión del consultorio.</param>
+        /// <exception cref="ArgumentException">Se lanza si el identificador de sala o usuario es inválido.</exception>
         public void AbrirSala(int idSala, int idUsuario)
         {
-            // Validación de dominio: comprobamos que la UI no envíe identificadores erróneos (como 0 o negativos) antes de golpear SQL Server[cite: 2].
             if (idSala <= 0 || idUsuario <= 0)
                 throw new ArgumentException("Los identificadores de sala y usuario son requeridos para abrir la sala.");
 
-            // Si pasa las validaciones, ordenamos a la DAL que ejecute el procedimiento.
             _salaDAL.AbrirSala(idSala, idUsuario);
         }
 
-        // Método invocado al finalizar la jornada médica[cite: 1].
-        // En SalaBLL.cs
+        /// <summary>
+        /// Registra el cierre operativo de una sala al finalizar la atención médica o jornada de trabajo.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala a cerrar.</param>
+        /// <exception cref="ArgumentException">Se lanza si el ID de sala es inválido.</exception>
         public void CerrarSala(int idSala)
         {
             if (idSala <= 0)
@@ -47,6 +64,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             _salaDAL.CerrarSala(idSala);
         }
 
+        /// <summary>
+        /// Da de alta una nueva sala en el establecimiento con asignación inmediata de los profesionales médicos vinculados.
+        /// </summary>
+        /// <param name="nombreSala">Nombre o número del consultorio.</param>
+        /// <param name="estadoSala">Estado inicial de la sala (ej. 'Disponible', 'Ocupada').</param>
+        /// <param name="idsMedicosSeleccionados">Listado opcional de identificadores de médicos a asignar.</param>
+        /// <exception cref="ArgumentException">Se lanza si el nombre o el estado de la sala están vacíos.</exception>
         public void RegistrarSala(string nombreSala, string estadoSala, List<int> idsMedicosSeleccionados)
         {
             if (string.IsNullOrWhiteSpace(nombreSala))
@@ -55,24 +79,32 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (string.IsNullOrWhiteSpace(estadoSala))
                 throw new ArgumentException("El estado de la sala es obligatorio.");
 
-            // 1. Guarda la sala y atrapa el ID real usando el nuevo DTO
             int nuevaSalaId = _salaDAL.InsertarSala(nombreSala, estadoSala);
 
-            // 2. Si se marcaron médicos en el formulario, los asigna uno por uno
             if (idsMedicosSeleccionados != null && idsMedicosSeleccionados.Count > 0)
             {
                 foreach (int idUsuario in idsMedicosSeleccionados)
                 {
-                    // El orden clave: 1° ID de Sala, 2° ID de Usuario
                     _salaDAL.AsignarSalaMedico(nuevaSalaId, idUsuario, string.Empty);
                 }
             }
         }
+
+        /// <summary>
+        /// Sobrecarga para registrar una sala médica sin asignación de médicos iniciales.
+        /// </summary>
+        /// <param name="nombreSala">Nombre o número del consultorio.</param>
+        /// <param name="estadoSala">Estado inicial de la sala.</param>
         public void RegistrarSala(string nombreSala, string estadoSala)
         {
             RegistrarSala(nombreSala, estadoSala, null);
         }
 
+        /// <summary>
+        /// Da de baja lógica a una sala médica del sistema.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala a dar de baja.</param>
+        /// <exception cref="ArgumentException">Se lanza si el identificador es menor o igual a cero.</exception>
         public void EliminarSala(int idSala)
         {
             if (idSala <= 0)
@@ -81,6 +113,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             _salaDAL.EliminarSala(idSala);
         }
 
+        /// <summary>
+        /// Asocia un médico a una sala médica registrando el detalle u observaciones de la atención prestada.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala.</param>
+        /// <param name="idUsuario">Identificador del usuario profesional médico.</param>
+        /// <param name="descripcionAtencion">Notas descriptivas de la atención o guardias.</param>
+        /// <exception cref="ArgumentException">Se lanza si no se seleccionó una sala o un profesional válido.</exception>
         public void AsignarSalaMedico(int idSala, int idUsuario, string descripcionAtencion)
         {
             if (idSala <= 0 || idUsuario <= 0)
@@ -89,6 +128,12 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             _salaDAL.AsignarSalaMedico(idSala, idUsuario, descripcionAtencion);
         }
 
+        /// <summary>
+        /// Actualiza el estado operativo actual de una sala médica.
+        /// </summary>
+        /// <param name="idSala">Identificador de la sala.</param>
+        /// <param name="nuevoEstado">Nuevo estado operativo ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
+        /// <exception cref="ArgumentException">Se lanza si el ID es inválido o el estado está vacío.</exception>
         public void ActualizarEstadoSala(int idSala, string nuevoEstado)
         {
             if (idSala <= 0)
@@ -101,30 +146,26 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Modifica una sala existente actualizando su nombre, estado y reasignando los profesionales médicos seleccionados.
-        /// Aplica validaciones de reglas de negocio antes de invocar a la Capa de Datos (DAL).
+        /// Modifica una sala existente actualizando su denominación física, estado y reasignando los médicos seleccionados.
         /// </summary>
-        /// <param name="idSala">ID de la sala a modificar (debe ser mayor a 0).</param>
-        /// <param name="nombreSala">Nombre descriptivo de la sala.</param>
-        /// <param name="estadoSala">Estado operativo de la sala ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
-        /// <param name="idsMedicosSeleccionados">Lista opcional de IDs de médicos asignados.</param>
+        /// <param name="idSala">ID único de la sala a modificar.</param>
+        /// <param name="nombreSala">Nombre descriptivo actualizado de la sala.</param>
+        /// <param name="estadoSala">Estado operativo actualizado.</param>
+        /// <param name="idsMedicosSeleccionados">Lista opcional de IDs de médicos a reasignar.</param>
+        /// <exception cref="ArgumentException">Se lanza si los datos son inválidos o faltan campos obligatorios.</exception>
         public void ModificarSala(int idSala, string nombreSala, string estadoSala, List<int>? idsMedicosSeleccionados = null)
         {
-            // 1. Validación de identificador
             if (idSala <= 0)
                 throw new ArgumentException("El identificador de la sala no es válido.");
 
-            // 2. Validación de campos obligatorios
             if (string.IsNullOrWhiteSpace(nombreSala))
                 throw new ArgumentException("El nombre de la sala es obligatorio.");
 
             if (string.IsNullOrWhiteSpace(estadoSala))
                 throw new ArgumentException("El estado de la sala es obligatorio.");
 
-            // 3. Modificación del nombre y estado en la base de datos (sp_ModificarSala)
             _salaDAL.ModificarSala(idSala, nombreSala.Trim(), estadoSala.Trim());
 
-            // 4. Actualización de asignaciones médicas si se especificaron
             if (idsMedicosSeleccionados != null)
             {
                 _salaDAL.ReasignarMedicosASala(idSala, idsMedicosSeleccionados);

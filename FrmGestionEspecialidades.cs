@@ -8,6 +8,10 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de administración de especialidades médicas.
+    /// Permite dar de alta nuevas especialidades, editar sus nombres, efectuar bajas lógicas y reactivarlas.
+    /// </summary>
     public partial class FrmGestionEspecialidades : Form
     {
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)

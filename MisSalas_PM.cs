@@ -6,16 +6,26 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario para que el profesional médico visualice y controle el estado operativo (abrir/cerrar)
+    /// de los consultorios o salas que tiene asignadas.
+    /// </summary>
     public partial class MisSalas_PM : Form
     {
-        // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly SalaBLL _salaBLL = new SalaBLL();
         private readonly UsuarioLoginResult? _usuarioActual;
 
+        /// <summary>
+        /// Constructor sin parámetros requerido para el diseñador de Windows Forms.
+        /// </summary>
         public MisSalas_PM() : this(null)
         {
         }
 
+        /// <summary>
+        /// Inicializa el formulario asociándolo a la sesión del profesional médico autenticado.
+        /// </summary>
+        /// <param name="usuario">Contexto del médico logueado (<see cref="UsuarioLoginResult"/>).</param>
         public MisSalas_PM(UsuarioLoginResult? usuario)
         {
             InitializeComponent();
@@ -27,6 +37,9 @@ namespace Gestion_de_Turnos_Medicos
             this.btnCerrarSala.Click += BtnCerrarSala_Click;
         }
 
+        /// <summary>
+        /// Configura el comportamiento visual de la grilla e inicia la carga de datos.
+        /// </summary>
         private void MisSalas_PM_Load(object? sender, EventArgs e)
         {
             dgvMisSalas.AutoGenerateColumns = false;
@@ -38,7 +51,7 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Obtiene las salas asignadas al médico autenticado a través de la Capa de Negocio (BLL).
+        /// Obtiene y proyecta en la grilla las salas asignadas al médico autenticado a través de <see cref="SalaBLL.ObtenerSalas"/>.
         /// </summary>
         private void CargarMisSalas()
         {
@@ -46,7 +59,6 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a SalaDAL y ejecuta sp_ObtenerSalas filtrando por IdUsuario
                 var salas = _salaBLL.ObtenerSalas(_usuarioActual?.IdUsuario);
 
                 if (salas != null)
@@ -72,11 +84,17 @@ namespace Gestion_de_Turnos_Medicos
             ActualizarEstadoVisual();
         }
 
+        /// <summary>
+        /// Actualiza los indicadores visuales y botones al cambiar la selección en la grilla de salas.
+        /// </summary>
         private void DgvMisSalas_SelectionChanged(object? sender, EventArgs e)
         {
             ActualizarEstadoVisual();
         }
 
+        /// <summary>
+        /// Actualiza las etiquetas de color y habilitación de botones (Abrir / Cerrar) según el estado de la sala seleccionada.
+        /// </summary>
         private void ActualizarEstadoVisual()
         {
             if (dgvMisSalas.CurrentRow != null && dgvMisSalas.CurrentRow.Index >= 0)
@@ -112,6 +130,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Ejecuta la apertura del consultorio seleccionado mediante <see cref="SalaBLL.AbrirSala"/>.
+        /// </summary>
         private void BtnAbrirSala_Click(object? sender, EventArgs e)
         {
             if (dgvMisSalas.CurrentRow == null || dgvMisSalas.CurrentRow.Index < 0)
@@ -126,7 +147,6 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a SalaDAL y ejecuta sp_AbrirSala (aplica validaciones de negocio en SQL Server)
                 _salaBLL.AbrirSala(idSala, idUsuario);
 
                 MessageBox.Show($"La sala '{nombre}' fue abierta correctamente y se encuentra disponible para atención.",
@@ -140,6 +160,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Ejecuta el cierre del consultorio seleccionado mediante <see cref="SalaBLL.CerrarSala"/>.
+        /// </summary>
         private void BtnCerrarSala_Click(object? sender, EventArgs e)
         {
             if (dgvMisSalas.CurrentRow == null || dgvMisSalas.CurrentRow.Index < 0)
@@ -153,7 +176,6 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a SalaDAL y ejecuta sp_CerrarSala (bloquea si está en estado 'Ocupada')
                 _salaBLL.CerrarSala(idSala);
 
                 MessageBox.Show($"La sala '{nombre}' fue cerrada correctamente.",

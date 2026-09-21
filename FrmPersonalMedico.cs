@@ -1,40 +1,40 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Contenedor principal para el panel de operaciones del perfil Personal Médico.
+    /// Permite al profesional de la salud gestionar sus consultorios habilitados y atender las colas de turnos asignados.
+    /// </summary>
     public partial class Pantalla_Principal_PERSONAL_MEDICO : Form
     {
-        // 1. Declaramos la variable privada para guardar los datos del médico logueado
-        private ResultadosSQL.UsuarioLoginResult _usuarioActual;
+        private readonly UsuarioLoginResult _usuarioActual;
+        private Form? formularioActivo = null;
 
-        public Pantalla_Principal_PERSONAL_MEDICO(ResultadosSQL.UsuarioLoginResult usuario)
+        /// <summary>
+        /// Inicializa el formulario de personal médico inyectando los datos de la sesión del facultativo autenticado.
+        /// </summary>
+        /// <param name="usuario">Contexto de sesión del médico (<see cref="UsuarioLoginResult"/>).</param>
+        public Pantalla_Principal_PERSONAL_MEDICO(UsuarioLoginResult usuario)
         {
             InitializeComponent();
-
-            // 2. Atrapamos el objeto que nos envió el Login y lo guardamos para usarlo en esta sesión
             _usuarioActual = usuario;
         }
 
-        // Variable para recordar qué formulario está abierto actualmente
-        private Form formularioActivo = null;
-
+        /// <summary>
+        /// Embebe un formulario hijo dentro del panel central (<c>panelContenedor</c>), cerrando la vista previa.
+        /// </summary>
+        /// <param name="formHijo">Instancia del formulario hijo a incrustar.</param>
         private void AbrirFormularioHijo(Form formHijo)
         {
-            // Si ya hay un formulario abierto, lo cerramos para no superponerlos
             if (formularioActivo != null)
             {
                 formularioActivo.Close();
             }
 
             formularioActivo = formHijo;
-
-            // Configuramos el formulario hijo para que se comporte como un control interno
             formHijo.TopLevel = false;
             formHijo.FormBorderStyle = FormBorderStyle.None;
             formHijo.Dock = DockStyle.Fill;
@@ -45,26 +45,32 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.Show();
         }
 
-        // Evento del botón mis_Salas: abre el formulario MisSalas_PM como hijo pasando el usuario autenticado
+        /// <summary>
+        /// Abre el módulo de gestión y control de apertura de las salas asignadas al médico autenticado.
+        /// </summary>
         private void mis_Salas_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new MisSalas_PM(_usuarioActual));
         }
 
+        /// <summary>
+        /// Abre el tablero de llamados, atención clínica y prescripción médica para los turnos en espera.
+        /// </summary>
         private void lista_turnos_atención_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmListaTurnosAtencion(_usuarioActual));
         }
 
+        /// <summary>
+        /// Cierra la sesión activa del profesional médico y regresa a la pantalla de Login.
+        /// </summary>
         private void salir_Click(object sender, EventArgs e)
         {
-            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
-            if (Application.OpenForms["FrmLogin"] != null)
+            var frmLogin = Application.OpenForms["FrmLogin"];
+            if (frmLogin != null)
             {
-                Application.OpenForms["FrmLogin"].Show();
+                frmLogin.Show();
             }
-
-            // 2. Cerramos la ventana actual de Turnos por completo para liberar la memoria
             this.Close();
         }
     }

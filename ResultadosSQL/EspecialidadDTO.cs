@@ -1,14 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
-    // DTO utilizado para transportar los datos de la especialidad desde la base de datos hacia las grillas o ComboBoxes de la UI[cite: 2].
+    /// <summary>
+    /// Objeto de transferencia de datos (DTO) que transporta la información de especialidades médicas
+    /// retornadas por procedimientos como <c>sp_ListarEspecialidades</c> y <c>sp_ObtenerEspecialidadesPorMedico</c>.
+    /// </summary>
     public class EspecialidadDTO
     {
+        /// <summary>Identificador único de la especialidad.</summary>
         public int IdEspecialidad { get; set; }
+
+        /// <summary>Nombre descriptivo de la especialidad.</summary>
         public string Nombre { get; set; } = string.Empty;
+
+        /// <summary>Estado de actividad lógica de la especialidad.</summary>
         public bool Activo { get; set; } = true;
     }
 }

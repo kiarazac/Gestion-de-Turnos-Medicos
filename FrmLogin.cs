@@ -5,27 +5,34 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de autenticación e inicio de sesión para operadores y profesionales del sistema.
+    /// Valida entradas del usuario, invoca <see cref="UsuarioBLL.Login"/> y redirige a la vista principal según el rol.
+    /// </summary>
     public partial class FrmLogin : Form
     {
-        // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly UsuarioBLL _usuarioBLL = new UsuarioBLL();
 
+        /// <summary>
+        /// Inicializa los componentes visuales del formulario y configura el botón por defecto de aceptación.
+        /// </summary>
         public FrmLogin()
         {
             InitializeComponent();
 
-            // Asignamos el botón 'Iniciar Sesión' (button1) como botón de aceptación por defecto del Formulario.
-            // De esta manera, al presionar la tecla Enter en cualquier control (como txtCorreo o txtContraseña),
-            // Windows Forms ejecuta automáticamente el evento button1_Click.
+            // Configura el botón 'Iniciar Sesión' (button1) como botón de aceptación por defecto
             this.AcceptButton = button1;
         }
 
+        /// <summary>
+        /// Manejador de evento del botón 'Iniciar Sesión' (button1).
+        /// Realiza validaciones en capa visual, solicita la autenticación a la BLL y enruta al formulario de destino.
+        /// </summary>
         private void button1_Click(object sender, EventArgs e)
         {
             string email = txtCorreo.Text.Trim();
             string contrasena = txtContraseña.Text;
 
-            // 2. Validaciones visuales en Capa de Presentación (UI)
             if (string.IsNullOrWhiteSpace(email))
             {
                 MessageBox.Show("Por favor, ingresá tu correo electrónico.",
@@ -50,10 +57,8 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
-            // 3. Comunicación exclusiva con la Capa de Negocio (BLL)
             try
             {
-                // El método Login delega en DAL y ejecuta el Stored Procedure sp_ValidarLogin
                 UsuarioLoginResult usuarioLogueado = _usuarioBLL.Login(email, contrasena);
 
                 if (usuarioLogueado == null)
@@ -65,7 +70,6 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
-                // 4. Redirección al contenedor correspondiente pasando el contexto del usuario autenticado
                 AbrirFormularioSegunRol(usuarioLogueado);
             }
             catch (ArgumentException argEx)
@@ -80,15 +84,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Instancia y muestra el Form principal correspondiente según el rol del usuario autenticado.
-        /// Evalúa tanto NombreRol como IdRol asegurando compatibilidad con la base de datos (1=Médico, 2=Recep, 3=Admin, 4=Ventana).
+        /// Instancia y muestra el Form principal correspondiente según el perfil o rol del usuario autenticado.
         /// </summary>
+        /// <param name="usuario">Contexto de datos del usuario autenticado (<see cref="UsuarioLoginResult"/>).</param>
         private void AbrirFormularioSegunRol(UsuarioLoginResult usuario)
         {
-            Form formularioDestino = null;
+            Form? formularioDestino = null;
             string rolNombre = usuario.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
 
-            // Enrutamiento seguro corrigiendo los IDs según la tabla Roles de la BD actual
             if (rolNombre.Contains("admin") || usuario.IdRol == 3)
             {
                 formularioDestino = new FrmAdmin(usuario);
@@ -107,7 +110,6 @@ namespace Gestion_de_Turnos_Medicos
             }
             else
             {
-                // Respaldo por ID reordenado para evitar cruce de pantallas
                 switch (usuario.IdRol)
                 {
                     case 1:
@@ -129,13 +131,14 @@ namespace Gestion_de_Turnos_Medicos
                 }
             }
 
-            // Al cerrar la ventana principal de la sesión, se cierra también el Login
             formularioDestino.FormClosed += (s, args) => this.Close();
-
             formularioDestino.Show();
             this.Hide();
         }
 
+        /// <summary>
+        /// Cierra la aplicación por completo al hacer clic en el botón 'Cancelar' o 'Salir'.
+        /// </summary>
         private void button2_Click(object sender, EventArgs e)
         {
             Application.Exit();

@@ -4,6 +4,10 @@ using Gestion_de_Turnos_Medicos.Negocio;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de supervisión y monitoreo de turnos emitidos (emergencias y especialidades).
+    /// Muestra estadísticas de pacientes clasificados por niveles de urgencia (Alta, Media, Baja).
+    /// </summary>
     public partial class FrmListaTurnos : Form
     {
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)

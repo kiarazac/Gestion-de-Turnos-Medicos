@@ -7,6 +7,10 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de administración de consultorios y salas médicas para el administrador.
+    /// Permite crear salas, cambiar estados operativos, asignar médicos a salas, dar bajas lógicas y reactivarlas.
+    /// </summary>
     public partial class FrmSalasAdmin : Form
     {
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)

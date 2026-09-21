@@ -1,4 +1,3 @@
-using Gestion_de_Turnos_Medicos;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
@@ -8,11 +7,18 @@ using System.Linq;
 
 namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 {
-    // Clase exclusiva para interactuar con dbTurnosMedicos y ejecutar los Stored Procedures de especialidades[cite: 2].
+    /// <summary>
+    /// Capa de acceso a datos (DAL) para la administración y persistencia de especialidades médicas,
+    /// ejecución de altas, bajas lógicas, modificaciones y consultas mediante Stored Procedures.
+    /// </summary>
     public class EspecialidadDAL
     {
-        // Ejecuta el procedimiento sp_ListarEspecialidades o consulta SQL resiliente.
-        // Devuelve el resultado mapeado a EspecialidadDTO, con soporte opcional para incluir especialidades inactivas.
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ListarEspecialidades</c> o consulta SQL resiliente.
+        /// Devuelve el conjunto de especialidades mapeadas a <see cref="EspecialidadDTO"/>, permitiendo incluir especialidades dadas de baja lógica.
+        /// </summary>
+        /// <param name="incluirInactivas">Si es <c>true</c>, incluye especialidades inactivas (<c>Activo = 0</c>).</param>
+        /// <returns>Lista de <see cref="EspecialidadDTO"/>.</returns>
         public List<EspecialidadDTO> ListarEspecialidades(bool incluirInactivas = false)
         {
             using (var context = new dbTurnosMedicos())
@@ -26,7 +32,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
                 catch (SqlException)
                 {
-                    // Fallback SQL directo si el SP legacy no admite parámetros o no devuelve Activo
                     string sql = @"
                         SELECT 
                             IdEspecialidad,
@@ -43,21 +48,25 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        // Ejecuta sp_InsertarEspecialidad para dar de alta una nueva especialidad en el sistema[cite: 2].
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_InsertarEspecialidad</c> para dar de alta una nueva especialidad médica.
+        /// </summary>
+        /// <param name="nombre">Nombre de la nueva especialidad.</param>
         public void InsertarEspecialidad(string nombre)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pNombre = new SqlParameter("@Nombre", nombre);
-                // ExecuteSqlRaw se usa porque es una inserción y no esperamos una tabla de retorno[cite: 2].
                 context.Database.ExecuteSqlRaw("EXEC sp_InsertarEspecialidad @Nombre", pNombre);
             }
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento sp_ModificarEspecialidad para actualizar la denominación de una especialidad médica.
-        /// Cuenta con fallback SQL directo para resiliencia ante bases de datos heredadas.
+        /// Ejecuta el procedimiento almacenado <c>sp_ModificarEspecialidad</c> para actualizar la denominación de una especialidad.
+        /// Cuenta con fallback SQL directo para resiliencia ante motores de base de datos sin el SP instalado.
         /// </summary>
+        /// <param name="idEspecialidad">Identificador único de la especialidad.</param>
+        /// <param name="nombre">Nombre actualizado de la especialidad.</param>
         public void ModificarEspecialidad(int idEspecialidad, string nombre)
         {
             using (var context = new dbTurnosMedicos())
@@ -69,7 +78,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 {
                     context.Database.ExecuteSqlRaw("EXEC sp_ModificarEspecialidad @IdEspecialidad, @Nombre", pId, pNombre);
                 }
-                catch (SqlException ex) when (ex.Number == 2812) // Si no existe el SP en el motor
+                catch (SqlException ex) when (ex.Number == 2812)
                 {
                     context.Database.ExecuteSqlRaw(
                         "UPDATE Especialidades SET Nombre = @Nombre, FechaModificacion = GETDATE() WHERE IdEspecialidad = @IdEspecialidad",
@@ -78,7 +87,10 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        // Ejecuta sp_EliminarEspecialidad para realizar una baja lógica, conservando el registro histórico[cite: 1, 2].
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_EliminarEspecialidad</c> para aplicar una baja lógica, conservando el registro histórico.
+        /// </summary>
+        /// <param name="idEspecialidad">Identificador único de la especialidad a dar de baja.</param>
         public void EliminarEspecialidad(int idEspecialidad)
         {
             using (var context = new dbTurnosMedicos())
@@ -89,9 +101,10 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento sp_ReactivarEspecialidad para restituir lógicamente una especialidad inactiva (Activo = 1, FechaBaja = NULL)
-        /// y reactivar sus vínculos con médicos en MedicosEspecialidades.
+        /// Ejecuta el procedimiento almacenado <c>sp_ReactivarEspecialidad</c> para restituir lógicamente una especialidad inactiva (<c>Activo = 1, FechaBaja = NULL</c>)
+        /// y reactivar sus vínculos con médicos en <c>MedicosEspecialidades</c>.
         /// </summary>
+        /// <param name="idEspecialidad">Identificador único de la especialidad a reactivar.</param>
         public void ReactivarEspecialidad(int idEspecialidad)
         {
             using (var context = new dbTurnosMedicos())
@@ -101,7 +114,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 {
                     context.Database.ExecuteSqlRaw("EXEC sp_ReactivarEspecialidad @IdEspecialidad", pIdEspecialidad);
                 }
-                catch (SqlException ex) when (ex.Number == 2812) // Si no existe el SP en el motor
+                catch (SqlException ex) when (ex.Number == 2812)
                 {
                     context.Database.ExecuteSqlRaw(
                         @"UPDATE Especialidades SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE() WHERE IdEspecialidad = @IdEspecialidad;
@@ -111,6 +124,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerEspecialidadesPorMedico</c> para listar las ramas médicas que atiende un profesional.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>Lista de <see cref="EspecialidadDTO"/>.</returns>
         public List<EspecialidadDTO> ObtenerEspecialidadesPorMedico(int idUsuario)
         {
             using (var context = new dbTurnosMedicos())

@@ -6,6 +6,10 @@ using System.Windows.Forms;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Formulario de recepción y emisión de turnos de emergencia y triage médico.
+    /// Permite autocompletar pacientes por DNI, registrar pacientes nuevos y clasificar la urgencia médica según síntomas.
+    /// </summary>
     public partial class FrmTurnoEmergencia : Form
     {
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();

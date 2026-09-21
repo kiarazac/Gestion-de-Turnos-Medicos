@@ -1,40 +1,40 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
 {
+    /// <summary>
+    /// Contenedor principal para el panel de operaciones del perfil Recepcionista.
+    /// Centraliza la emisión de turnos de emergencia, asignación de turnos por especialidad y proyección del visor de espera.
+    /// </summary>
     public partial class FrmRecepcionista : Form
     {
-        // 1. Declaramos la variable privada para guardar los datos del recepcionista logueado
-        private ResultadosSQL.UsuarioLoginResult _usuarioActual;
+        private readonly UsuarioLoginResult _usuarioActual;
+        private Form? formularioActivo = null;
 
-        public FrmRecepcionista(ResultadosSQL.UsuarioLoginResult usuario)
+        /// <summary>
+        /// Inicializa el formulario de recepción inyectando la sesión del recepcionista autenticado.
+        /// </summary>
+        /// <param name="usuario">Contexto de la sesión del recepcionista (<see cref="UsuarioLoginResult"/>).</param>
+        public FrmRecepcionista(UsuarioLoginResult usuario)
         {
             InitializeComponent();
-
-            // 2. Atrapamos el objeto que nos envió el Login y lo guardamos para esta sesión
             _usuarioActual = usuario;
         }
 
-        // Variable para recordar qué formulario está abierto actualmente
-        private Form? formularioActivo = null;
-
+        /// <summary>
+        /// Embebe un formulario hijo dentro del panel central (<c>panelContenedor</c>), cerrando el anterior para liberar recursos.
+        /// </summary>
+        /// <param name="formHijo">Instancia del formulario hijo a mostrar.</param>
         private void AbrirFormularioHijo(Form formHijo)
         {
-            // Si ya hay un formulario abierto, lo cerramos para no superponerlos
             if (formularioActivo != null)
             {
                 formularioActivo.Close();
             }
 
             formularioActivo = formHijo;
-
-            // Configuramos el formulario hijo para que se comporte como un control interno
             formHijo.TopLevel = false;
             formHijo.FormBorderStyle = FormBorderStyle.None;
             formHijo.Dock = DockStyle.Fill;
@@ -45,25 +45,36 @@ namespace Gestion_de_Turnos_Medicos
             formHijo.Show();
         }
 
+        /// <summary>
+        /// Abre el formulario de admisión de pacientes y triage para turnos de urgencia.
+        /// </summary>
         private void asign_turnosEmergencia_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmTurnoEmergencia());
         }
 
+        /// <summary>
+        /// Abre el formulario para agendar turnos programados por especialidad médica.
+        /// </summary>
         private void asign_turnosEspecialidad_Click_1(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmTurnoEspecialidad());
         }
 
+        /// <summary>
+        /// Abre el tablero general de monitoreo de turnos emitidos.
+        /// </summary>
         private void lista_turnos_Click(object sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmListaTurnos());
         }
 
+        /// <summary>
+        /// Abre la pantalla pública de llamados en sala de espera.
+        /// Si se mantiene presionada la tecla Shift o Ctrl, se abre en ventana independiente para monitores secundarios o TV.
+        /// </summary>
         private void btnUsuarioVentana_Click(object sender, EventArgs e)
         {
-            // Permite proyectar la pantalla en ventana independiente (segundo monitor/TV)
-            // manteniendo presionada la tecla Shift o Control, o embebida por defecto.
             if (ModifierKeys.HasFlag(Keys.Shift) || ModifierKeys.HasFlag(Keys.Control))
             {
                 FrmUsuarioVentana ventanaIndependiente = new FrmUsuarioVentana();
@@ -75,12 +86,12 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Cierra la sesión activa de recepción y regresa a la pantalla de Login.
+        /// </summary>
         private void salir_Click(object sender, EventArgs e)
         {
-            // 1. Buscamos la ventana original de Login que está en la memoria y la mostramos
             Application.OpenForms["FrmLogin"]?.Show();
-
-            // 2. Cerramos la ventana actual por completo
             this.Close();
         }
     }

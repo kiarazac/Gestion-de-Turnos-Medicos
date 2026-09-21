@@ -1,14 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
+    /// <summary>
+    /// Objeto de transferencia de datos (DTO) que transporta el nivel de severidad de un síntoma
+    /// retornado por el procedimiento almacenado <c>sp_ObtenerGravedadSintoma</c>.
+    /// </summary>
     public class GravedadSintomaDTO
     {
-        // Asumiendo que tenés la Gravedad como un entero (ej: 1=Alta, 2=Media, 3=Baja). 
-        // Si en tu BD es un string (NVARCHAR), cambialo a public string Gravedad { get; set; }
+        /// <summary>Descripción textual del nivel de gravedad del síntoma ('Alta', 'Media', 'Baja').</summary>
         public string Gravedad { get; set; }
     }
 }
