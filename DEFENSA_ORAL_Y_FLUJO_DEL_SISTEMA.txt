@@ -1,0 +1,529 @@
+================================================================================
+GUIA MAESTRA PARA DEFENSA ORAL Y COMPRENSION TOTAL DEL SISTEMA
+PROYECTO: SISTEMA INTEGRAL DE GESTION DE TURNOS MEDICOS
+TECNOLOGIAS: C# (.NET 10 / Windows Forms) | Entity Framework Core | SQL Server
+================================================================================
+
+INDICE DEL DOCUMENTO:
+1. INTRODUCCION Y RESUMEN EJECUTIVO (EL "PITCH" DEL PROYECTO)
+2. ARQUITECTURA EN CAPAS: PRINCIPIOS, RESPONSABILIDADES Y FLUJO DE DATOS
+   - 2.1 Capa de Presentacion (UI - Windows Forms)
+   - 2.2 Capa de Logica de Negocio (BLL - Business Logic Layer)
+   - 2.3 Capa de Acceso a Datos (DAL - Data Access Layer)
+   - 2.4 Capa de Persistencia (Base de Datos SQL Server & Stored Procedures)
+   - 2.5 Capa Transversal: DTOs, Seguridad y Auditoria con Borrado Logico
+3. ROLES DE USUARIO Y SUS CASOS DE USO OPERATIVOS
+   - 3.1 Rol Administrador (Configuracion del Sistema)
+   - 3.2 Rol Recepcionista (Admision, Triage y Asignacion)
+   - 3.3 Rol Personal Medico (Consultorio, Llamado e Historia Clinica)
+   - 3.4 Rol Usuario Ventana / Pantalla de Espera (Visor Publico de Pacientes)
+4. FLUJO DE TRABAJO COMPLETO DE PUNTA A PUNTA (END-TO-END)
+   - Ciclo de Vida Completo de un Turno de Emergencia y de Especialidad
+5. MATRIZ DE TRAZABILIDAD: FORMULARIO -> BLL -> DAL -> STORED PROCEDURE
+6. ESTRATEGIA, GUION Y TIPS PARA LA DEFENSA ORAL ANTE EL TRIBUNAL
+7. PREGUNTAS CLAVE DEL TRIBUNAL EVALUADOR Y COMO RESPONDERLAS
+8. GLOSARIO DE TERMINOS TECNICOS PARA LA PRESENTACION
+
+================================================================================
+1. INTRODUCCION Y RESUMEN EJECUTIVO (EL "PITCH" DEL PROYECTO)
+================================================================================
+
+"El sistema 'Gestion de Turnos Medicos' es una solucion integral orientada a 
+optimizar y digitalizar el flujo de atencion en clinicas, hospitales y centros de 
+salud. Resuelve cuatro problematicas criticas del ambito sanitario:
+
+1. El desorden en las salas de espera y la falta de visibilidad para los pacientes.
+2. La necesidad de clasificar las urgencias en guardia mediante un sistema de Triage 
+   basado en protocolos clinicos (Manchester/gravedad).
+3. La coordinacion dinamica de consultorios medicos (apertura, ocupacion y cierre).
+4. El registro clinico estructurado (diagnostico, recetas y antecedentes) con 
+   trazabilidad medico-paciente-consultorio.
+
+El sistema fue concebido bajo estandares profesionales de la ingenieria de software:
+- Separacion estricta de responsabilidades mediante una Arquitectura en 3 Capas.
+- Persistencia robusta combinando Entity Framework Core y Stored Procedures.
+- Integridad de datos asegurada con Auditoria Automatica y Borrado Logico (Soft Delete).
+- Seguridad con cifrado de contraseñas mediante algoritmo SHA-256."
+
+================================================================================
+2. ARQUITECTURA EN CAPAS: PRINCIPIOS, RESPONSABILIDADES Y FLUJO DE DATOS
+================================================================================
+
+El software implementa un modelo estricto de Arquitectura en Capas:
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │                 CAPA DE PRESENTACION (UI)                   │
+    │  - Formularios Windows Forms (.NET 10)                      │
+    │  - Captura eventos del usuario (Click, KeyDown, Load)       │
+    │  - Validaciones de formato (campos vacios, regex de email)   │
+    │  - Enlaza datos a Grillas/Combos consumiendo DTOs           │
+    │  - NUNCA conoce la Base de Datos ni la Capa de Datos (DAL)  │
+    └──────────────────────────────┬──────────────────────────────┘
+                                   │ Invoca metodos BLL / Recibe DTOs
+                                   ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │             CAPA DE LOGICA DE NEGOCIO (BLL)                 │
+    │  - Namespace: Gestion_de_Turnos_Medicos.Negocio             │
+    │  - Validaciones de reglas clinicas y de negocio             │
+    │  - Hasheo de contraseñas (Seguridad.HashearContrasenia)     │
+    │  - Calculo de prioridades de Triage (Alta, Media, Baja)     │
+    │  - Orquestacion de entidades (crear paciente + turno)       │
+    │  - Transforma excepciones de motor en mensajes de negocio   │
+    └──────────────────────────────┬──────────────────────────────┘
+                                   │ Invoca metodos DAL
+                                   ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │               CAPA DE ACCESO A DATOS (DAL)                  │
+    │  - Namespace: Gestion_de_Turnos_Medicos.CapaDeDatos         │
+    │  - Uso de DbContext (dbTurnosMedicos / ConsultorioContext)  │
+    │  - Creacion de SqlParameter tipados (anti SQL-Injection)    │
+    │  - SqlQueryRaw<TDTO>("EXEC sp_...", params) para consultas  │
+    │  - ExecuteSqlRaw("EXEC sp_...", params) para transacciones  │
+    │  - Atrapa y propaga codigos de error THROW (50001, etc.)    │
+    └──────────────────────────────┬──────────────────────────────┘
+                                   │ Ejecuta Stored Procedures
+                                   ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │             BASE DE DATOS (SQL SERVER 2022)                 │
+    │  - Base: dbGestionTurnos                                    │
+    │  - 37+ Stored Procedures (README_StoredProcedures.md)       │
+    │  - Tablas: Usuarios, Roles, Pacientes, Turnos, Salas,       │
+    │    Especialidades, Sintomas, Turno_Sintoma, HistoriaClinica │
+    │  - Foreign Keys con DeleteBehavior.Restrict (anti-cascada)  │
+    └─────────────────────────────────────────────────────────────┘
+
+--------------------------------------------------------------------------------
+2.1 CAPA DE PRESENTACION (UI)
+--------------------------------------------------------------------------------
+- Formularios principales: FrmLogin, FrmAdmin, FrmGestionUsuarios2, FrmSalasAdmin,
+  FrmGestionEspecialidades, FrmRecepcionista, FrmTurnoEmergencia, FrmTurnoEspecialidad,
+  FrmListaTurnos, Pantalla_Principal_PERSONAL_MEDICO, MisSalas_PM, 
+  FrmListaTurnosAtencion, FrmUsuarioVentana.
+- Regla de Oro: Un formulario SOLO tiene una instancia de su BLL correspondiente
+  (ejemplo: `private readonly TurnoBLL _turnoBLL = new TurnoBLL();`).
+- No existen consultas SQL (`SELECT`, `INSERT`), ni objetos ADO.NET (`SqlCommand`, 
+  `SqlConnection`) en ningun formulario.
+- Los controles de usuario se refrescan mediante colecciones de DTOs, garantizando 
+  que la UI no maneje entidades vivas de base de datos que provoquen excepciones 
+  de seguimiento (tracking).
+
+--------------------------------------------------------------------------------
+2.2 CAPA DE LOGICA DE NEGOCIO (BLL)
+--------------------------------------------------------------------------------
+- Clases: UsuarioBLL, SalaBLL, EspecialidadBLL, PacienteBLL, TurnoBLL, HistoriaClinicaBLL.
+- Contiene las validaciones de negocio:
+  * No permitir turnos de emergencia sin sintomas o sin triage.
+  * No permitir que un medico abra una sala ya ocupada o abra dos salas al mismo tiempo.
+  * No permitir dar de baja al usuario que esta actualmente logueado.
+  * Cifrar las contraseñas con SHA-256 antes de viajar a la capa de datos.
+  * Autocompletar datos del paciente existente por DNI o registrar uno nuevo.
+
+--------------------------------------------------------------------------------
+2.3 CAPA DE ACCESO A DATOS (DAL)
+--------------------------------------------------------------------------------
+- Clases: UsuarioDAL, SalaDAL, EspecialidadDAL, PacienteDAL, TurnoDAL, HistoriaClinicaDAL.
+- Utiliza Entity Framework Core a traves del contexto `dbTurnosMedicos`.
+- Modos de ejecucion:
+  1. Consultas con retorno de filas:
+     `context.Database.SqlQueryRaw<TDTO>("EXEC sp_...", params).ToList();`
+  2. Ejecuciones DML (Insert, Update, Delete, Cambios de estado):
+     `context.Database.ExecuteSqlRaw("EXEC sp_...", params);`
+  3. Retorno de IDs generados (SCOPE_IDENTITY):
+     `context.Database.SqlQueryRaw<int>("EXEC sp_...", params).FirstOrDefault();`
+- Todas las llamadas se realizan con parametros tipados `SqlParameter` para evitar 
+  ataques de Inyeccion SQL (SQL Injection).
+
+--------------------------------------------------------------------------------
+2.4 CAPA DE BASE DE DATOS (SQL Server & Stored Procedures)
+--------------------------------------------------------------------------------
+- La base de datos es la dueña de la integridad transaccional y la concurrencia.
+- Todos los accesos se realizan mediante Stored Procedures (SPs), actuando como 
+  un contrato formal entre el backend C# y la base de datos relacional.
+- Control de excepciones mediante `THROW 50001, 'Mensaje explicativo', 1;`, que son 
+  capturados en la DAL y mostrados amigablemente al usuario en la UI.
+
+--------------------------------------------------------------------------------
+2.5 CAPA TRANSVERSAL: DTOS, SEGURIDAD Y AUDITORIA
+--------------------------------------------------------------------------------
+A) DTOs (Data Transfer Objects):
+   Ubicados en la carpeta `ResultadosSQL/`. Son clases planas (POCO) creadas a la 
+   medida exacta de lo que retornan los Stored Procedures con `JOINs`.
+   Ejemplos:
+   - `UsuarioLoginResult`: IdUsuario, Nombre, Apellido, Correo, IdRol, NombreRol.
+   - `TurnoAtencionDTO`: IdTurno, NroOrden, Paciente, DNI, Triage, Especialidad.
+   - `TurnoEmergenciaDTO` y `TurnoGeneralPantallaDTO`: Datos optimizados para el monitor.
+   Beneficio: Desacoplan la vista de las tablas de la BD y evitan traer columnas innecesarias.
+
+B) Seguridad (Seguridad.cs):
+   - Metodo: `Seguridad.HashearContrasenia(string textoPlano)`.
+   - Aplica algoritmo SHA-256 generando un hash hexadecimal de 64 caracteres.
+   - La base de datos NUNCA almacena contraseñas en texto plano.
+
+C) Auditoria y Borrado Logico (EntidadAuditable en Modelos.cs):
+   - Toda entidad hereda de `EntidadAuditable`:
+     * `FechaCreacion` (DateTime): Fecha/hora automatica de insercion.
+     * `FechaModificacion` (DateTime?): Actualizada automaticamente en `SaveChanges()`.
+     * `Activo` (bool, default true): Bandera para borrado logico.
+     * `FechaBaja` (DateTime?): Marca temporal cuando un registro es desactivado.
+   - Borrado Logico (Soft Delete): Los registros nunca se destruyen con `DELETE FROM`. 
+     Se actualiza `Activo = 0`. Esto preserva el historial de turnos y trazabilidad medica.
+   - Global Query Filter en EF Core:
+     `modelBuilder.Entity<Usuario>().HasQueryFilter(u => u.Activo);`
+     `modelBuilder.Entity<Sala>().HasQueryFilter(s => s.Activo);`
+     Garantiza que cualquier consulta por defecto ignore los registros inactivos.
+
+================================================================================
+3. ROLES DE USUARIO Y SUS CASOS DE USO OPERATIVOS
+================================================================================
+
+El sistema cuenta con 4 roles bien diferenciados que modelan la dinamica de una clinica:
+
+--------------------------------------------------------------------------------
+3.1 ROL ADMINISTRADOR (IdRol = 3) -> FrmAdmin
+--------------------------------------------------------------------------------
+Es el responsable de la configuracion estructural del centro medico.
+Accede a traves de `FrmAdmin` que actua como contenedor MDI de tres modulos:
+1. Gestion de Usuarios y Personal (`FrmGestionUsuarios2`):
+   - Flujo Inteligente por DNI: Se ingresa el DNI; si existe, precarga datos, 
+     matricula, especialidades y salas vinculadas para editar; si no existe, 
+     habilita el alta limpia.
+   - Asignacion multiple: Vincula al medico con varias especialidades y consultorios.
+   - Modificacion de contraseñas: Permite blanquear clave con hash SHA-256 o conservarla.
+   - Bajas logicas y reactivaciones: Permite suspender usuarios y reactivarlos.
+2. Gestion de Salas / Consultorios (`FrmSalasAdmin`):
+   - Alta, modificacion y baja logica de consultorios fisicos.
+   - Asignacion del profesional a cargo.
+   - Estados: `Disponible`, `Libre`, `Ocupada`, `En Mantenimiento`, `Cerrada`.
+3. Gestion de Especialidades (`FrmGestionEspecialidades`):
+   - Catalogo de ramas medicas (Pediatria, Cardiologia, Traumatologia, etc.).
+
+--------------------------------------------------------------------------------
+3.2 ROL RECEPCIONISTA (IdRol = 2) -> FrmRecepcionista
+--------------------------------------------------------------------------------
+Es el personal de primera linea que admite a los pacientes y organiza la demanda.
+Dispone de:
+1. Admision de Turnos de Emergencia / Guardia (`FrmTurnoEmergencia`):
+   - Busqueda rapida de paciente por DNI (si no existe, lo registra en el acto).
+   - Triage de Sintomas: Lista de sintomas clasificados en Alta, Media o Baja gravedad.
+   - Calcula la prioridad y genera un codigo correlativo (ej. "E-014").
+   - El turno ingresa a la base de datos en estado "En Espera".
+2. Turnos Programados por Especialidad (`FrmTurnoEspecialidad`):
+   - Selecciona especialidad, medico y fecha.
+   - Consulta disponibilidad horaria mediante `sp_ObtenerHorariosDisponibles`.
+   - Genera el turno con orden correlativa (ej. "P-020").
+3. Monitor de Turnos (`FrmListaTurnos`):
+   - Tablero con metricas en vivo: Cantidad de pacientes en espera, llamados y atendidos.
+4. Apertura de Pantalla Publica (`FrmUsuarioVentana`):
+   - Boton que permite abrir el visor de sala de espera en el monitor local o 
+     proyectarlo en una segunda pantalla / televisor.
+
+--------------------------------------------------------------------------------
+3.3 ROL PERSONAL MEDICO (IdRol = 1) -> Pantalla_Principal_PERSONAL_MEDICO
+--------------------------------------------------------------------------------
+Es el profesional de la salud asignado a un consultorio.
+Dispone de:
+1. Control de Consultorio (`MisSalas_PM`):
+   - Visualiza unicamente las salas que tiene asignadas.
+   - "Abrir Sala": Cambia el estado a 'Disponible', notificando al sistema que 
+     el medico ya esta en el consultorio listo para atender.
+   - "Cerrar Sala": Cambia el estado a 'Cerrada' al terminar la guardia o jornada.
+2. Puesto de Atencion de Pacientes (`FrmListaTurnosAtencion`):
+   - Informacion del profesional en barra superior (Nombre, Matricula, Sala asignada).
+   - Filtro por servicio (Guardia / Especialidades).
+   - Cola de espera automatica:
+     * En emergencias se ordena estrictamente por: 1° Gravedad de Triage (Alta -> Media -> Baja)
+       y 2° Hora de llegada (FIFO).
+     * En especialidades se ordena por horario de turno.
+   - Maquina de estados del puesto:
+     a) Estado 'SinPaciente': Boton "Siguiente Paciente" habilitado.
+     b) Estado 'Llamado': Se invoca `sp_LlamarSiguientePaciente`, enviando la orden 
+        al monitor de sala de espera.
+     c) Estado 'EnConsulta': Al ingresar el paciente, presiona "Iniciar Atencion". 
+        La sala pasa a estado 'Ocupada'.
+     d) Carga Clinica y Cierre: Redacta Diagnostico Rapido y Receta Medica.
+        Al presionar "Terminar Atencion", se ejecuta `sp_FinalizarAtencionTurno` y 
+        `sp_InsertarHistoriaClinica`. El turno queda "Atendido", la sala vuelve a 
+        'Disponible' y el sistema queda listo para el proximo llamado.
+
+--------------------------------------------------------------------------------
+3.4 ROL USUARIO VENTANA / VISOR PUBLICO (IdRol = 4) -> FrmUsuarioVentana
+--------------------------------------------------------------------------------
+- Diseñado para funcionar en un Smart TV, monitor de sala de espera o totem interactivo.
+- Funciona sin intervencion de teclado ni mouse.
+- Posee un Timer con refresco automatico cada 5 segundos.
+- Visualizacion en dos paneles independientes:
+  * Panel Izquierdo: Guardia / Emergencias (Turno, Prioridad/Triage, Hora, Estado, Sala).
+  * Panel Derecho: Consultorios Generales (Turno, Hora, Fecha, Especialidad, Estado, Sala).
+- Cuando un medico presiona "Llamar Siguiente", el turno en pantalla parpadea o se 
+  resalta en color azul institucional indicando a que consultorio debe dirigirse el paciente.
+
+================================================================================
+4. FLUJO DE TRABAJO COMPLETO DE PUNTA A PUNTA (END-TO-END)
+================================================================================
+
+A continuacion, el recorrido completo de los datos a traves de todas las capas:
+
+ESCENARIO: LLEGA UN PACIENTE CON DOLOR AGUDO (GUARDIA)
+
+[PASO 1: LOGIN DEL PERSONAL]
+- El recepcionista y el medico inician sesion en `FrmLogin`.
+- `FrmLogin` -> `UsuarioBLL.Login` -> `UsuarioDAL.ValidarLogin` -> `sp_ValidarLogin`.
+- La BD verifica email y hash SHA-256. Retorna `UsuarioLoginResult`.
+- El sistema enruta al Recepcionista a `FrmRecepcionista` y al Medico a `Pantalla_Principal_PERSONAL_MEDICO`.
+
+[PASO 2: EL MEDICO HABILITA SU CONSULTORIO]
+- El Dr. Perez abre `MisSalas_PM`.
+- Ve su consultorio asignado: "Consultorio 1 - Clinica Medica" (Estado: Cerrada).
+- Presiona "Abrir Sala".
+- `MisSalas_PM` -> `SalaBLL.AbrirSala` -> `SalaDAL.AbrirSala` -> `sp_AbrirSala`.
+- En SQL Server: La sala cambia a 'Disponible'.
+
+[PASO 3: LLEGA EL PACIENTE A RECEPCION]
+- El recepcionista ingresa a `FrmTurnoEmergencia`.
+- Digita el DNI del paciente:
+  * `txtDNI_Leave` ejecuta `TurnoBLL.BuscarPacientePorDNI`.
+  * Si no existe, ingresa Nombre: "Juan", Apellido: "Gomez", Obra Social: "OSDE".
+  * `PacienteBLL.GuardarPaciente` -> `PacienteDAL.GuardarPaciente` -> `sp_GuardarPaciente`.
+  * SQL Server devuelve el nuevo `IdPaciente`.
+- El recepcionista selecciona los sintomas del paciente (ej. "Dolor en el pecho", gravedad Alta).
+- Presiona "Generar Turno".
+- `TurnoBLL.CrearTurnoEmergenciaConSintomas`:
+  * Calcula prioridad = 'ALTA'.
+  * Invoca `TurnoDAL.RegistrarTurnoEmergencia` -> `sp_CrearTurnoEmergencia`.
+  * SQL Server inserta el turno con estado 'En Espera' y genera el numero de orden "E-005".
+  * Invoca `TurnoDAL.RegistrarTurnoSintoma` vinculando cada sintoma con el turno.
+- El recepcionista le entrega al paciente su numero "E-005" y le indica aguardar en sala.
+
+[PASO 4: VISIBILIDAD EN SALA DE ESPERA]
+- En el TV de la sala de espera (`FrmUsuarioVentana`), el Timer de 5 segundos detecta el nuevo turno.
+- `TurnoBLL.ListarTurnosEmergencia` -> `TurnoDAL.ListarTurnosEmergencia` -> `sp_ListarTurnosEmergencia`.
+- El turno "E-005" aparece en la grilla izquierda con prioridad "ALTA" y estado "En Espera".
+
+[PASO 5: EL MEDICO LLAMA AL PACIENTE]
+- En su consultorio, el Dr. Perez tiene abierto `FrmListaTurnosAtencion`.
+- El sistema ordena la cola: como "E-005" es prioridad ALTA, pasa automaticamente 
+  al primer lugar de la grilla de atencion.
+- El Dr. Perez presiona "Siguiente Paciente".
+- `FrmListaTurnosAtencion` -> `TurnoBLL.LlamarSiguientePaciente`:
+  * Ejecuta `sp_LlamarSiguienteTurno`, pasando el IdTurno, el nombre del Dr. Perez y "Consultorio 1".
+  * El estado del turno cambia a 'Llamado'.
+- En la pantalla del televisor (`FrmUsuarioVentana`):
+  * "E-005" cambia de color a celeste y en la columna 'Sala' se muestra "Consultorio 1".
+  * El paciente se pone de pie y se dirige al Consultorio 1.
+
+[PASO 6: CONSULTA MEDICA Y ATENCION]
+- El paciente entra al consultorio.
+- El Dr. Perez presiona "Iniciar Atencion".
+  * `TurnoBLL.IniciarAtencionTurno` -> `sp_IniciarAtencionTurno`.
+  * El turno pasa a estado 'En Consulta'.
+  * El Consultorio 1 pasa a estado 'Ocupada'.
+  * Comienza a correr el cronometro de atencion en el formulario del medico.
+
+[PASO 7: DIAGNOSTICO Y FINALIZACION]
+- El medico evalua al paciente y escribe en pantalla:
+  * Diagnostico: "Cuadro de crisis hipertensiva leve estabilizada."
+  * Receta: "Enalapril 10mg cada 12hs por 7 dias."
+- El Dr. Perez presiona "Terminar Atencion".
+- La capa de presentacion invoca a la BLL:
+  1. `TurnoBLL.FinalizarAtencionTurno` -> `sp_FinalizarAtencionTurno`:
+     - El turno pasa a estado 'Atendido'.
+     - El Consultorio 1 se desocupa y vuelve a estado 'Disponible'.
+  2. `HistoriaClinicaBLL.RegistrarHistoria` -> `sp_InsertarHistoriaClinica`:
+     - Se crea un registro indeleble en la tabla `HistoriasClinicas` asociando 
+       al Paciente, al Medico, al Turno, con fecha, diagnostico y receta.
+- Fin del ciclo. El Dr. Perez puede presionar nuevamente "Siguiente Paciente".
+
+================================================================================
+5. MATRIZ DE TRAZABILIDAD (FORMULARIO -> BLL -> DAL -> SP)
+================================================================================
+
+| FORMULARIO              | METODO BLL               | METODO DAL                 | STORED PROCEDURE                |
+|:------------------------|:-------------------------|:---------------------------|:--------------------------------|
+| FrmLogin                | UsuarioBLL.Login         | UsuarioDAL.ValidarLogin    | sp_ValidarLogin                 |
+| FrmGestionUsuarios2     | UsuarioBLL.ObtenerRoles  | UsuarioDAL.ListarRoles     | sp_ListarRoles                  |
+|                         | UsuarioBLL.Registrar     | UsuarioDAL.InsertarUsuario | sp_InsertarUsuario              |
+|                         | UsuarioBLL.Modificar     | UsuarioDAL.ModificarUsuario| sp_ModificarUsuario             |
+|                         | UsuarioBLL.Eliminar      | UsuarioDAL.EliminarUsuario | sp_EliminarUsuario (Soft Delete)|
+| FrmSalasAdmin           | SalaBLL.ObtenerSalas     | SalaDAL.ObtenerSalas       | sp_ObtenerSalas                 |
+|                         | SalaBLL.RegistrarSala    | SalaDAL.InsertarSala       | sp_InsertarSala                 |
+|                         | SalaBLL.AsignarMedico    | SalaDAL.AsignarSalaMedico  | sp_AsignarSalaMedico            |
+| FrmGestionEspecialidades| EspecialidadBLL.Listar   | EspecialidadDAL.Listar     | sp_ListarEspecialidades         |
+| FrmTurnoEmergencia      | PacienteBLL.Guardar      | PacienteDAL.GuardarPaciente| sp_GuardarPaciente              |
+|                         | TurnoBLL.CrearEmergencia | TurnoDAL.RegistrarTurnoEmer| sp_CrearTurnoEmergencia         |
+|                         | TurnoBLL.AsignarSintoma  | TurnoDAL.RegistrarSintoma  | sp_GuardarTurnoSintoma          |
+| FrmTurnoEspecialidad    | TurnoBLL.HorariosDisp    | TurnoDAL.ObtenerHorarios   | sp_ObtenerHorariosDisponibles   |
+|                         | TurnoBLL.CrearTurnoEsp   | TurnoDAL.CrearTurnoEspec   | sp_CrearTurnoEspecialidad       |
+| MisSalas_PM             | SalaBLL.AbrirSala        | SalaDAL.AbrirSala          | sp_AbrirSala                    |
+|                         | SalaBLL.CerrarSala       | SalaDAL.CerrarSala         | sp_CerrarSala                   |
+| FrmListaTurnosAtencion  | TurnoBLL.ListarAtencion  | TurnoDAL.ListarAtencion    | sp_ListarTurnosAtencion         |
+|                         | TurnoBLL.LlamarSiguiente | TurnoDAL.LlamarSiguiente   | sp_LlamarSiguienteTurno         |
+|                         | TurnoBLL.IniciarAtencion | TurnoDAL.IniciarAtencion   | sp_IniciarAtencionTurno         |
+|                         | TurnoBLL.Finalizar       | TurnoDAL.FinalizarAtencion | sp_FinalizarAtencionTurno       |
+|                         | HistoriaClinicaBLL.Guardar| HistoriaClinicaDAL.Insertar| sp_InsertarHistoriaClinica      |
+| FrmUsuarioVentana       | TurnoBLL.ListarEmergencia| TurnoDAL.ListarEmergencias | sp_ListarTurnosEmergencia       |
+|                         | TurnoBLL.ListarGeneral   | TurnoDAL.ListarGenerales   | sp_ListarTurnosGeneralesPantalla|
+
+================================================================================
+6. ESTRATEGIA, GUION Y TIPS PARA LA DEFENSA ORAL ANTE EL TRIBUNAL
+================================================================================
+
+ESTRUCTURA DE TIEMPO RECOMENDADA (Total aproximado: 10 a 12 minutos):
+
+FASE 1: APERTURA Y CONTEXTUALIZACION (1.5 minutos)
+- "Buenos dias / tardes, profesores. Hoy les presentamos el 'Sistema de Gestion 
+  de Turnos Medicos', una aplicacion de escritorio desarrollada en C# .NET 10 y 
+  SQL Server orientada a resolver la congestion, el desorden y la falta de 
+  priorizacion en centros de atencion ambulatoria y guardias medicas."
+- Mencionar los 4 roles: Administrador, Recepcionista, Medico y Pantalla Publica.
+
+FASE 2: ARQUITECTURA Y DECISIONES DE DISEÑO (2.5 minutos)
+- "Para construir este sistema elegimos una Arquitectura Estricta en Tres Capas: 
+  Presentacion, Logica de Negocio y Acceso a Datos, con base de datos SQL Server."
+- "Bajo ningun concepto un formulario se conecta a la base de datos ni conoce a la 
+  Capa de Datos. Toda interaccion se realiza a traves de la Capa de Negocio (BLL) 
+  utilizando Data Transfer Objects (DTOs) fuertemente tipados."
+- "Como motor de acceso a datos utilizamos Entity Framework Core. Sin embargo, no 
+  utilizamos LINQ para las consultas de persistencia, sino que delegamos la ejecucion 
+  en Stored Procedures compilados y parametrizados. Esto nos brinda lo mejor de 
+  dos mundos: la seguridad contra inyeccion SQL y el rendimiento optimo de SQL Server, 
+  junto con el tipado seguro y seguimiento de EF Core."
+
+FASE 3: DEMOSTRACION PRACTICA DEL FLUJO VITAL (4 minutos)
+- Recomendacion: Tener abierto SQL Server Management Studio o DBeaver de un lado, 
+  y la aplicacion del otro, para mostrar datos reales.
+- Paso a: Iniciar sesion como Administrador y mostrar `FrmGestionUsuarios2`.
+  Explicar el flujo inteligente por DNI que evita duplicados.
+- Paso b: Iniciar sesion como Medico y abrir el consultorio en `MisSalas_PM`.
+- Paso c: Abrir en paralelo `FrmRecepcionista` y generar un turno de Guardia 
+  con triage Alta en `FrmTurnoEmergencia`.
+- Paso d: Mostrar la pantalla publica `FrmUsuarioVentana` donde el turno aparece en espera.
+- Paso e: Volver a la pantalla del medico `FrmListaTurnosAtencion`, presionar "Siguiente 
+  Paciente", mostrar como cambia la pantalla publica indicando la sala, iniciar atencion, 
+  cargar diagnostico y cerrar el turno guardando la Historia Clinica.
+
+FASE 4: AUDITORIA, SEGURIDAD Y BORRADO LOGICO (2 minutos)
+- "Un aspecto clave de este proyecto es que ningún dato sensible se borra físicamente. 
+  Implementamos una clase base abstracta llamada `EntidadAuditable` que incorpora 
+  `FechaCreacion`, `FechaModificacion`, `Activo` y `FechaBaja`. A traves de los 
+  `Global Query Filters` de Entity Framework Core, los registros marcados como inactivos 
+  desaparecen automaticamente de las grillas pero quedan intactos en la base de datos 
+  garantizando la trazabilidad medico-legal."
+- "Asimismo, las contraseñas se almacenan mediante un hash SHA-256 generado en la 
+  capa de negocio mediante la clase `Seguridad`."
+
+FASE 5: CIERRE Y PREGUNTAS (1 minuto)
+- "En conclusion, logramos un sistema robusto, escalable, mantenible y seguro que 
+  respeta las mejores practicas de la ingenieria de software. Quedamos a su 
+  entera disposicion para responder sus preguntas."
+
+================================================================================
+7. PREGUNTAS CLAVE DEL TRIBUNAL EVALUADOR Y COMO RESPONDERLAS
+================================================================================
+
+PREGUNTA 1:
+"¿Por que se tomaron el trabajo de separar en 3 capas en lugar de escribir el codigo 
+directamente en los eventos de los botones del formulario?"
+RESPUESTA IDEAL:
+"Por tres principios fundamentales: Mantenibilidad, Testeabilidad y Desacoplamiento. 
+Si pusieramos consultas SQL dentro de los botones de Windows Forms, estariamos 
+violando el Principio de Responsabilidad Unica (SRP). Si mañana decidimos cambiar 
+la interfaz grafica por una aplicacion Web en ASP.NET Core o una API REST para una 
+app movil, toda la logica de negocio (BLL) y de datos (DAL) se reutiliza al 100% sin 
+tocar una sola linea de codigo. Ademas, facilita el testing y el trabajo en equipo."
+
+PREGUNTA 2:
+"¿Por que usan Entity Framework Core para llamar Stored Procedures en lugar de usar 
+el ORM completo con LINQ (context.Turnos.Add())?"
+RESPUESTA IDEAL:
+"Fue una decision de arquitectura deliberada. En sistemas medicos y transaccionales, 
+los Stored Procedures ofrecen tres grandes ventajas:
+1. Rendimiento: Los planes de ejecucion quedan precompilados y cacheados en el motor.
+2. Seguridad y Reglas de Negocio en BD: Permiten encapsular transacciones complejas, 
+   generacion correlativa de turnos y validaciones con `THROW` directamente en el motor.
+3. EF Core como puente seguro: Utilizamos `context.Database.SqlQueryRaw<TDTO>()` y 
+   `ExecuteSqlRaw()` parametrizados con `SqlParameter`. Esto nos da inmunidad contra 
+   Inyeccion SQL, mapeo automatico a DTOs y control de conexiones sin la complejidad 
+   ni el overhead de escribir ADO.NET tradicional con DataAdapters o DataReaders."
+
+PREGUNTA 3:
+"¿Que es un DTO y por que no mandan directamente la entidad 'Turno' a la grilla?"
+RESPUESTA IDEAL:
+"Un DTO (Data Transfer Object) es un objeto simple sin logica que transporta datos 
+entre capas. No usamos las entidades directas de EF Core en la interfaz por dos razones:
+1. Las consultas de turnos requieren informacion combinada: nombre del paciente, DNI, 
+   obra social, nombre de la sala, medico y gravedad del sintoma (multiples JOINs). 
+   La entidad 'Turno' de la base no contiene todas esas columnas directas.
+2. Evitamos el sobreconsumo de memoria y problemas de serializacion o de seguimiento 
+   (Change Tracking) innecesarios en la capa visual."
+
+PREGUNTA 4:
+"¿Como garantizan la seguridad contra ataques de Inyeccion SQL?"
+RESPUESTA IDEAL:
+"Nunca concatenamos cadenas de texto para armar sentencias SQL (`'EXEC sp_Login ' + txtUser`). 
+En toda la Capa de Datos (DAL) utilizamos obligatoriamente objetos `SqlParameter` con 
+tipos de datos especificos. El motor de SQL Server trata a los parametros como valores 
+literales de datos y jamas como codigo ejecutable, neutralizando cualquier intento de inyeccion."
+
+PREGUNTA 5:
+"¿Que sucede si un medico intenta abrir una sala que ya esta abierta por otro medico, 
+o que se encuentra ocupada?"
+RESPUESTA IDEAL:
+"La integridad esta blindada en dos niveles. Primero, en la Capa BLL se verifica el 
+estado actual de la sala. Segundo y definitivo, en la base de datos el Stored Procedure 
+`sp_AbrirSala` comprueba el estado actual y, si la sala ya esta asignada u ocupada, 
+lanza una excepcion personalizada con `THROW 50001, 'La sala seleccionada ya se 
+encuentra en uso', 1;`. La DAL captura la `SqlException` y la UI le muestra un 
+`MessageBox` claro al usuario, impidiendo la colision de consultorios."
+
+PREGUNTA 6:
+"¿Como funciona el borrado logico y por que no usaron DELETE?"
+RESPUESTA IDEAL:
+"En un sistema de salud, el borrado fisico esta contraindicado legalmente. Si borramos 
+un medico o un paciente con `DELETE`, perderiamos el historial clinico y los registros 
+de turnos pasados, o la base daria error de Foreign Key.
+Por eso implementamos Borrado Logico (Soft Delete):
+- La clase `EntidadAuditable` agrega la columna `Activo` y `FechaBaja`.
+- Las bajas solo ejecutan un `UPDATE ... SET Activo = 0, FechaBaja = GETDATE()`.
+- En el `DbContext` configuramos `HasQueryFilter(e => e.Activo)`, lo que hace que 
+  Entity Framework filtre de manera transparente e inadvertida todos los registros 
+  inactivos en cualquier consulta estandar."
+
+PREGUNTA 7:
+"¿Como se comunican los llamados del medico con la pantalla de la sala de espera?"
+RESPUESTA IDEAL:
+"Se comunican de forma asincrona desacoplada mediante la base de datos (patron Polling):
+Cuando el medico hace click en 'Siguiente Paciente' en `FrmListaTurnosAtencion`, se 
+ejecuta `sp_LlamarSiguienteTurno`, actualizando el estado del turno a 'Llamado' y 
+asignando la sala y el medico. 
+La pantalla de sala de espera (`FrmUsuarioVentana`) corre un temporizador (`System.Windows.Forms.Timer`) 
+que cada 5 segundos consulta `sp_ListarTurnosEmergencia` y `sp_ListarTurnosGeneralesPantalla`. 
+Al detectar el cambio de estado, la pantalla actualiza la grilla y resalta al paciente 
+con su consultorio de destino."
+
+================================================================================
+8. GLOSARIO DE TERMINOS TECNICOS PARA LA PRESENTACION
+================================================================================
+
+- DESACOPLAMIENTO: Grado de independencia entre modulos. Cada capa puede cambiar 
+  internamente sin romper a las demas.
+- POCO (Plain Old CLR Object): Objetos C# simples que solo contienen propiedades 
+  (getters y setters) sin dependencias de frameworks externos.
+- STORED PROCEDURE: Programa almacenado y precompilado en el motor de base de datos 
+  que centraliza la logica de persistencia y ejecucion transaccional.
+- DTO (Data Transfer Object): Estructura de datos diseñada exclusivamente para 
+  transportar informacion entre capas de forma liviana.
+- SOFT DELETE (Borrado Logico): Tecnica de preservacion de datos donde un registro 
+  se marca como inactivo en lugar de destruirlo fisicamente del disco.
+- TRIAGE CLINICO (Escala Manchester): Metodo cientifico de clasificacion de pacientes 
+  segun su nivel de gravedad y urgencia, no por mero orden de llegada.
+- SCOPE_IDENTITY(): Funcion de SQL Server que recupera el ultimo identificador 
+  autonumerico generado en el ambito de la transaccion actual.
+- INYECCION SQL: Vulnerabilidad de seguridad donde un usuario malintencionado 
+  inyecta comandos SQL a traves de cajas de texto; se previene con `SqlParameter`.
+- GLOBAL QUERY FILTER: Caracteristica de EF Core que aplica un filtro automatico 
+  (WHERE Activo = 1) a todas las consultas sobre una tabla.
+
+================================================================================
+FIN DE LA GUIA MAESTRA DE DEFENSA ORAL
+SISTEMA DE GESTION DE TURNOS MEDICOS
+================================================================================
