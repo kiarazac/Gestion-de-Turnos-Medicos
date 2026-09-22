@@ -207,45 +207,13 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pDni = new SqlParameter("@Dni", dni.Trim());
                 var pIncluir = new SqlParameter("@IncluirInactivos", incluirInactivos);
 
-                string sql = @"
-                    SELECT 
-                        u.IdUsuario,
-                        u.Nombre,
-                        u.Apellido,
-                        u.Correo,
-                        u.Dni,
-                        u.Telefono,
-                        r.Descripcion AS Rol,
-                        ISNULL(u.NroMatricula, '') AS NroMatricula,
-                        ISNULL((
-                            SELECT STRING_AGG(e.Nombre, ', ')
-                            FROM (
-                                SELECT DISTINCT e2.Nombre
-                                FROM MedicosEspecialidades me2
-                                INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
-                                WHERE me2.IdUsuario = u.IdUsuario AND (me2.Activo = 1 OR u.Activo = 0) AND e2.Activo = 1
-                            ) e
-                        ), '') AS Especialidades,
-                        ISNULL((
-                            SELECT STRING_AGG(s.NombreSala, ', ')
-                            FROM (
-                                SELECT DISTINCT s2.NombreSala
-                                FROM DetallesSalas ds2
-                                INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
-                                WHERE ds2.IdUsuario = u.IdUsuario AND (ds2.Activo = 1 OR u.Activo = 0) AND s2.Activo = 1
-                            ) s
-                        ), '') AS Salas,
-                        u.Activo
-                    FROM Usuarios u
-                    INNER JOIN Roles r ON u.IdRol = r.IdRol
-                    WHERE u.Dni = @Dni AND (@IncluirInactivos = 1 OR u.Activo = 1);";
-
                 return context.Database
-                    .SqlQueryRaw<UsuarioListadoDTO>(sql, pDni, pIncluir)
+                    .SqlQueryRaw<UsuarioListadoDTO>("EXEC sp_ObtenerUsuarioPorDni @Dni, @IncluirInactivos", pDni, pIncluir)
                     .AsEnumerable()
                     .FirstOrDefault();
             }
         }
+
 
         /// <summary>
         /// Da de baja lógica a un usuario en el sistema a través de <c>sp_EliminarUsuario</c>.
