@@ -842,15 +842,15 @@ namespace Gestion_de_Turnos_Medicos
                 string estado = fila.Cells["Estado"].Value?.ToString() ?? "";
 
                 bool coincide = dni.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                nombre.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                apellido.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                $"{nombre} {apellido}".Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                rol.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                correo.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                matricula.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                especialidades.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                salas.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
-                                estado.Contains(filtro, StringComparison.OrdinalIgnoreCase);
+                              nombre.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              apellido.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              $"{nombre} {apellido}".Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              rol.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              correo.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              matricula.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              especialidades.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              salas.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                              estado.Contains(filtro, StringComparison.OrdinalIgnoreCase);
 
                 fila.Visible = coincide;
             }
@@ -959,6 +959,16 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("Para el rol 'Personal Médico' debe asignar al menos una especialidad médica.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 clbEspecialidades.Focus();
+                return false;
+            }
+
+            // Validación del teléfono usando la clase Validaciones
+            string telefono = txtTelefono.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(telefono) && !Validaciones.EsTelefono(telefono))
+            {
+                MessageBox.Show("El número de teléfono ingresado no es válido. Debe contener solo números (entre 7 y 15 dígitos).",
+                    "Teléfono Inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtTelefono.Focus();
                 return false;
             }
 

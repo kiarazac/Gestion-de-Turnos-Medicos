@@ -35,5 +35,17 @@ namespace Gestion_de_Turnos_Medicos
             string patronNombre = @"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$";
             return Regex.IsMatch(nombre, patronNombre);
         }
+
+
+        public static bool EsTelefono(string telefono)
+        {
+            if (string.IsNullOrWhiteSpace(telefono))
+                return false;
+
+            // Patrón que permite entre 7 y 15 dígitos numéricos (puedes ajustarlo si usas guiones o símbolos +)
+            string patronTelefono = @"^\d{7,15}$";
+            return Regex.IsMatch(telefono, patronTelefono);
+        }
+
     }
 }
