@@ -17,6 +17,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL(); // Instanciamos para guardar pacientes nuevos
         private int? idPacienteActual = null; // Almacena el ID si el paciente ya existe en la BD
+        private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
 
         public FrmTurnoEmergencia()
         {
@@ -35,6 +36,9 @@ namespace Gestion_de_Turnos_Medicos
 
             // Suscribimos el evento del botón Generar Turno
             button1.Click += Button1_Click;
+
+            // Suscribimos el evento de descarga de comprobante .txt
+            btnDescargarTxt.Click += BtnDescargarTxt_Click;
         }
 
         /// <summary>
@@ -220,6 +224,21 @@ namespace Gestion_de_Turnos_Medicos
                         break;
                 }
 
+                // Guardamos los datos completos del turno emitido para la descarga del comprobante .txt
+                _ultimoTurnoEmitido = new DatosComprobanteTurno
+                {
+                    NroOrden = nroOrden,
+                    Prioridad = prioridadTexto,
+                    Seccion = "Emergencia",
+                    FechaEmision = DateTime.Now,
+                    NombrePaciente = $"{apellido}, {nombre}",
+                    DniPaciente = dni,
+                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial
+                };
+
+                // Habilitamos el botón de descarga ubicado debajo del número de orden
+                btnDescargarTxt.Enabled = true;
+
                 MessageBox.Show($"¡Turno de emergencia generado correctamente!\n\nNúmero de Orden: {nroOrden}\nPrioridad Triage: {prioridadTexto}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 LimpiarFormulario();
@@ -228,6 +247,38 @@ namespace Gestion_de_Turnos_Medicos
             {
                 // Atrapa los mensajes limpios lanzados desde la Base de Datos (SQL THROW/RAISERROR) o de las validaciones de BLL
                 MessageBox.Show($"No se pudo completar la operación:\n\n{ex.Message}", "Error de Sistema", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Manejador del evento click para generar y descargar el archivo .txt con los datos del turno emitido.
+        /// </summary>
+        private void BtnDescargarTxt_Click(object? sender, EventArgs e)
+        {
+            if (_ultimoTurnoEmitido == null)
+            {
+                MessageBox.Show("No hay ningún turno emitido recientemente para descargar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "Archivo de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*";
+                    sfd.FileName = $"Turno_{_ultimoTurnoEmitido.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    sfd.Title = "Guardar Comprobante de Turno de Emergencia";
+
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        System.IO.File.WriteAllText(sfd.FileName, _ultimoTurnoEmitido.GenerarContenidoTxt());
+                        MessageBox.Show("¡Comprobante de turno generado y guardado exitosamente!", "Descarga Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al guardar el comprobante de turno:\n{ex.Message}", "Error de Archivo", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

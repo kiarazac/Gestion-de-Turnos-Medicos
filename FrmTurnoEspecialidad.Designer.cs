@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmTurnoEspecialidad
     {
@@ -55,6 +55,7 @@
             Ldescrip_turno_especialidad = new Label();
             Lid_turno = new Label();
             LdescripTurno = new Label();
+            btnDescargarTxt = new Button();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
@@ -349,12 +350,26 @@
             LdescripTurno.TabIndex = 8;
             LdescripTurno.Text = "Turno Generado";
             // 
+            // btnDescargarTxt
+            // 
+            btnDescargarTxt.BackColor = Color.SeaGreen;
+            btnDescargarTxt.Enabled = false;
+            btnDescargarTxt.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnDescargarTxt.ForeColor = SystemColors.ButtonHighlight;
+            btnDescargarTxt.Location = new Point(826, 420);
+            btnDescargarTxt.Name = "btnDescargarTxt";
+            btnDescargarTxt.Size = new Size(367, 45);
+            btnDescargarTxt.TabIndex = 20;
+            btnDescargarTxt.Text = "DESCARGAR COMPROBANTE (.TXT)";
+            btnDescargarTxt.UseVisualStyleBackColor = false;
+            // 
             // FrmTurnoEspecialidad
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Control;
             ClientSize = new Size(1205, 668);
+            Controls.Add(btnDescargarTxt);
             Controls.Add(LdescripTurno);
             Controls.Add(panel3);
             Controls.Add(panel2);
@@ -405,5 +420,6 @@
         private Label Ldescrip_turno_especialidad;
         private Label Lid_turno;
         private Label LdescripTurno;
+        private Button btnDescargarTxt;
     }
 }

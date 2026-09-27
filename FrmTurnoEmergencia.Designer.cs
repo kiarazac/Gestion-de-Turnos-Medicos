@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmTurnoEmergencia
     {
@@ -53,6 +53,7 @@
             panel3 = new Panel();
             Ldescrip_turno_especialidad = new Label();
             Lid_turno = new Label();
+            btnDescargarTxt = new Button();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
@@ -317,11 +318,25 @@
             Lid_turno.TabIndex = 18;
             Lid_turno.Text = "# --------";
             // 
+            // btnDescargarTxt
+            // 
+            btnDescargarTxt.BackColor = Color.SeaGreen;
+            btnDescargarTxt.Enabled = false;
+            btnDescargarTxt.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnDescargarTxt.ForeColor = SystemColors.ButtonHighlight;
+            btnDescargarTxt.Location = new Point(814, 460);
+            btnDescargarTxt.Name = "btnDescargarTxt";
+            btnDescargarTxt.Size = new Size(367, 45);
+            btnDescargarTxt.TabIndex = 20;
+            btnDescargarTxt.Text = "DESCARGAR COMPROBANTE (.TXT)";
+            btnDescargarTxt.UseVisualStyleBackColor = false;
+            // 
             // FrmTurnoEmergencia
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1195, 662);
+            Controls.Add(btnDescargarTxt);
             Controls.Add(LdescripTurno);
             Controls.Add(panel3);
             Controls.Add(panel2);
@@ -372,5 +387,6 @@
         private Panel panel3;
         private Label Ldescrip_turno_especialidad;
         private Label Lid_turno;
+        private Button btnDescargarTxt;
     }
 }

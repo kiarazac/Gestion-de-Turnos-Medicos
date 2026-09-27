@@ -18,6 +18,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL();
 
         private int? idPacienteActual = null;
+        private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
 
         public FrmTurnoEspecialidad()
         {
@@ -25,6 +26,7 @@ namespace Gestion_de_Turnos_Medicos
 
             this.Load += FrmTurnoEspecialidad_Load;
             this.button1.Click += BtnGenerarTurno_Click;
+            this.btnDescargarTxt.Click += BtnDescargarTxt_Click;
 
             txtDNI.Leave += TxtDNI_Leave;
             txtDNI.KeyDown += TxtDNI_KeyDown;
@@ -204,6 +206,23 @@ namespace Gestion_de_Turnos_Medicos
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
 
+                // Guardamos los datos del comprobante para su exportación a .txt
+                _ultimoTurnoEmitido = new DatosComprobanteTurno
+                {
+                    NroOrden = nroOrden,
+                    Prioridad = "NORMAL",
+                    Seccion = especialidad,
+                    FechaEmision = DateTime.Now,
+                    NombrePaciente = $"{apellido}, {nombre}",
+                    DniPaciente = dni,
+                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial,
+                    FechaTurnoProgramado = fecha.ToString("dd/MM/yyyy"),
+                    HorarioTurnoProgramado = horario
+                };
+
+                // Habilitamos el botón de descarga del comprobante
+                btnDescargarTxt.Enabled = true;
+
                 MessageBox.Show(
                     $"¡Turno programado con éxito!\n\n" +
                     $"Paciente: {apellido}, {nombre}\n" +
@@ -224,6 +243,38 @@ namespace Gestion_de_Turnos_Medicos
             catch (Exception ex)
             {
                 MessageBox.Show("Ocurrió un error al registrar el turno de especialidad:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Manejador del evento click para generar y descargar el archivo .txt con los datos del turno programado emitido.
+        /// </summary>
+        private void BtnDescargarTxt_Click(object? sender, EventArgs e)
+        {
+            if (_ultimoTurnoEmitido == null)
+            {
+                MessageBox.Show("No hay ningún turno emitido recientemente para descargar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "Archivo de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*";
+                    sfd.FileName = $"Turno_{_ultimoTurnoEmitido.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    sfd.Title = "Guardar Comprobante de Turno de Especialidad";
+
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        System.IO.File.WriteAllText(sfd.FileName, _ultimoTurnoEmitido.GenerarContenidoTxt());
+                        MessageBox.Show("¡Comprobante de turno generado y guardado exitosamente!", "Descarga Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al guardar el comprobante de turno:\n{ex.Message}", "Error de Archivo", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
