@@ -14,5 +14,14 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Gravedad asociada al síntoma ('Alta', 'Media', 'Baja') determinante de la prioridad de atención.</summary>
         public string Gravedad { get; set; }
+
+        /// <summary>
+        /// Representación textual del síntoma utilizada por controles de lista (ej. CheckedListBox) en la interfaz gráfica.
+        /// </summary>
+        /// <returns>La descripción clínica legible del síntoma.</returns>
+        public override string ToString()
+        {
+            return Descripcion;
+        }
     }
 }

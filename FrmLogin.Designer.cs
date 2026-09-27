@@ -149,6 +149,7 @@
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "FrmLogin";
             Text = "LoginUsuario";
+            Load += FrmLogin_Load;
             panel2.ResumeLayout(false);
             panel2.PerformLayout();
             ResumeLayout(false);

@@ -47,10 +47,18 @@ El sistema implementa una separación rigurosa de responsabilidades:
 
 ### 4. Módulo de Atención y Turnos
 - **`FrmTurnoEmergencia`:** Admite triage con escala de gravedad Manchester / prioridades y síntomas del paciente.
-- **`FrmTurnoEspecialidad`:** Turnos programados correlativos con selección de especialista y fecha.
+  - **Carga dinámica:** Consume el catálogo de síntomas activos desde `sp_ObtenerSintomas` mediante `TurnoBLL.ObtenerSintomas()` separando síntomas de gravedad **Alta** y **Media**.
+  - **Regla de Mayor Gravedad:** En caso de que se seleccionen múltiples síntomas de diferente severidad (ej. un síntoma de gravedad Alta junto con síntomas de gravedad Media o la opción "Otro"), el sistema garantiza que la prioridad asignada al turno corresponda a la del **síntoma con la gravedad más alta** (`1 = Alta`, `2 = Media`, `3 = Baja`).
+  - **Persistencia atómica:** Persiste todos los síntomas seleccionados en la tabla `TurnoSintomas` (`sp_GuardarTurnoSintoma`).
+  - **Retroalimentación visual:** Informa en pantalla y mediante código de color el nivel de prioridad resultante (Rojo para Alta, Naranja para Media, Verde para Baja).
+- **`FrmTurnoEspecialidad`:** Programación de turnos correlativos con selección de especialista y fecha.
 - **`FrmListaTurnos`:** Tablero y contadores de turnos en espera.
 - **`FrmListaTurnosAtencion`:** Monitor de consultorio para el médico (Llamar paciente, Iniciar atención, Finalizar atención y carga de Historia Clínica).
 - **`MisSalas_PM`:** Panel para que el médico autenticado gestione la apertura y cierre de sus consultorios designados.
+
+> [!NOTE]
+> **Estructura de Base de Datos:**
+> La estructura física de la base de datos `dbGestionTurnos` (tablas, columnas y relaciones foráneas) se mantiene intacta. La tabla `Prioridades` (`1 = Alta`, `2 = Media`, `3 = Baja`) y los Stored Procedures existentes (`sp_CrearTurnoEmergencia`, `sp_ObtenerSintomas`, `sp_ObtenerGravedadSintoma` y `sp_GuardarTurnoSintoma`) no requirieron alteraciones de esquema DDL, operando en total compatibilidad con la jerarquía de triage implementada.
 
 ### 5. Pantalla Pública de Sala de Espera (`FrmUsuarioVentana`)
 - Monitor visual a pantalla completa (o visor incrustable) para pacientes en sala de espera, con actualización en tiempo real de llamados activos a consultorios y estado de la guardia.

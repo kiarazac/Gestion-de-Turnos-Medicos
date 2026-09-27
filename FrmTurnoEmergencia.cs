@@ -2,6 +2,7 @@ using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace Gestion_de_Turnos_Medicos
@@ -9,6 +10,7 @@ namespace Gestion_de_Turnos_Medicos
     /// <summary>
     /// Formulario de recepción y emisión de turnos de emergencia y triage médico.
     /// Permite autocompletar pacientes por DNI, registrar pacientes nuevos y clasificar la urgencia médica según síntomas.
+    /// Garantiza que el síntoma de mayor gravedad tildado determine el nivel de prioridad asignado (Alta, Media, Baja).
     /// </summary>
     public partial class FrmTurnoEmergencia : Form
     {
@@ -24,12 +26,49 @@ namespace Gestion_de_Turnos_Medicos
 
         private void ConfigurarEventosAdicionales()
         {
+            // Cargar el catálogo dinámico de síntomas al inicializar el formulario
+            this.Load += (s, e) => CargarCatalogoSintomas();
+
             // Suscribimos los eventos de búsqueda por DNI
             txtDNI.Leave += TxtDNI_Leave;
             txtDNI.KeyDown += TxtDNI_KeyDown;
 
             // Suscribimos el evento del botón Generar Turno
             button1.Click += Button1_Click;
+        }
+
+        /// <summary>
+        /// Obtiene el catálogo de síntomas activos desde la base de datos a través de TurnoBLL
+        /// y los distribuye dinámicamente en los CheckedListBox según su nivel de gravedad (Alta o Media).
+        /// </summary>
+        private void CargarCatalogoSintomas()
+        {
+            try
+            {
+                var sintomas = _turnoBLL.ObtenerSintomas();
+                if (sintomas != null && sintomas.Count > 0)
+                {
+                    checkedListAlta.Items.Clear();
+                    checkedListMedia.Items.Clear();
+
+                    foreach (var s in sintomas)
+                    {
+                        if (s.Gravedad.Equals("Alta", StringComparison.OrdinalIgnoreCase))
+                        {
+                            checkedListAlta.Items.Add(s);
+                        }
+                        else if (s.Gravedad.Equals("Media", StringComparison.OrdinalIgnoreCase))
+                        {
+                            checkedListMedia.Items.Add(s);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"No se pudo cargar el catálogo de síntomas desde la base de datos:\n{ex.Message}",
+                    "Aviso de Triage", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void TxtDNI_Leave(object sender, EventArgs e)
@@ -119,34 +158,69 @@ namespace Gestion_de_Turnos_Medicos
                 bool esOtro = checkBoxBaja.Checked;
                 List<int> sintomasSeleccionados = new List<int>();
 
-                // Si no marcó "Otro", evaluamos los síntomas de los CheckedListBox
-                if (!esOtro)
+                // 1. Recolectamos los IDs de los síntomas tildados en la lista de ALTA gravedad
+                foreach (var item in checkedListAlta.CheckedItems)
                 {
-                    foreach (var item in checkedListAlta.CheckedItems)
+                    if (item is SintomaDTO s)
                     {
-                        // Lógica de mapeo de ID de síntoma si aplica en tu DAL
+                        sintomasSeleccionados.Add(s.IdSintoma);
                     }
-
-                    foreach (var item in checkedListMedia.CheckedItems)
+                    else if (item is string str)
                     {
-                        // Lógica de mapeo de ID de síntoma si aplica en tu DAL
-                    }
-
-                    if (checkedListAlta.CheckedItems.Count == 0 && checkedListMedia.CheckedItems.Count == 0)
-                    {
-                        MessageBox.Show("Debe seleccionar al menos un síntoma principal o marcar la opción 'Otro'.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
+                        // Fallback defensivo si los elementos vinieron como cadenas de texto
+                        int id = MapearIdSintomaPorTexto(str);
+                        if (id > 0) sintomasSeleccionados.Add(id);
                     }
                 }
 
-                // Llamada a la Capa de Negocio pasando el ID del paciente final, los síntomas y el estado de "Otro"
-                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro);
+                // 2. Recolectamos los IDs de los síntomas tildados en la lista de MEDIA gravedad
+                foreach (var item in checkedListMedia.CheckedItems)
+                {
+                    if (item is SintomaDTO s)
+                    {
+                        sintomasSeleccionados.Add(s.IdSintoma);
+                    }
+                    else if (item is string str)
+                    {
+                        // Fallback defensivo si los elementos vinieron como cadenas de texto
+                        int id = MapearIdSintomaPorTexto(str);
+                        if (id > 0) sintomasSeleccionados.Add(id);
+                    }
+                }
 
-                // Mostramos el resultado visual en pantalla
+                // Validación: Se debe haber marcado al menos un síntoma o seleccionado la opción "Otro"
+                if (sintomasSeleccionados.Count == 0 && !esOtro)
+                {
+                    MessageBox.Show("Debe seleccionar al menos un síntoma principal o marcar la opción 'Otro'.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 3. Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados y el estado de "Otro".
+                // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja).
+                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto);
+
+                // 4. Mostramos el resultado visual en pantalla con el número de turno y la prioridad asignada
                 Lid_turno.Text = $"# {nroOrden}";
-                Ldescrip_turno_especialidad.Text = "Emergencia";
+                Ldescrip_turno_especialidad.Text = $"Prioridad ({prioridadTexto})";
 
-                MessageBox.Show($"¡Turno de emergencia generado correctamente!\nNúmero de Orden: {nroOrden}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Coloreamos el texto según el nivel de urgencia del triage
+                switch (prioridadTexto.ToUpperInvariant())
+                {
+                    case "ALTA":
+                        Ldescrip_turno_especialidad.ForeColor = Color.FromArgb(214, 39, 40); // Rojo urgencia vital
+                        break;
+                    case "MEDIA":
+                        Ldescrip_turno_especialidad.ForeColor = Color.FromArgb(204, 102, 0); // Naranja urgencia moderada
+                        break;
+                    case "BAJA":
+                        Ldescrip_turno_especialidad.ForeColor = Color.FromArgb(46, 139, 87);  // Verde guardia regular
+                        break;
+                    default:
+                        Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
+                        break;
+                }
+
+                MessageBox.Show($"¡Turno de emergencia generado correctamente!\n\nNúmero de Orden: {nroOrden}\nPrioridad Triage: {prioridadTexto}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 LimpiarFormulario();
             }
@@ -155,6 +229,28 @@ namespace Gestion_de_Turnos_Medicos
                 // Atrapa los mensajes limpios lanzados desde la Base de Datos (SQL THROW/RAISERROR) o de las validaciones de BLL
                 MessageBox.Show($"No se pudo completar la operación:\n\n{ex.Message}", "Error de Sistema", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Mapea descripciones o textos de contingencia a los identificadores numéricos de síntomas en base de datos.
+        /// </summary>
+        /// <param name="texto">Cadena textual del síntoma.</param>
+        /// <returns>ID del síntoma reconocido o 0 si no se encontró coincidencia.</returns>
+        private int MapearIdSintomaPorTexto(string texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto)) return 0;
+            string t = texto.ToLowerInvariant();
+
+            if (t.Contains("pecho")) return 1;
+            if (t.Contains("respirar") || t.Contains("respiratoria")) return 2;
+            if (t.Contains("conocimiento")) return 3;
+            if (t.Contains("sangrado") || t.Contains("hemorragia")) return 4;
+            if (t.Contains("fiebre")) return 5;
+            if (t.Contains("abdominal") || t.Contains("abdomen") || t.Contains("vómito") || t.Contains("vomito")) return 6;
+            if (t.Contains("expuesta") || t.Contains("fractura") || t.Contains("trauma")) return 7;
+            if (t.Contains("alerg") || t.Contains("alérg") || t.Contains("cabeza")) return 8;
+
+            return 0;
         }
 
         private void LimpiarFormulario()

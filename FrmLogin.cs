@@ -143,5 +143,10 @@ namespace Gestion_de_Turnos_Medicos
         {
             Application.Exit();
         }
+
+        private void FrmLogin_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }

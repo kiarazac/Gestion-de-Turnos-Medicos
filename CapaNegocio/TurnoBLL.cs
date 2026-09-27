@@ -38,46 +38,87 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <summary>
         /// Determina la prioridad de triage según los síntomas seleccionados, crea el turno de emergencia
         /// y persiste las relaciones intermedias con cada síntoma manifestado.
+        /// Si se seleccionan varios síntomas con diferentes niveles de gravedad, la prioridad asignada
+        /// corresponderá a la del síntoma con mayor urgencia/gravedad (1 = Alta, 2 = Media, 3 = Baja).
         /// </summary>
         /// <param name="idPaciente">Identificador único del paciente admitido.</param>
         /// <param name="idsSintomas">Lista de identificadores de síntomas tildados.</param>
         /// <param name="esOtroSeleccionado">Indica si el paciente seleccionó la opción de síntoma no catalogado ("Otro").</param>
         /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
-        /// <exception cref="ArgumentException">Se lanza si el ID del paciente es inválido o no se especificó ningún síntoma.</exception>
+        /// <exception cref="ArgumentException">Se lanza si el ID del paciente es inválido o no se especificó ningún síntoma ni la opción 'Otro'.</exception>
         /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
         public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado)
+        {
+            // Invoca la sobrecarga principal descartando la salida de texto de la prioridad
+            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out _);
+        }
+
+        /// <summary>
+        /// Determina la prioridad de triage según los síntomas seleccionados, crea el turno de emergencia,
+        /// persiste los síntomas asociados y retorna tanto el código de turno como la descripción textual de la prioridad calculada.
+        /// Garantiza que el síntoma con la gravedad más severa determine la prioridad final del turno médico.
+        /// </summary>
+        /// <param name="idPaciente">Identificador único del paciente admitido.</param>
+        /// <param name="idsSintomas">Lista de identificadores de síntomas tildados.</param>
+        /// <param name="esOtroSeleccionado">Indica si el paciente seleccionó la opción de síntoma no catalogado ("Otro").</param>
+        /// <param name="prioridadTexto">Parámetro de salida que entrega el nivel de urgencia asignado ('ALTA', 'MEDIA', 'BAJA').</param>
+        /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
+        /// <exception cref="ArgumentException">Se lanza si los datos son inválidos o no hay ningún síntoma seleccionado.</exception>
+        /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto)
         {
             if (idPaciente <= 0)
                 throw new ArgumentException("El ID del paciente es inválido o no ha sido registrado/cargado.");
 
-            int prioridadDeterminada = 3; // Prioridad por defecto: 3 (Baja)
+            bool tieneSintomas = idsSintomas != null && idsSintomas.Count > 0;
 
-            if (esOtroSeleccionado)
-            {
-                prioridadDeterminada = 3; // Baja
-            }
-            else
-            {
-                if (idsSintomas == null || idsSintomas.Count == 0)
-                    throw new ArgumentException("Debe registrar al menos un síntoma o marcar la opción 'Otro'.");
+            // Validación: Debe existir al menos un síntoma seleccionado o haberse marcado la casilla "Otro"
+            if (!tieneSintomas && !esOtroSeleccionado)
+                throw new ArgumentException("Debe seleccionar al menos un síntoma principal o marcar la opción 'Otro'.");
 
-                foreach (int idSintoma in idsSintomas)
+            // La escala de prioridades en base de datos y modelo es:
+            // 1 = Alta (mayor urgencia vital)
+            // 2 = Media (urgencia moderada)
+            // 3 = Baja (guardia regular / sin gravedad inmediata)
+            // Por ende, el menor valor numérico representa la mayor gravedad médica.
+            int prioridadDeterminada = 3; // Inicializamos con la menor gravedad posible (Baja / 3)
+
+            // Si hay síntomas seleccionados en el catálogo, evaluamos la gravedad de cada uno
+            if (tieneSintomas)
+            {
+                foreach (int idSintoma in idsSintomas!)
                 {
                     int gravedadSintoma = _turnoDAL.ObtenerGravedadDeSintoma(idSintoma);
-                    // La prioridad menor en número representa mayor urgencia médica (1 = Alta, 2 = Media, 3 = Baja)
+
+                    // Si el síntoma actual tiene mayor severidad (es decir, un número menor)
+                    // que la prioridad acumulada, se actualiza la prioridad asignada.
+                    // Esto asegura que si hay al menos UN síntoma de gravedad Alta (1),
+                    // la prioridad final será Alta aunque también haya síntomas de gravedad Media (2) o "Otro".
                     if (gravedadSintoma < prioridadDeterminada)
+                    {
                         prioridadDeterminada = gravedadSintoma;
+                    }
                 }
             }
 
+            // Asignamos la etiqueta textual descriptiva de acuerdo al resultado de triage obtenido
+            prioridadTexto = prioridadDeterminada switch
+            {
+                1 => "ALTA",
+                2 => "MEDIA",
+                _ => "BAJA"
+            };
+
+            // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad calculada
             var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada);
 
             if (resultadoTurno.IdNuevoTurno <= 0)
                 throw new Exception("Error al generar el turno en la base de datos.");
 
-            if (!esOtroSeleccionado && idsSintomas != null)
+            // Guardamos cada uno de los síntomas manifestados en la tabla asociativa TurnoSintomas
+            if (tieneSintomas)
             {
-                foreach (int idSintoma in idsSintomas)
+                foreach (int idSintoma in idsSintomas!)
                 {
                     _turnoDAL.GuardarTurnoSintoma(resultadoTurno.IdNuevoTurno, idSintoma);
                 }
