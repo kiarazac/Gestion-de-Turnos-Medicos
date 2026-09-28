@@ -29,7 +29,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("Los identificadores de paciente, turno y usuario son obligatorios para el registro clínico.");
 
             if (string.IsNullOrWhiteSpace(descripHistoriaClinica))
-                throw new ArgumentException("La evolución médica no puede estar vacía.");
+                descripHistoriaClinica = diagRapido;
+
+            if (string.IsNullOrWhiteSpace(diagRapido))
+                diagRapido = descripHistoriaClinica;
+
+            if (string.IsNullOrWhiteSpace(diagRapido))
+                throw new ArgumentException("El diagnóstico médico no puede estar vacío.");
 
             _historiaDAL.InsertarHistoria(tipoTurno, diagRapido, descripHistoriaClinica, recetaMedicamentos, idPaciente, idTurno, idUsuario);
         }

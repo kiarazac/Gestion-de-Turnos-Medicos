@@ -45,8 +45,8 @@ namespace Gestion_de_Turnos_Medicos
         private string _medicoQueAtendio = string.Empty;
         private string _salaDeAtencion = string.Empty;
 
-        private BindingList<Turno> _turnosVisibles;
-        private Turno _turnoActual;
+        private BindingList<Turno>? _turnosVisibles;
+        private Turno? _turnoActual;
         private EstadoPuesto _estadoActual = EstadoPuesto.SinPaciente;
 
         private int _indiceServicioAnterior = 0;
@@ -373,7 +373,126 @@ namespace Gestion_de_Turnos_Medicos
                     "Aviso de Comunicación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
+            // Consultar antecedentes y antecedentes previos de la historia clínica
+            CargarHistoriaClinicaPrevia(_turnoActual);
+
             CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
+
+            txtDiagnostico.Focus();
+        }
+
+        private void CargarHistoriaClinicaPrevia(Turno turno)
+        {
+            txtHistoriaPrevia.Clear();
+
+            int idPaciente = ObtenerIdPacienteDelTurno(turno);
+            if (idPaciente <= 0)
+            {
+                txtHistoriaPrevia.Text = "(No se pudo determinar el identificador del paciente)";
+                return;
+            }
+
+            try
+            {
+                var antecedentes = _historiaClinicaBLL.ObtenerHistoriaClinicaPaciente(idPaciente);
+
+                if (antecedentes != null && antecedentes.Count > 0)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    foreach (var h in antecedentes)
+                    {
+                        string medico = !string.IsNullOrWhiteSpace(h.ApellidoMedico)
+                            ? $"Dr. {h.ApellidoMedico} {h.NombreMedico}".Trim()
+                            : "Médico tratante";
+
+                        sb.AppendLine($"• [{h.Fecha:dd/MM/yyyy HH:mm}] {medico} ({h.TipoTurno})");
+                        sb.AppendLine($"  Diagnóstico: {h.DiagRapido}");
+                        if (!string.IsNullOrWhiteSpace(h.DescripHistoriaClinica) && !h.DescripHistoriaClinica.Equals(h.DiagRapido, StringComparison.OrdinalIgnoreCase))
+                        {
+                            sb.AppendLine($"  Evolución: {h.DescripHistoriaClinica}");
+                        }
+                        if (!string.IsNullOrWhiteSpace(h.RecetaMedicamentos))
+                        {
+                            sb.AppendLine($"  Receta: {h.RecetaMedicamentos}");
+                        }
+                        sb.AppendLine(new string('-', 35));
+                    }
+                    txtHistoriaPrevia.Text = sb.ToString();
+                    txtHistoriaPrevia.SelectionStart = 0;
+                    txtHistoriaPrevia.ScrollToCaret();
+                }
+                else
+                {
+                    txtHistoriaPrevia.Text = "(El paciente no registra historia clínica previa cargada)";
+                }
+            }
+            catch (Exception ex)
+            {
+                txtHistoriaPrevia.Text = $"(Error al consultar historia clínica previa: {ex.Message})";
+            }
+        }
+
+        private int ObtenerIdPacienteDelTurno(Turno? turno)
+        {
+            if (turno == null) return 0;
+            if (turno.IdPaciente > 0) return turno.IdPaciente;
+            if (turno.Paciente != null && turno.Paciente.IdPaciente > 0) return turno.Paciente.IdPaciente;
+
+            try
+            {
+                using (var context = new dbTurnosMedicos())
+                {
+                    var id = context.Turnos.Where(x => x.IdTurno == turno.IdTurno).Select(x => x.IdPaciente).FirstOrDefault();
+                    if (id > 0)
+                    {
+                        turno.IdPaciente = id;
+                        if (turno.Paciente != null) turno.Paciente.IdPaciente = id;
+                        return id;
+                    }
+
+                    if (turno.Paciente != null && !string.IsNullOrWhiteSpace(turno.Paciente.Dni))
+                    {
+                        id = context.Pacientes.Where(p => p.Dni == turno.Paciente.Dni).Select(p => p.IdPaciente).FirstOrDefault();
+                        if (id > 0)
+                        {
+                            turno.IdPaciente = id;
+                            turno.Paciente.IdPaciente = id;
+                            return id;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback silencioso
+            }
+
+            return 0;
+        }
+
+        private int ObtenerIdUsuarioMedico()
+        {
+            if (_usuarioActual != null && _usuarioActual.IdUsuario > 0)
+                return _usuarioActual.IdUsuario;
+
+            try
+            {
+                using (var context = new dbTurnosMedicos())
+                {
+                    var id = context.Usuarios
+                        .Where(u => u.Activo && (u.IdRol == 2 || u.NroMatricula != null))
+                        .Select(u => u.IdUsuario)
+                        .FirstOrDefault();
+
+                    if (id > 0) return id;
+
+                    return context.Usuarios.Where(u => u.Activo).Select(u => u.IdUsuario).FirstOrDefault();
+                }
+            }
+            catch
+            {
+                return 1;
+            }
         }
 
         private void btnTerminarAtencion_Click(object sender, EventArgs e)
@@ -382,21 +501,51 @@ namespace Gestion_de_Turnos_Medicos
                 return;
 
             _diagnosticoRapido = txtDiagnostico.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(_diagnosticoRapido))
+            {
+                MessageBox.Show("Por favor, ingrese el diagnóstico médico antes de finalizar la atención.",
+                    "Diagnóstico Requerido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtDiagnostico.Focus();
+                return;
+            }
+
             _horaFinAtencion = DateTime.Now;
             _turnoActual.Estado = "Atendido";
             _medicoQueAtendio = _nombreMedico;
             _salaDeAtencion = _salaAsignada;
 
+            int idPaciente = ObtenerIdPacienteDelTurno(_turnoActual);
+            int idUsuario = ObtenerIdUsuarioMedico();
+
             try
             {
-                // BLL delega a TurnoDAL y ejecuta sp_FinalizarAtencionTurno
+                // 1. BLL delega a TurnoDAL y ejecuta sp_FinalizarAtencionTurno
                 _turnoBLL.FinalizarAtencionTurno(_turnoActual.IdTurno, _diagnosticoRapido, _medicoQueAtendio, _salaDeAtencion);
 
-                MessageBox.Show("Atención médica finalizada con éxito.", "Turno Atendido", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // 2. Registrar la evolución en la Historia Clínica del paciente
+                if (idPaciente > 0 && idUsuario > 0)
+                {
+                    string servicio = cboServicio.SelectedItem?.ToString() ?? "Consulta";
+                    string tipoTurno = servicio.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) ? "Emergencia" : "Especialidad";
+
+                    _historiaClinicaBLL.RegistrarHistoria(
+                        tipoTurno: tipoTurno,
+                        diagRapido: _diagnosticoRapido,
+                        descripHistoriaClinica: _diagnosticoRapido,
+                        recetaMedicamentos: string.Empty,
+                        idPaciente: idPaciente,
+                        idTurno: _turnoActual.IdTurno,
+                        idUsuario: idUsuario
+                    );
+                }
+
+                MessageBox.Show("Atención médica finalizada e Historia Clínica registrada con éxito.",
+                    "Turno Atendido", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudo registrar la finalización de la atención:\n" + ex.Message,
+                MessageBox.Show("No se pudo registrar la finalización de la atención o historia clínica:\n" + ex.Message,
                     "Error al finalizar", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
@@ -466,6 +615,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);
 
             ActualizarTiempoTranscurrido();
+            txtHistoriaPrevia.Clear();
             txtDiagnostico.Clear();
         }
 
@@ -478,6 +628,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoPrioridadValor.Text = "";
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);
             lblInfoTiempo.Text = "Hora de Entrada / Tiempo: -";
+            txtHistoriaPrevia.Clear();
             txtDiagnostico.Clear();
         }
 

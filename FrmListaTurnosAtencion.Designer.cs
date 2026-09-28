@@ -1,4 +1,4 @@
-﻿namespace Gestion_de_Turnos_Medicos
+namespace Gestion_de_Turnos_Medicos
 {
     partial class FrmListaTurnosAtencion
     {
@@ -37,6 +37,7 @@
             lblInfoPrioridadValor = new Label();
             lblInfoTiempo = new Label();
             lblObservaciones = new Label();
+            txtHistoriaPrevia = new TextBox();
             lblDiagnostico = new Label();
             txtDiagnostico = new TextBox();
             btnSiguientePaciente = new Button();
@@ -172,6 +173,7 @@
             pnlAtencionActual.Controls.Add(lblInfoPrioridadValor);
             pnlAtencionActual.Controls.Add(lblInfoTiempo);
             pnlAtencionActual.Controls.Add(lblObservaciones);
+            pnlAtencionActual.Controls.Add(txtHistoriaPrevia);
             pnlAtencionActual.Controls.Add(lblDiagnostico);
             pnlAtencionActual.Controls.Add(txtDiagnostico);
             pnlAtencionActual.Location = new Point(656, 10);
@@ -252,31 +254,43 @@
             // lblObservaciones
             // 
             lblObservaciones.AutoSize = true;
-            lblObservaciones.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblObservaciones.Location = new Point(16, 154);
+            lblObservaciones.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblObservaciones.Location = new Point(16, 148);
             lblObservaciones.Name = "lblObservaciones";
-            lblObservaciones.Size = new Size(136, 15);
+            lblObservaciones.Size = new Size(224, 15);
             lblObservaciones.TabIndex = 7;
-            lblObservaciones.Text = "Observaciones Médicas";
-            lblObservaciones.Click += lblObservaciones_Click;
+            lblObservaciones.Text = "Historia Clínica / Diagnósticos Previos";
+            // 
+            // txtHistoriaPrevia
+            // 
+            txtHistoriaPrevia.BackColor = Color.FromArgb(245, 245, 245);
+            txtHistoriaPrevia.Font = new Font("Segoe UI", 8.5F);
+            txtHistoriaPrevia.Location = new Point(16, 168);
+            txtHistoriaPrevia.Multiline = true;
+            txtHistoriaPrevia.Name = "txtHistoriaPrevia";
+            txtHistoriaPrevia.ReadOnly = true;
+            txtHistoriaPrevia.ScrollBars = ScrollBars.Vertical;
+            txtHistoriaPrevia.Size = new Size(308, 80);
+            txtHistoriaPrevia.TabIndex = 8;
             // 
             // lblDiagnostico
             // 
             lblDiagnostico.AutoSize = true;
-            lblDiagnostico.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblDiagnostico.Location = new Point(16, 187);
+            lblDiagnostico.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblDiagnostico.Location = new Point(16, 255);
             lblDiagnostico.Name = "lblDiagnostico";
-            lblDiagnostico.Size = new Size(113, 15);
+            lblDiagnostico.Size = new Size(111, 15);
             lblDiagnostico.TabIndex = 9;
-            lblDiagnostico.Text = "Diagnóstico Rápido";
+            lblDiagnostico.Text = "Diagnóstico Actual";
             // 
             // txtDiagnostico
             // 
-            txtDiagnostico.Location = new Point(16, 207);
+            txtDiagnostico.Font = new Font("Segoe UI", 8.5F);
+            txtDiagnostico.Location = new Point(16, 275);
             txtDiagnostico.Multiline = true;
             txtDiagnostico.Name = "txtDiagnostico";
             txtDiagnostico.ScrollBars = ScrollBars.Vertical;
-            txtDiagnostico.Size = new Size(308, 70);
+            txtDiagnostico.Size = new Size(308, 90);
             txtDiagnostico.TabIndex = 1;
             // 
             // btnSiguientePaciente
@@ -411,7 +425,7 @@
         private System.Windows.Forms.Label lblInfoPrioridadValor;
         private System.Windows.Forms.Label lblInfoTiempo;
         private System.Windows.Forms.Label lblObservaciones;
-        // txtObservaciones removed
+        private System.Windows.Forms.TextBox txtHistoriaPrevia;
         private System.Windows.Forms.Label lblDiagnostico;
         private System.Windows.Forms.TextBox txtDiagnostico;
 

@@ -26,10 +26,10 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno);
-                var pDiagRapido = new SqlParameter("@DiagRapido", (object)diagRapido ?? DBNull.Value);
-                var pDescrip = new SqlParameter("@DescripHistoriaClinica", (object)descripHistoriaClinica ?? DBNull.Value);
-                var pReceta = new SqlParameter("@RecetaMedicamentos", (object)recetaMedicamentos ?? DBNull.Value);
+                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno ?? "Consulta");
+                var pDiagRapido = new SqlParameter("@DiagRapido", (object)(diagRapido ?? string.Empty));
+                var pDescrip = new SqlParameter("@DescripHistoriaClinica", (object)(descripHistoriaClinica ?? string.Empty));
+                var pReceta = new SqlParameter("@RecetaMedicamentos", (object)(recetaMedicamentos ?? string.Empty));
                 var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
                 var pIdTurno = new SqlParameter("@IdTurno", idTurno);
                 var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);

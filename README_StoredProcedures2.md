@@ -2726,9 +2726,9 @@ GO
 - **Entidad:** HistoriaClinica / Usuario
 - **Operación:** Consulta Histórica
 - **Tablas:** `HistoriasClinicas`, `Usuarios`
-- **Forms que lo utilizan:** Visor de antecedentes médicos.
-- **Acción:** N/A
-- **Estado:** `SIN FORM ASOCIADO / PENDIENTE DE VISOR HC`
+- **Forms que lo utilizan:** `FrmListaTurnosAtencion` (Panel de Atención Actual - Visor de Antecedentes Previos)
+- **Acción:** Botón `btnIniciarAtencion` (Carga automática de antecedentes al iniciar la atención médica)
+- **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -2871,7 +2871,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 45 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
 | 46 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
 | 47 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
-| * | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | Módulo Médico (DAL/BLL) | Consulta histórica por paciente (pendiente de visor UI) | `PREPARADO EN BD` |
+| 48 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
 
 ---
 
@@ -2936,8 +2936,9 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_ListarTurnosAtencion` / `sp_ObtenerTurnosEnEspera` → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
 - `sp_LlamarSiguienteTurno` → Botón "Siguiente Paciente". Pasa el turno a estado 'Llamado'.
 - `sp_IniciarAtencionTurno` → Botón "Iniciar Atención". Pasa el turno a 'En Consulta' y marca el consultorio como 'Ocupada'.
+- `sp_ObtenerHistoriaClinicaPaciente` → Botón "Iniciar Atención". Consulta antecedentes cronológicos del paciente para el panel superior de lectura de antecedentes clínicos.
 - `sp_FinalizarAtencionTurno` → Botón "Terminar Atención". Pasa el turno a 'Atendido' y libera el consultorio a 'Disponible'.
-- `sp_InsertarHistoriaClinica` → Botón "Terminar Atención". Guarda diagnóstico, evolución y recetas farmacológicas.
+- `sp_InsertarHistoriaClinica` → Botón "Terminar Atención". Guarda diagnóstico actual, evolución clínica y vinculación con la consulta concluida.
 
 ### `MisSalas_PM`
 - `sp_ObtenerSalas` (`@IdUsuario = médico`) → Carga de la grilla de salas asignadas al médico logueado (`CargarMisSalas`).
@@ -3016,7 +3017,5 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
   - **`sp_CrearTurnoEspecialidad`**: Genera automáticamente el código con la inicial de la especialidad (ej. `C-001`, `P-001`), asocia fecha y franja horaria y valida paciente y especialidad (códigos `50001` y `50003`).
   - **`sp_CrearTurnoEmergencia`**: Genera automáticamente el código de guardia `E-001`, asigna el nivel de triage y vincula el servicio de emergencias (códigos `50001` y `50002`).
 
-*(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra definido e implementado en la base de datos y referenciado en las capas de acceso a datos, pero la pantalla de visor de antecedentes médicos aún no ha sido incorporada al frontend WinForms).*
-
-*(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra definido e implementado en la base de datos y referenciado en las capas de acceso a datos, pero la pantalla de visor de antecedentes médicos aún no ha sido incorporada al frontend WinForms).*
+*(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra plenamente integrado en el formulario de atención médica `FrmListaTurnosAtencion`, consumido por el botón "Iniciar Atención" para la consulta de antecedentes del paciente).*
 
