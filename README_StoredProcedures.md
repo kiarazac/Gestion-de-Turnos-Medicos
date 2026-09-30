@@ -1509,7 +1509,7 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdUsuario` | `INT` | IN | ID del médico consultado. |
-- **Devuelve:** `IdEspecialidad`, `Nombre`.
+- **Devuelve:** `IdEspecialidad`, `Nombre`, `Activo`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ObtenerEspecialidadesPorMedico
@@ -1520,7 +1520,8 @@ BEGIN
 
     SELECT 
         e.IdEspecialidad,
-        e.Nombre
+        e.Nombre,
+        e.Activo
     FROM Especialidades e
     INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
     WHERE me.IdUsuario = @IdUsuario 
@@ -2135,7 +2136,7 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@NombreEspecialidad` | `NVARCHAR(100)` | IN | Nombre de la especialidad consultada. |
-- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`.
+- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`, `NombreSala`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarTurnosEspecialidad
@@ -2152,10 +2153,12 @@ BEGIN
         CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS Fecha,
         e.Nombre AS NombreEspecialidad,
         ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
-        t.IdPrioridad
+        t.IdPrioridad,
+        ISNULL(s.NombreSala, '--') AS NombreSala
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
@@ -2285,7 +2288,7 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@IdEspecialidad` | `INT = NULL` | IN | Filtro opcional por especialidad. |
   | `@Estado` | `NVARCHAR(50) = NULL` | IN | Filtro opcional por estado ('En Espera', 'Llamado', 'Atendido'). |
-- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`.
+- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`, `NombreSala`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ObtenerListaTurnos
@@ -2303,10 +2306,12 @@ BEGIN
         t.Fecha,
         e.Nombre AS NombreEspecialidad,
         pr.Descripcion AS PrioridadTexto,
-        t.IdPrioridad
+        t.IdPrioridad,
+        ISNULL(s.NombreSala, '--') AS NombreSala
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)

@@ -39,16 +39,37 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
         /// <summary>
         /// Registra la apertura de una sala por parte de un profesional médico al iniciar su turno o jornada.
+        /// Valida las reglas de negocio de que el médico no posea otra sala abierta simultáneamente.
         /// </summary>
         /// <param name="idSala">Identificador de la sala a abrir.</param>
         /// <param name="idUsuario">Identificador del médico que toma posesión del consultorio.</param>
         /// <exception cref="ArgumentException">Se lanza si el identificador de sala o usuario es inválido.</exception>
+        /// <exception cref="InvalidOperationException">Se lanza si el médico ya tiene otra sala abierta activa.</exception>
         public void AbrirSala(int idSala, int idUsuario)
         {
             if (idSala <= 0 || idUsuario <= 0)
                 throw new ArgumentException("Los identificadores de sala y usuario son requeridos para abrir la sala.");
 
+            var salaAbiertaExistente = _salaDAL.ObtenerSalaAbiertaPorMedico(idUsuario);
+            if (salaAbiertaExistente != null && salaAbiertaExistente.IdSala != idSala)
+            {
+                throw new InvalidOperationException($"Acción denegada: Ya tienes abierta la sala '{salaAbiertaExistente.NombreSala}'. Debes cerrarla antes de abrir una nueva.");
+            }
+
             _salaDAL.AbrirSala(idSala, idUsuario);
+        }
+
+        /// <summary>
+        /// Obtiene la sala que se encuentra actualmente abierta ('Disponible', 'Libre' u 'Ocupada') asignada al profesional médico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>La sala abierta como <see cref="SalaDTO"/> o <c>null</c> si no tiene sala abierta.</returns>
+        public SalaDTO? ObtenerSalaAbiertaPorMedico(int idUsuario)
+        {
+            if (idUsuario <= 0)
+                return null;
+
+            return _salaDAL.ObtenerSalaAbiertaPorMedico(idUsuario);
         }
 
         /// <summary>

@@ -466,6 +466,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `TurnoBLL.ObtenerTurnosAtencion` | `TurnoDAL.ListarTurnosAtencion` | `sp_ListarTurnosAtencion` |
 | | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | `sp_LlamarSiguienteTurno` |
 | | `TurnoBLL.IniciarAtencionTurno` | `TurnoDAL.IniciarAtencionTurno` | `sp_IniciarAtencionTurno` / `sp_ActualizarEstadoSala` |
+| | `HistoriaClinicaBLL.ObtenerHistoriaClinicaPaciente` | `HistoriaClinicaDAL.ObtenerHistoriaClinicaPaciente` | `sp_ObtenerHistoriaClinicaPaciente` |
 | | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencionTurno` |
 | | `HistoriaClinicaBLL.RegistrarHistoria` | `HistoriaClinicaDAL.InsertarHistoria` | `sp_InsertarHistoriaClinica` |
 | **`MisSalas_PM`** | `SalaBLL.ObtenerSalas` (`@IdUsuario`) | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |

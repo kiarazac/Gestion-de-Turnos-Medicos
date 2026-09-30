@@ -31,5 +31,8 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Identificador foráneo de prioridad.</summary>
         public int? IdPrioridad { get; set; }
+
+        /// <summary>Nombre del consultorio o sala física asignada.</summary>
+        public string? NombreSala { get; set; }
     }
 }

@@ -778,6 +778,7 @@ BEGIN
         WHERE ds.IdUsuario = @IdUsuario 
           AND s.EstadoSala IN ('Libre', 'Disponible', 'Ocupada') 
           AND s.Activo = 1
+          AND ds.Activo = 1
           AND s.IdSala <> @IdSala
     )
     BEGIN
@@ -791,6 +792,15 @@ BEGIN
     )
     BEGIN
         THROW 50003, 'Acción denegada: No tienes permisos para abrir esta sala porque no te ha sido asignada.', 1;
+    END
+
+    IF EXISTS (
+        SELECT 1 
+        FROM Salas 
+        WHERE IdSala = @IdSala AND EstadoSala IN ('Libre', 'Disponible', 'Ocupada') AND Activo = 1
+    )
+    BEGIN
+        THROW 50004, 'La sala seleccionada ya se encuentra abierta.', 1;
     END
 
     UPDATE Salas
@@ -1216,7 +1226,8 @@ BEGIN
 
     SELECT 
         e.IdEspecialidad,
-        e.Nombre
+        e.Nombre,
+        e.Activo
     FROM Especialidades e
     INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
     WHERE me.IdUsuario = @IdUsuario 
@@ -1756,10 +1767,12 @@ BEGIN
         CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS Fecha,
         e.Nombre AS NombreEspecialidad,
         ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
-        t.IdPrioridad
+        t.IdPrioridad,
+        ISNULL(s.NombreSala, '--') AS NombreSala
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
@@ -1885,10 +1898,12 @@ BEGIN
         t.Fecha,
         e.Nombre AS NombreEspecialidad,
         pr.Descripcion AS PrioridadTexto,
-        t.IdPrioridad
+        t.IdPrioridad,
+        ISNULL(s.NombreSala, '--') AS NombreSala
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
@@ -1972,11 +1987,18 @@ BEGIN
         END
 
         DECLARE @IdSala INT = NULL;
-        SELECT @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
+            END
+        END
 
         UPDATE Turnos
         SET Estado = 'Llamado',
-            IdSala = ISNULL(@IdSala, IdSala),
+            IdSala = COALESCE(@IdSala, IdSala),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno AND Activo = 1;
     END TRY
@@ -2023,19 +2045,19 @@ BEGIN
 
         DECLARE @IdSala INT = NULL;
 
-        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--'
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
         BEGIN
-            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
             
             IF @IdSala IS NULL
             BEGIN
-                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%';
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
             END
         END
 
         BEGIN TRANSACTION;
 
-        -- 3. Actualizar el turno a 'En Consulta'
+        -- 3. Actualizar el turno a 'En Consulta' y vincular la sala
         UPDATE Turnos
         SET Estado = 'En Consulta',
             IdSala = COALESCE(@IdSala, IdSala),
@@ -2065,7 +2087,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_FinalizarAtencionTurno
 ** Sección       : 6.6
-** Propósito     : Concluye formalmente la consulta médica: pasa el turno a estado `'Atendido'`, libera atómicamente la sala a estado `'Disponible'` y valida la existencia del turno.
+** Propósito     : Concluye formalmente la consulta médica: pasa el turno a estado `'Atendido'`, vincula la sala física y libera atómicamente la sala a estado `'Disponible'`.
 ** Entidad/Tablas: `Turnos`, `Salas`
 ** Invocado por  : `FrmListaTurnosAtencion` (Botón `btnTerminarAtencion`)
 ** Estado        : `EN USO`
@@ -2092,16 +2114,36 @@ BEGIN
             THROW 50084, 'El turno a finalizar no existe en el sistema.', 1;
         END
 
+        DECLARE @IdSala INT = NULL;
+
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
+            
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
+            END
+        END
+
         BEGIN TRANSACTION;
 
-        -- 2. Marcar el turno como Atendido
+        -- 2. Marcar el turno como Atendido y registrar la sala
         UPDATE Turnos
         SET Estado = 'Atendido',
+            IdSala = COALESCE(@IdSala, IdSala),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno;
 
         -- 3. Liberar la sala a Disponible
-        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--'
+        IF @IdSala IS NOT NULL
+        BEGIN
+            UPDATE Salas
+            SET EstadoSala = 'Disponible',
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND Activo = 1;
+        END
+        ELSE IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
         BEGIN
             UPDATE Salas
             SET EstadoSala = 'Disponible',
@@ -2253,9 +2295,10 @@ GO
 ** Sección       : 6.10
 ** Propósito     : Permite consultar los antecedentes clínicos completos del paciente ordenados cronológicamente.
 ** Entidad/Tablas: `HistoriasClinicas`, `Usuarios`
-** Invocado por  : Visor de antecedentes médicos. (N/A)
-** Estado        : `SIN FORM ASOCIADO / PENDIENTE DE VISOR HC`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Invocado por  : `FrmListaTurnosAtencion` (Panel de Atención Actual - Visor de Antecedentes Previos)
+** Acción        : Botón `btnIniciarAtencion` (Carga automática de antecedentes al iniciar la atención médica)
+** Estado        : `EN USO`
+** Retorno       : Registros de HistoriasClinicas vinculadas con datos del médico tratante
 ** Parámetros   :
 **                `@IdPaciente` (`INT`, IN) - ID del paciente consultado.
 ** ========================================================================= */
@@ -2273,18 +2316,6 @@ BEGIN
 END;
 GO
 
-
-/* =========================================================================
-** Procedimiento : sp_ObtenerHistoriaClinicaPaciente
-** Sección       : 6.10
-** Propósito     : Permite consultar los antecedentes clínicos completos del paciente ordenados cronológicamente.
-** Entidad/Tablas: `HistoriasClinicas`, `Usuarios`
-** Invocado por  : Visor de antecedentes médicos. (N/A)
-** Estado        : `SIN FORM ASOCIADO / PENDIENTE DE VISOR HC`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@IdPaciente` (`INT`, IN) - ID del paciente consultado.
-** ========================================================================= */
 USE dbGestionTurnos;
 GO
 

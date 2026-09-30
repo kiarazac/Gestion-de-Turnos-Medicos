@@ -244,5 +244,21 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
             }
         }
+
+        /// <summary>
+        /// Obtiene la sala de atención que se encuentra actualmente abierta (Estado 'Disponible', 'Libre' u 'Ocupada')
+        /// asignada al médico especificado.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>La sala abierta activa como <see cref="SalaDTO"/> o <c>null</c> si no tiene sala abierta.</returns>
+        public SalaDTO? ObtenerSalaAbiertaPorMedico(int idUsuario)
+        {
+            var salas = ObtenerSalas(idUsuario, incluirInactivas: false);
+            return salas?.FirstOrDefault(s => s.Activo && (
+                s.EstadoSala.Equals("Disponible", StringComparison.OrdinalIgnoreCase) ||
+                s.EstadoSala.Equals("Libre", StringComparison.OrdinalIgnoreCase) ||
+                s.EstadoSala.Equals("Ocupada", StringComparison.OrdinalIgnoreCase)
+            ));
+        }
     }
 }

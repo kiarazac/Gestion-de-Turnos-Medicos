@@ -178,10 +178,39 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pNombreEspecialidad = new SqlParameter("@NombreEspecialidad", nombreEspecialidad);
-                return context.Database
-                    .SqlQueryRaw<TurnoListadoDTO>("EXEC sp_ListarTurnosEspecialidad @NombreEspecialidad", pNombreEspecialidad)
-                    .ToList();
+                var pNombreEspecialidad = new SqlParameter("@NombreEspecialidad", (object)nombreEspecialidad ?? DBNull.Value);
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<TurnoListadoDTO>("EXEC sp_ListarTurnosEspecialidad @NombreEspecialidad", pNombreEspecialidad)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            t.IdTurno,
+                            t.NroOrden,
+                            t.Estado,
+                            t.TipoTurno,
+                            CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS Fecha,
+                            e.Nombre AS NombreEspecialidad,
+                            ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
+                            t.IdPrioridad,
+                            ISNULL(s.NombreSala, '--') AS NombreSala
+                        FROM Turnos t
+                        INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
+                        LEFT JOIN Salas s ON t.IdSala = s.IdSala
+                        WHERE t.Activo = 1 
+                          AND t.TipoTurno = 'Consulta'
+                          AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
+                        ORDER BY t.Fecha ASC, t.Horario ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<TurnoListadoDTO>(sql, pNombreEspecialidad)
+                        .ToList();
+                }
             }
         }
 
@@ -198,9 +227,38 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object)idEspecialidad ?? DBNull.Value);
                 var pEstado = new SqlParameter("@Estado", (object?)estado ?? DBNull.Value);
 
-                return context.Database
-                    .SqlQueryRaw<TurnoListadoDTO>("EXEC sp_ObtenerListaTurnos @IdEspecialidad, @Estado", pIdEspecialidad, pEstado)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<TurnoListadoDTO>("EXEC sp_ObtenerListaTurnos @IdEspecialidad, @Estado", pIdEspecialidad, pEstado)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            t.IdTurno,
+                            t.NroOrden,
+                            t.Estado,
+                            t.TipoTurno,
+                            t.Fecha,
+                            e.Nombre AS NombreEspecialidad,
+                            pr.Descripcion AS PrioridadTexto,
+                            t.IdPrioridad,
+                            ISNULL(s.NombreSala, '--') AS NombreSala
+                        FROM Turnos t
+                        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                        LEFT JOIN Salas s ON t.IdSala = s.IdSala
+                        WHERE t.Activo = 1
+                          AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
+                          AND (@Estado IS NULL OR t.Estado = @Estado)
+                        ORDER BY t.Fecha ASC, t.FechaCreacion ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<TurnoListadoDTO>(sql, pIdEspecialidad, pEstado)
+                        .ToList();
+                }
             }
         }
 

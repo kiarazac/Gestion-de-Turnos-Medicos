@@ -145,7 +145,7 @@ namespace Gestion_de_Turnos_Medicos
                         string hora = t.Fecha.ToString("HH:mm");
                         string fecha = t.Fecha.ToString("dd/MM/yyyy");
                         string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "--";
-                        string sala = "Consultorio";
+                        string sala = !string.IsNullOrWhiteSpace(t.NombreSala) ? t.NombreSala : "--";
 
                         dgvEspecialidades.Rows.Add(turno, hora, fecha, estado, sala);
                     }

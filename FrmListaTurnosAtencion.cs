@@ -28,12 +28,13 @@ namespace Gestion_de_Turnos_Medicos
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
         private readonly HistoriaClinicaBLL _historiaClinicaBLL = new HistoriaClinicaBLL();
+        private readonly SalaBLL _salaBLL = new SalaBLL();
 
         // Datos del médico autenticado / sala asignada
         private readonly UsuarioLoginResult? _usuarioActual;
         private readonly string _nombreMedico;
         private readonly string _matriculaMedico;
-        private readonly string _salaAsignada;
+        private string _salaAsignada;
 
         // Lista de turnos cargados desde la base de datos
         private List<Turno> _todosLosTurnos = new List<Turno>();
@@ -58,9 +59,9 @@ namespace Gestion_de_Turnos_Medicos
 
         public FrmListaTurnosAtencion(UsuarioLoginResult? usuario)
             : this(
-                usuario != null ? $"Dr. {usuario.Nombre} {usuario.Apellido}" : "Médico de Turno",
+                usuario != null ? $"Dr. {usuario.Nombre} {usuario.Apellido}".Trim() : "Médico de Turno",
                 "M.N. General",
-                "Consultorio de Atención"
+                string.Empty
             )
         {
             _usuarioActual = usuario;
@@ -80,8 +81,8 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmListaTurnosAtencion_Load(object sender, EventArgs e)
         {
             this.Text = $"FrmListaTurnosAtencion - {_nombreMedico}";
-            lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
-            lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
+
+            bool tieneSala = VerificarYActualizarSalaAbierta();
 
             ConfigurarGrid();
             CargarServiciosDelMedico();
@@ -90,6 +91,54 @@ namespace Gestion_de_Turnos_Medicos
             RefrescarListado();
             LimpiarPanelAtencion();
             CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+
+            if (!tieneSala)
+            {
+                MessageBox.Show("Aviso: No tienes ninguna sala de atención abierta en este momento.\n\nPara poder llamar y atender pacientes, debes abrir tu consultorio asignado desde el menú 'Mis Salas'.",
+                    "Sala Requerida para Atención", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>
+        /// Comprueba si el médico tiene una sala de atención abierta y actualiza las etiquetas visuales.
+        /// </summary>
+        /// <returns><c>true</c> si tiene una sala abierta válida; de lo contrario, <c>false</c>.</returns>
+        private bool VerificarYActualizarSalaAbierta()
+        {
+            if (_usuarioActual != null && _usuarioActual.IdUsuario > 0)
+            {
+                var salaAbierta = _salaBLL.ObtenerSalaAbiertaPorMedico(_usuarioActual.IdUsuario);
+                if (salaAbierta != null)
+                {
+                    _salaAsignada = salaAbierta.NombreSala;
+                    lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
+                    lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
+                    return true;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(_salaAsignada) && 
+                     !_salaAsignada.Equals("(Sin sala abierta)", StringComparison.OrdinalIgnoreCase) &&
+                     !_salaAsignada.Equals("Consultorio de Atención", StringComparison.OrdinalIgnoreCase))
+            {
+                lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
+                lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
+                return true;
+            }
+
+            _salaAsignada = "(Sin sala abierta)";
+            lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: (Sin sala abierta)";
+            lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | (Sin sala abierta)";
+            return false;
+        }
+
+        /// <summary>
+        /// Indica si el puesto cuenta con una sala abierta activa.
+        /// </summary>
+        private bool TieneSalaAbierta()
+        {
+            return !string.IsNullOrWhiteSpace(_salaAsignada) && 
+                   !_salaAsignada.Equals("(Sin sala abierta)", StringComparison.OrdinalIgnoreCase) &&
+                   !_salaAsignada.Equals("Consultorio de Atención", StringComparison.OrdinalIgnoreCase);
         }
 
         // ---------------------------------------------------------------
@@ -328,6 +377,14 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnSiguientePaciente_Click(object sender, EventArgs e)
         {
+            if (!VerificarYActualizarSalaAbierta())
+            {
+                MessageBox.Show("No puedes llamar pacientes porque no tienes ninguna sala abierta activa.\n\nPor favor, dirígete al módulo 'Mis Salas' y abre tu consultorio asignado antes de iniciar la atención.",
+                    "Sala Requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
+            }
+
             if (_turnosVisibles == null || _turnosVisibles.Count == 0)
                 return;
 
@@ -336,7 +393,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguientePaciente
+                // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguientePaciente con la sala real abierta
                 _turnoBLL.LlamarSiguientePaciente(_turnoActual.IdTurno, _nombreMedico, _salaAsignada);
             }
             catch (Exception ex)
@@ -356,6 +413,14 @@ namespace Gestion_de_Turnos_Medicos
 
         private void btnIniciarAtencion_Click(object sender, EventArgs e)
         {
+            if (!VerificarYActualizarSalaAbierta())
+            {
+                MessageBox.Show("No puedes iniciar la atención porque no tienes ninguna sala abierta activa.\n\nPor favor, abre tu sala asignada desde el módulo 'Mis Salas'.",
+                    "Sala Requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
+            }
+
             if (_turnoActual == null)
                 return;
 
@@ -364,7 +429,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // Pasamos el Id del turno y el texto de la sala del médico logueado
+                // Pasamos el Id del turno y el texto de la sala real del médico logueado
                 _turnoBLL.IniciarAtencionTurno(_turnoActual.IdTurno, _salaAsignada);
             }
             catch (Exception ex)
@@ -381,6 +446,10 @@ namespace Gestion_de_Turnos_Medicos
             txtDiagnostico.Focus();
         }
 
+        /// <summary>
+        /// Consulta y formatea en el visor los antecedentes clínicos previos del paciente correspondiente al turno iniciado.
+        /// </summary>
+        /// <param name="turno">Entidad del turno en curso.</param>
         private void CargarHistoriaClinicaPrevia(Turno turno)
         {
             txtHistoriaPrevia.Clear();
@@ -432,6 +501,11 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Resuelve el identificador único de paciente a partir del turno o de su DNI.
+        /// </summary>
+        /// <param name="turno">Objeto turno analizado.</param>
+        /// <returns>ID numérico del paciente o 0 si no se pudo determinar.</returns>
         private int ObtenerIdPacienteDelTurno(Turno? turno)
         {
             if (turno == null) return 0;
@@ -470,6 +544,10 @@ namespace Gestion_de_Turnos_Medicos
             return 0;
         }
 
+        /// <summary>
+        /// Obtiene el identificador del médico actuante a partir de la sesión autenticada o de la base de datos como contingencia.
+        /// </summary>
+        /// <returns>ID del usuario médico.</returns>
         private int ObtenerIdUsuarioMedico()
         {
             if (_usuarioActual != null && _usuarioActual.IdUsuario > 0)
@@ -568,7 +646,7 @@ namespace Gestion_de_Turnos_Medicos
             switch (nuevoEstado)
             {
                 case EstadoPuesto.SinPaciente:
-                    btnSiguientePaciente.Enabled = _turnosVisibles != null && _turnosVisibles.Count > 0;
+                    btnSiguientePaciente.Enabled = TieneSalaAbierta() && _turnosVisibles != null && _turnosVisibles.Count > 0;
                     btnIniciarAtencion.Enabled = false;
                     btnTerminarAtencion.Enabled = false;
                     cboServicio.Enabled = true;

@@ -134,9 +134,30 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             using (var context = new dbTurnosMedicos())
             {
                 var parametro = new Microsoft.Data.SqlClient.SqlParameter("@IdUsuario", idUsuario);
-                return context.Database
-                    .SqlQueryRaw<EspecialidadDTO>("EXEC sp_ObtenerEspecialidadesPorMedico @IdUsuario", parametro)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<EspecialidadDTO>("EXEC sp_ObtenerEspecialidadesPorMedico @IdUsuario", parametro)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            e.IdEspecialidad,
+                            e.Nombre,
+                            e.Activo
+                        FROM Especialidades e
+                        INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
+                        WHERE me.IdUsuario = @IdUsuario 
+                          AND me.Activo = 1 
+                          AND e.Activo = 1
+                        ORDER BY e.Nombre ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<EspecialidadDTO>(sql, parametro)
+                        .ToList();
+                }
             }
         }
     }
