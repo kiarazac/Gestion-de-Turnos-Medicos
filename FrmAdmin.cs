@@ -70,11 +70,11 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Abre la versión 2.0 del módulo de gestión de usuarios con auditoría de bajas.
+        /// Abre el módulo de reportes gerenciales y estadísticas en el panel contenedor central.
         /// </summary>
-        private void btnUsuarios2_Click(object sender, EventArgs e)
+        private void btnReportes_Click(object sender, EventArgs e)
         {
-            AbrirFormularioHijo(new FrmGestionUsuarios2(_usuarioActual));
+            AbrirFormularioHijo(new FrmReportesAdmin(_usuarioActual));
         }
 
         /// <summary>

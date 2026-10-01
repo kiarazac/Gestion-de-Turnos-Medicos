@@ -62,6 +62,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
+        /// Abre el módulo de consulta histórica y reporte de pacientes atendidos por el médico autenticado.
+        /// </summary>
+        private void btnMisAtenciones_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmMisAtenciones(_usuarioActual));
+        }
+
+        /// <summary>
         /// Cierra la sesión activa del profesional médico y regresa a la pantalla de Login.
         /// </summary>
         private void salir_Click(object sender, EventArgs e)

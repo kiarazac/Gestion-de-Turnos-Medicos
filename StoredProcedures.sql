@@ -2316,6 +2316,155 @@ BEGIN
 END;
 GO
 
+/* =========================================================================
+** Procedimiento : sp_ObtenerAtencionesPorMedico
+** Sección       : 6.11
+** Propósito     : Consulta el historial de consultas y atenciones médicas realizadas 
+**                 por un profesional de la salud específico, con soporte de filtrado 
+**                 opcional por rango de fechas (FechaDesde / FechaHasta).
+** Entidad/Tablas: HistoriasClinicas, Pacientes, Turnos, Salas, Especialidades
+** Invocado por  : FrmMisAtenciones (Menú Lateral de Pantalla_Principal_PERSONAL_MEDICO)
+** Acción        : Carga inicial y filtrado del módulo "Mis Atenciones Realizadas"
+** Estado        : EN USO
+** Retorno       : Registros de atenciones con datos del paciente, turno, diagnóstico, receta y sala
+** Parámetros   :
+**                @IdUsuario   (INT, IN)          - ID del usuario médico a consultar.
+**                @FechaDesde  (DATETIME, IN, OPT) - Fecha y hora mínima de consulta.
+**                @FechaHasta  (DATETIME, IN, OPT) - Fecha y hora máxima de consulta.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ObtenerAtencionesPorMedico
+    @IdUsuario INT,
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Validar existencia del usuario médico
+    IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+    BEGIN
+        THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+    END
+
+    SELECT 
+        hc.IdHistoria,
+        hc.Fecha,
+        hc.TipoTurno,
+        hc.DiagRapido,
+        hc.DescripHistoriaClinica,
+        hc.RecetaMedicamentos,
+        p.IdPaciente,
+        p.Nombre AS NombrePaciente,
+        p.Apellido AS ApellidoPaciente,
+        p.Dni AS DniPaciente,
+        ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+        ISNULL(t.NroOrden, '--') AS NroOrden,
+        ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
+        ISNULL(e.Nombre, 'General') AS Especialidad
+    FROM HistoriasClinicas hc
+    INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
+    LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    WHERE hc.IdUsuario = @IdUsuario
+      AND hc.Activo = 1
+      AND (@FechaDesde IS NULL OR hc.Fecha >= @FechaDesde)
+      AND (@FechaHasta IS NULL OR hc.Fecha <= @FechaHasta)
+    ORDER BY hc.Fecha DESC;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteDemandaEspecialidades
+** Sección       : 6.12
+** Propósito     : Genera estadísticas consolidadas de demanda, turnos emitidos,
+**                 atenciones efectivas y deserciones/cancelaciones por especialidad
+**                 médica dentro de un rango de fechas opcional.
+** Entidad/Tablas: Especialidades, Turnos
+** Invocado por  : FrmReportesAdmin (Panel de Reportes Gerenciales)
+** Acción        : Carga de métricas y comparativa de demanda por especialidad
+** Estado        : EN USO
+** Retorno       : Total de turnos, atendidos, cancelados y pendientes por especialidad
+** Parámetros   :
+**                @FechaDesde     (DATE, IN, OPT) - Fecha mínima de emisión/atención.
+**                @FechaHasta     (DATE, IN, OPT) - Fecha máxima de emisión/atención.
+**                @IdEspecialidad (INT, IN, OPT)  - Identificador de especialidad a filtrar.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteDemandaEspecialidades
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @IdEspecialidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        e.IdEspecialidad,
+        e.Nombre AS Especialidad,
+        COUNT(t.IdTurno) AS TotalTurnos,
+        SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
+        SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TurnosCancelados,
+        SUM(CASE WHEN t.Estado = 'En Espera' THEN 1 ELSE 0 END) AS TurnosEnEspera
+    FROM Especialidades e
+    LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
+                       AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+                       AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+                       AND t.Activo = 1
+    WHERE (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+      AND e.Activo = 1
+    GROUP BY e.IdEspecialidad, e.Nombre
+    ORDER BY TotalTurnos DESC, e.Nombre ASC;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteProductividadMedicos
+** Sección       : 6.13
+** Propósito     : Genera estadísticas consolidadas de productividad médica,
+**                 totalizando consultas atendidas y pacientes únicos por profesional
+**                 en un rango de fechas opcional.
+** Entidad/Tablas: Usuarios, Roles, HistoriasClinicas, MedicoEspecialidades, Especialidades
+** Invocado por  : FrmReportesAdmin (Panel de Reportes Gerenciales)
+** Acción        : Carga de métricas de productividad profesional
+** Estado        : EN USO
+** Retorno       : Consultas realizadas y pacientes atendidos por médico
+** Parámetros   :
+**                @FechaDesde     (DATE, IN, OPT) - Fecha mínima de consulta.
+**                @FechaHasta     (DATE, IN, OPT) - Fecha máxima de consulta.
+**                @IdEspecialidad (INT, IN, OPT)  - Filtrar por especialidad asignada.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteProductividadMedicos
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @IdEspecialidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        u.IdUsuario,
+        u.Nombre AS NombreMedico,
+        u.Apellido AS ApellidoMedico,
+        ISNULL(u.NroMatricula, '--') AS Matricula,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        COUNT(hc.IdHistoria) AS ConsultasAtendidas,
+        COUNT(DISTINCT hc.IdPaciente) AS PacientesUnicos
+    FROM Usuarios u
+    INNER JOIN Roles r ON u.IdRol = r.IdRol
+    LEFT JOIN HistoriasClinicas hc ON u.IdUsuario = hc.IdUsuario 
+                                   AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+                                   AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+                                   AND hc.Activo = 1
+    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+    WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+      AND u.Activo = 1
+      AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
+    ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+END;
+GO
+
 USE dbGestionTurnos;
 GO
 

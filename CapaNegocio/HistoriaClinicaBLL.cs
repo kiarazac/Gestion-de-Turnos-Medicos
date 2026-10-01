@@ -53,5 +53,24 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             return _historiaDAL.ObtenerHistoriaClinicaPaciente(idPaciente);
         }
+
+        /// <summary>
+        /// Obtiene y valida la consulta del historial de atenciones médicas realizadas por un profesional específico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del profesional médico.</param>
+        /// <param name="fechaDesde">Fecha inicial de filtrado opcional.</param>
+        /// <param name="fechaHasta">Fecha final de filtrado opcional.</param>
+        /// <returns>Lista de <see cref="AtencionMedicoDTO"/> con el detalle de pacientes y consultas atendidas.</returns>
+        /// <exception cref="ArgumentException">Se lanza si el ID del usuario es inválido o si el rango de fechas es inconsistente.</exception>
+        public List<AtencionMedicoDTO> ObtenerAtencionesPorMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (idUsuario <= 0)
+                throw new ArgumentException("El identificador del profesional médico es obligatorio y debe ser mayor a cero.");
+
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value > fechaHasta.Value)
+                throw new ArgumentException("La fecha inicial de búsqueda no puede ser posterior a la fecha final.");
+
+            return _historiaDAL.ObtenerAtencionesPorMedico(idUsuario, fechaDesde, fechaHasta);
+        }
     }
 }

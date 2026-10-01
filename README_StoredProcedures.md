@@ -2758,6 +2758,167 @@ GO
 
 ---
 
+### 6.11 `sp_ObtenerAtencionesPorMedico`
+- **Descripción:** Consulta el historial consolidado de atenciones, diagnósticos y recetas médicas emitidas por un profesional de la salud específico, con capacidad opcional de filtrado por rango de fechas (`@FechaDesde` y `@FechaHasta`).
+- **Entidad:** HistoriaClinica / Paciente / Turno / Sala
+- **Operación:** Consulta Histórica / Reporte Profesional
+- **Tablas:** `HistoriasClinicas`, `Pacientes`, `Turnos`, `Salas`, `Especialidades`
+- **Forms que lo utilizan:** `FrmMisAtenciones` (Menú Lateral de `Pantalla_Principal_PERSONAL_MEDICO`)
+- **Acción:** Carga inicial, búsqueda y filtrado de consultas realizadas por el médico autenticado.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | Identificador único del médico consultado. |
+  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha y hora límite inferior para la búsqueda. |
+  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha y hora límite superior para la búsqueda. |
+- **Devuelve:** `IdHistoria`, `Fecha`, `TipoTurno`, `DiagRapido`, `DescripHistoriaClinica`, `RecetaMedicamentos`, `IdPaciente`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `NroOrden`, `NombreSala`, `Especialidad`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ObtenerAtencionesPorMedico
+    @IdUsuario INT,
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Validar existencia del usuario médico
+    IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+    BEGIN
+        THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+    END
+
+    SELECT 
+        hc.IdHistoria,
+        hc.Fecha,
+        hc.TipoTurno,
+        hc.DiagRapido,
+        hc.DescripHistoriaClinica,
+        hc.RecetaMedicamentos,
+        p.IdPaciente,
+        p.Nombre AS NombrePaciente,
+        p.Apellido AS ApellidoPaciente,
+        p.Dni AS DniPaciente,
+        ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+        ISNULL(t.NroOrden, '--') AS NroOrden,
+        ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
+        ISNULL(e.Nombre, 'General') AS Especialidad
+    FROM HistoriasClinicas hc
+    INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
+    LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    WHERE hc.IdUsuario = @IdUsuario
+      AND hc.Activo = 1
+      AND (@FechaDesde IS NULL OR hc.Fecha >= @FechaDesde)
+      AND (@FechaHasta IS NULL OR hc.Fecha <= @FechaHasta)
+    ORDER BY hc.Fecha DESC;
+END;
+GO
+```
+
+---
+
+### 6.12 `sp_ReporteDemandaEspecialidades`
+- **Descripción:** Genera estadísticas consolidadas de demanda, turnos emitidos, atenciones concluidas y cancelaciones por especialidad médica dentro de un rango de fechas opcional.
+- **Entidad:** Especialidad / Turno
+- **Operación:** Reportería Gerencial / Métricas de Demanda
+- **Tablas:** `Especialidades`, `Turnos`
+- **Forms que lo utilizan:** `FrmReportesAdmin` (Panel de Reportes Gerenciales)
+- **Acción:** Carga de tabla comparativa de demanda por especialidad y cálculo de KPIs.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de emisión/atención. |
+  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de emisión/atención. |
+  | `@IdEspecialidad` | `INT` | IN (Opcional) | Filtrar por una especialidad puntual. |
+- **Devuelve:** `IdEspecialidad`, `Especialidad`, `TotalTurnos`, `TurnosAtendidos`, `TurnosCancelados`, `TurnosEnEspera`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReporteDemandaEspecialidades
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @IdEspecialidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        e.IdEspecialidad,
+        e.Nombre AS Especialidad,
+        COUNT(t.IdTurno) AS TotalTurnos,
+        SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
+        SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TurnosCancelados,
+        SUM(CASE WHEN t.Estado = 'En Espera' THEN 1 ELSE 0 END) AS TurnosEnEspera
+    FROM Especialidades e
+    LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
+                       AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+                       AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+                       AND t.Activo = 1
+    WHERE (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+      AND e.Activo = 1
+    GROUP BY e.IdEspecialidad, e.Nombre
+    ORDER BY TotalTurnos DESC, e.Nombre ASC;
+END;
+GO
+```
+
+---
+
+### 6.13 `sp_ReporteProductividadMedicos`
+- **Descripción:** Genera estadísticas consolidadas de productividad profesional, calculando consultas realizadas y pacientes únicos por profesional en un rango de fechas y especialidad opcionales.
+- **Entidad:** Usuario / Especialidad / HistoriaClinica
+- **Operación:** Reportería Gerencial / Productividad Médica
+- **Tablas:** `Usuarios`, `Roles`, `HistoriasClinicas`, `MedicosEspecialidades`, `Especialidades`
+- **Forms que lo utilizan:** `FrmReportesAdmin` (Panel de Reportes Gerenciales)
+- **Acción:** Carga de tabla de productividad médica y profesional más activo.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de consulta. |
+  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de consulta. |
+  | `@IdEspecialidad` | `INT` | IN (Opcional) | Filtrar por especialidad asignada. |
+- **Devuelve:** `IdUsuario`, `NombreMedico`, `ApellidoMedico`, `Matricula`, `Especialidad`, `ConsultasAtendidas`, `PacientesUnicos`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReporteProductividadMedicos
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @IdEspecialidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        u.IdUsuario,
+        u.Nombre AS NombreMedico,
+        u.Apellido AS ApellidoMedico,
+        ISNULL(u.NroMatricula, '--') AS Matricula,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        COUNT(hc.IdHistoria) AS ConsultasAtendidas,
+        COUNT(DISTINCT hc.IdPaciente) AS PacientesUnicos
+    FROM Usuarios u
+    INNER JOIN Roles r ON u.IdRol = r.IdRol
+    LEFT JOIN HistoriasClinicas hc ON u.IdUsuario = hc.IdUsuario 
+                                   AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+                                   AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+                                   AND hc.Activo = 1
+    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+    WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+      AND u.Activo = 1
+      AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
+    ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+END;
+GO
+```
+
+---
+
 ## 7. Scripts de Datos Iniciales (Seeds)
 
 ```sql
@@ -2876,6 +3037,9 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 46 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
 | 47 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
 | 48 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
+| 49 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico | `EN USO` |
+| 50 | `sp_ReporteDemandaEspecialidades` | Especialidad / Turno | Reporte / Demanda | `FrmReportesAdmin` | Carga de demanda y métricas por especialidad | `EN USO` |
+| 51 | `sp_ReporteProductividadMedicos` | Usuario / HistoriaClinica | Reporte / Productividad | `FrmReportesAdmin` | Carga de consultas y pacientes por médico | `EN USO` |
 
 ---
 
@@ -2950,10 +3114,17 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
-- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin` y `FrmGestionEspecialidades`.
+- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades` y `FrmReportesAdmin`.
+
+### `FrmReportesAdmin` (Panel de Reportes Gerenciales y Estadísticas)
+- `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, cancelaciones y cálculo de porcentajes relativos por especialidad médica.
+- `sp_ReporteProductividadMedicos` → Carga de tabla de productividad médica, total de consultas atendidas y pacientes únicos por profesional con filtros de fechas.
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)
-- Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM` y `FrmListaTurnosAtencion`.
+- Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM`, `FrmListaTurnosAtencion` y `FrmMisAtenciones`.
+
+### `FrmMisAtenciones` (Historial y Reporte de Atenciones del Médico)
+- `sp_ObtenerAtencionesPorMedico` → Carga inicial, filtrado por fechas y búsqueda dinámica de pacientes atendidos por el profesional médico autenticado. Permite auditar, consultar antecedentes y exportar el informe de consultas realizadas.
 
 ### `FrmRecepcionista`
 - Contenedor MDI de recepción. Gestiona acceso a `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos` y apertura del visor `FrmUsuarioVentana`.

@@ -55,5 +55,26 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     .ToList();
             }
         }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerAtencionesPorMedico</c> para recuperar las consultas atendidas por un médico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del profesional médico.</param>
+        /// <param name="fechaDesde">Fecha inicial de filtrado opcional.</param>
+        /// <param name="fechaHasta">Fecha final de filtrado opcional.</param>
+        /// <returns>Lista de <see cref="AtencionMedicoDTO"/> ordenada cronológicamente de forma descendente.</returns>
+        public List<AtencionMedicoDTO> ObtenerAtencionesPorMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<AtencionMedicoDTO>("EXEC sp_ObtenerAtencionesPorMedico @IdUsuario, @FechaDesde, @FechaHasta", pIdUsuario, pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
     }
 }
