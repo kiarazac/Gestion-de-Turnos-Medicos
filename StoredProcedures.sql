@@ -1605,7 +1605,6 @@ BEGIN
         WHERE e.Nombre = @NombreEspecialidad
           AND CAST(t.Fecha AS DATE) = @Fecha
           AND t.Activo = 1
-          AND t.Estado <> 'Cancelado'
     )
     ORDER BY h.Horario ASC;
 END;
@@ -1954,7 +1953,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_LlamarSiguienteTurno
 ** Sección       : 6.4
-** Propósito     : Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido ni cancelado.
+** Propósito     : Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido previamente.
 ** Entidad/Tablas: `Turnos`, `Salas`
 ** Invocado por  : `FrmListaTurnosAtencion` (Botón `btnSiguientePaciente`)
 ** Estado        : `EN USO`
@@ -1979,13 +1978,13 @@ BEGIN
             THROW 50080, 'El turno a llamar no existe o se encuentra inactivo en el sistema.', 1;
         END
 
-        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido ni Cancelado)
+        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido)
         DECLARE @EstadoActual NVARCHAR(50);
         SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno;
 
-        IF @EstadoActual IN ('Atendido', 'Cancelado')
+        IF @EstadoActual = 'Atendido'
         BEGIN
-            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido o Cancelado).', 1;
+            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).', 1;
         END
 
         DECLARE @IdSala INT = NULL;
@@ -2380,13 +2379,13 @@ GO
 ** Procedimiento : sp_ReporteDemandaEspecialidades
 ** Sección       : 6.12
 ** Propósito     : Genera estadísticas consolidadas de demanda, turnos emitidos,
-**                 atenciones efectivas y deserciones/cancelaciones por especialidad
+**                 atenciones efectivas y turnos en espera por especialidad
 **                 médica dentro de un rango de fechas opcional.
 ** Entidad/Tablas: Especialidades, Turnos
 ** Invocado por  : FrmReportesAdmin (Panel de Reportes Gerenciales)
 ** Acción        : Carga de métricas y comparativa de demanda por especialidad
 ** Estado        : EN USO
-** Retorno       : Total de turnos, atendidos, cancelados y pendientes por especialidad
+** Retorno       : Total de turnos, atendidos, en espera y porcentaje de atención por especialidad
 ** Parámetros   :
 **                @FechaDesde     (DATE, IN, OPT) - Fecha mínima de emisión/atención.
 **                @FechaHasta     (DATE, IN, OPT) - Fecha máxima de emisión/atención.
@@ -2405,8 +2404,14 @@ BEGIN
         e.Nombre AS Especialidad,
         COUNT(t.IdTurno) AS TotalTurnos,
         SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
-        SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TurnosCancelados,
-        SUM(CASE WHEN t.Estado = 'En Espera' THEN 1 ELSE 0 END) AS TurnosEnEspera
+        SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END) AS TurnosEnEspera,
+        CAST(
+            CASE 
+                WHEN COUNT(t.IdTurno) > 0 
+                THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                ELSE 0.0 
+            END AS DECIMAL(5,2)
+        ) AS PorcentajeAtencion
     FROM Especialidades e
     LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
                        AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)

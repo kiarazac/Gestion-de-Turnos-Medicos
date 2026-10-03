@@ -1971,7 +1971,6 @@ BEGIN
         WHERE e.Nombre = @NombreEspecialidad
           AND CAST(t.Fecha AS DATE) = @Fecha
           AND t.Activo = 1
-          AND t.Estado <> 'Cancelado'
     )
     ORDER BY h.Horario ASC;
 END;
@@ -2365,7 +2364,7 @@ GO
 ---
 
 ### 6.4 `sp_LlamarSiguienteTurno`
-- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido ni cancelado.
+- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido previamente.
 - **Entidad:** Turno / Sala
 - **Operación:** Llamado de Paciente a Consultorio
 - **Tablas:** `Turnos`, `Salas`
@@ -2382,7 +2381,7 @@ GO
   | Código | Mensaje al Operador | Condición de Disparo |
   | :--- | :--- | :--- |
   | `50080` | *El turno a llamar no existe o se encuentra inactivo en el sistema.* | `@IdTurno` inexistente o con `Activo = 0`. |
-  | `50081` | *El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido o Cancelado).* | El turno ya está en estado 'Atendido' o 'Cancelado'. |
+  | `50081` | *El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).* | El turno ya está en estado 'Atendido'. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_LlamarSiguienteTurno
@@ -2400,13 +2399,13 @@ BEGIN
             THROW 50080, 'El turno a llamar no existe o se encuentra inactivo en el sistema.', 1;
         END
 
-        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido ni Cancelado)
+        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido)
         DECLARE @EstadoActual NVARCHAR(50);
         SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno;
 
-        IF @EstadoActual IN ('Atendido', 'Cancelado')
+        IF @EstadoActual = 'Atendido'
         BEGIN
-            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido o Cancelado).', 1;
+            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).', 1;
         END
 
         DECLARE @IdSala INT = NULL;
@@ -2841,7 +2840,7 @@ GO
 ---
 
 ### 6.12 `sp_ReporteDemandaEspecialidades`
-- **Descripción:** Genera estadísticas consolidadas de demanda, turnos emitidos, atenciones concluidas y cancelaciones por especialidad médica dentro de un rango de fechas opcional.
+- **Descripción:** Genera estadísticas consolidadas de demanda, turnos emitidos, atenciones concluidas y turnos en espera por especialidad médica dentro de un rango de fechas opcional.
 - **Entidad:** Especialidad / Turno
 - **Operación:** Reportería Gerencial / Métricas de Demanda
 - **Tablas:** `Especialidades`, `Turnos`
@@ -2854,7 +2853,7 @@ GO
   | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de emisión/atención. |
   | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de emisión/atención. |
   | `@IdEspecialidad` | `INT` | IN (Opcional) | Filtrar por una especialidad puntual. |
-- **Devuelve:** `IdEspecialidad`, `Especialidad`, `TotalTurnos`, `TurnosAtendidos`, `TurnosCancelados`, `TurnosEnEspera`.
+- **Devuelve:** `IdEspecialidad`, `Especialidad`, `TotalTurnos`, `TurnosAtendidos`, `TurnosEnEspera`, `PorcentajeAtencion`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ReporteDemandaEspecialidades
@@ -2870,8 +2869,14 @@ BEGIN
         e.Nombre AS Especialidad,
         COUNT(t.IdTurno) AS TotalTurnos,
         SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
-        SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TurnosCancelados,
-        SUM(CASE WHEN t.Estado = 'En Espera' THEN 1 ELSE 0 END) AS TurnosEnEspera
+        SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END) AS TurnosEnEspera,
+        CAST(
+            CASE 
+                WHEN COUNT(t.IdTurno) > 0 
+                THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                ELSE 0.0 
+            END AS DECIMAL(5,2)
+        ) AS PorcentajeAtencion
     FROM Especialidades e
     LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
                        AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
@@ -3138,7 +3143,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades` y `FrmReportesAdmin`.
 
 ### `FrmReportesAdmin` (Panel de Reportes Gerenciales y Estadísticas)
-- `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, cancelaciones y cálculo de porcentajes relativos por especialidad médica.
+- `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, en espera y cálculo de porcentajes relativos por especialidad médica.
 - `sp_ReporteProductividadMedicos` → Carga de tabla de productividad médica, total de consultas atendidas y pacientes únicos por profesional con filtros de fechas.
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)

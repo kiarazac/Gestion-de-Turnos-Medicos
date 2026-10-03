@@ -306,8 +306,8 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string Especialidad { get; set; }
   public int TotalTurnos { get; set; }
   public int TurnosAtendidos { get; set; }
-  public int TurnosCancelados { get; set; }
   public int TurnosEnEspera { get; set; }
+  public decimal PorcentajeAtencion { get; set; }
   ```
 
 ### 3.19 `ReporteProductividadMedicoDTO`

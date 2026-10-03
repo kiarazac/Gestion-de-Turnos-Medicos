@@ -29,11 +29,6 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public int TurnosAtendidos { get; set; }
 
         /// <summary>
-        /// Cantidad de turnos que fueron cancelados ('Cancelado').
-        /// </summary>
-        public int TurnosCancelados { get; set; }
-
-        /// <summary>
         /// Cantidad de turnos actualmente pendientes o en proceso ('En Espera', 'Llamado', 'En Consulta').
         /// </summary>
         public int TurnosEnEspera { get; set; }

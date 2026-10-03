@@ -15,7 +15,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
     {
         /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ReporteDemandaEspecialidades</c> para obtener
-        /// las métricas de turnos solicitados, atendidos, cancelados y pendientes clasificados por especialidad médica.
+        /// las métricas de turnos solicitados, atendidos y en espera clasificados por especialidad médica.
         /// </summary>
         /// <param name="fechaDesde">Fecha inicial del intervalo de análisis (opcional).</param>
         /// <param name="fechaHasta">Fecha final del intervalo de análisis (opcional).</param>
@@ -29,11 +29,44 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
                 var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object?)idEspecialidad ?? DBNull.Value);
 
-                return context.Database
-                    .SqlQueryRaw<ReporteDemandaEspecialidadDTO>(
-                        "EXEC sp_ReporteDemandaEspecialidades @FechaDesde, @FechaHasta, @IdEspecialidad",
-                        pFechaDesde, pFechaHasta, pIdEspecialidad)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<ReporteDemandaEspecialidadDTO>(
+                            "EXEC sp_ReporteDemandaEspecialidades @FechaDesde, @FechaHasta, @IdEspecialidad",
+                            pFechaDesde, pFechaHasta, pIdEspecialidad)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            e.IdEspecialidad,
+                            e.Nombre AS Especialidad,
+                            COUNT(t.IdTurno) AS TotalTurnos,
+                            SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
+                            SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END) AS TurnosEnEspera,
+                            CAST(
+                                CASE 
+                                    WHEN COUNT(t.IdTurno) > 0 
+                                    THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                                    ELSE 0.0 
+                                END AS DECIMAL(5,2)
+                            ) AS PorcentajeAtencion
+                        FROM Especialidades e
+                        LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
+                                           AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+                                           AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+                                           AND t.Activo = 1
+                        WHERE (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+                          AND e.Activo = 1
+                        GROUP BY e.IdEspecialidad, e.Nombre
+                        ORDER BY TotalTurnos DESC, e.Nombre ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<ReporteDemandaEspecialidadDTO>(sql, pFechaDesde, pFechaHasta, pIdEspecialidad)
+                        .ToList();
+                }
             }
         }
 
@@ -53,11 +86,43 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
                 var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object?)idEspecialidad ?? DBNull.Value);
 
-                return context.Database
-                    .SqlQueryRaw<ReporteProductividadMedicoDTO>(
-                        "EXEC sp_ReporteProductividadMedicos @FechaDesde, @FechaHasta, @IdEspecialidad",
-                        pFechaDesde, pFechaHasta, pIdEspecialidad)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<ReporteProductividadMedicoDTO>(
+                            "EXEC sp_ReporteProductividadMedicos @FechaDesde, @FechaHasta, @IdEspecialidad",
+                            pFechaDesde, pFechaHasta, pIdEspecialidad)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            u.IdUsuario,
+                            u.Nombre AS NombreMedico,
+                            u.Apellido AS ApellidoMedico,
+                            ISNULL(u.NroMatricula, '--') AS Matricula,
+                            ISNULL(e.Nombre, 'General') AS Especialidad,
+                            COUNT(hc.IdHistoria) AS ConsultasAtendidas,
+                            COUNT(DISTINCT hc.IdPaciente) AS PacientesUnicos
+                        FROM Usuarios u
+                        INNER JOIN Roles r ON u.IdRol = r.IdRol
+                        LEFT JOIN HistoriasClinicas hc ON u.IdUsuario = hc.IdUsuario 
+                                                       AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+                                                       AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+                                                       AND hc.Activo = 1
+                        LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+                        LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+                        WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+                          AND u.Activo = 1
+                          AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+                        GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
+                        ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<ReporteProductividadMedicoDTO>(sql, pFechaDesde, pFechaHasta, pIdEspecialidad)
+                        .ToList();
+                }
             }
         }
     }

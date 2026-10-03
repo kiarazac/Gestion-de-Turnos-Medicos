@@ -34,9 +34,9 @@ namespace Gestion_de_Turnos_Medicos
             cardAtendidos = new Panel();
             lblKpiAtendidosTitulo = new Label();
             lblKpiAtendidosNum = new Label();
-            cardCancelados = new Panel();
-            lblKpiCanceladosTitulo = new Label();
-            lblKpiCanceladosNum = new Label();
+            cardEnEspera = new Panel();
+            lblKpiEnEsperaTitulo = new Label();
+            lblKpiEnEsperaNum = new Label();
             cardTopEspecialidad = new Panel();
             lblKpiTopTitulo = new Label();
             lblKpiTopNombre = new Label();
@@ -64,7 +64,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlKpis.SuspendLayout();
             cardTotalTurnos.SuspendLayout();
             cardAtendidos.SuspendLayout();
-            cardCancelados.SuspendLayout();
+            cardEnEspera.SuspendLayout();
             cardTopEspecialidad.SuspendLayout();
             pnlFiltrosWrapper.SuspendLayout();
             pnlFiltros.SuspendLayout();
@@ -119,7 +119,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlKpis.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             pnlKpis.Controls.Add(cardTotalTurnos, 0, 0);
             pnlKpis.Controls.Add(cardAtendidos, 1, 0);
-            pnlKpis.Controls.Add(cardCancelados, 2, 0);
+            pnlKpis.Controls.Add(cardEnEspera, 2, 0);
             pnlKpis.Controls.Add(cardTopEspecialidad, 3, 0);
             pnlKpis.Dock = DockStyle.Top;
             pnlKpis.Location = new Point(0, 62);
@@ -200,40 +200,40 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiAtendidosNum.TabIndex = 1;
             lblKpiAtendidosNum.Text = "0 (0%)";
             // 
-            // cardCancelados
+            // cardEnEspera
             // 
-            cardCancelados.BackColor = Color.White;
-            cardCancelados.BorderStyle = BorderStyle.FixedSingle;
-            cardCancelados.Controls.Add(lblKpiCanceladosTitulo);
-            cardCancelados.Controls.Add(lblKpiCanceladosNum);
-            cardCancelados.Dock = DockStyle.Fill;
-            cardCancelados.Location = new Point(553, 13);
-            cardCancelados.Margin = new Padding(3, 3, 8, 3);
-            cardCancelados.Name = "cardCancelados";
-            cardCancelados.Size = new Size(258, 68);
-            cardCancelados.TabIndex = 2;
+            cardEnEspera.BackColor = Color.White;
+            cardEnEspera.BorderStyle = BorderStyle.FixedSingle;
+            cardEnEspera.Controls.Add(lblKpiEnEsperaTitulo);
+            cardEnEspera.Controls.Add(lblKpiEnEsperaNum);
+            cardEnEspera.Dock = DockStyle.Fill;
+            cardEnEspera.Location = new Point(553, 13);
+            cardEnEspera.Margin = new Padding(3, 3, 8, 3);
+            cardEnEspera.Name = "cardEnEspera";
+            cardEnEspera.Size = new Size(258, 68);
+            cardEnEspera.TabIndex = 2;
             // 
-            // lblKpiCanceladosTitulo
+            // lblKpiEnEsperaTitulo
             // 
-            lblKpiCanceladosTitulo.AutoSize = true;
-            lblKpiCanceladosTitulo.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            lblKpiCanceladosTitulo.ForeColor = Color.FromArgb(100, 116, 139);
-            lblKpiCanceladosTitulo.Location = new Point(10, 10);
-            lblKpiCanceladosTitulo.Name = "lblKpiCanceladosTitulo";
-            lblKpiCanceladosTitulo.Size = new Size(128, 13);
-            lblKpiCanceladosTitulo.TabIndex = 0;
-            lblKpiCanceladosTitulo.Text = "TURNOS CANCELADOS";
+            lblKpiEnEsperaTitulo.AutoSize = true;
+            lblKpiEnEsperaTitulo.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            lblKpiEnEsperaTitulo.ForeColor = Color.FromArgb(100, 116, 139);
+            lblKpiEnEsperaTitulo.Location = new Point(10, 10);
+            lblKpiEnEsperaTitulo.Name = "lblKpiEnEsperaTitulo";
+            lblKpiEnEsperaTitulo.Size = new Size(140, 13);
+            lblKpiEnEsperaTitulo.TabIndex = 0;
+            lblKpiEnEsperaTitulo.Text = "TURNOS EN ESPERA / SALA";
             // 
-            // lblKpiCanceladosNum
+            // lblKpiEnEsperaNum
             // 
-            lblKpiCanceladosNum.AutoSize = true;
-            lblKpiCanceladosNum.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
-            lblKpiCanceladosNum.ForeColor = Color.FromArgb(239, 68, 68);
-            lblKpiCanceladosNum.Location = new Point(8, 28);
-            lblKpiCanceladosNum.Name = "lblKpiCanceladosNum";
-            lblKpiCanceladosNum.Size = new Size(74, 32);
-            lblKpiCanceladosNum.TabIndex = 1;
-            lblKpiCanceladosNum.Text = "0 (0%)";
+            lblKpiEnEsperaNum.AutoSize = true;
+            lblKpiEnEsperaNum.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
+            lblKpiEnEsperaNum.ForeColor = Color.FromArgb(234, 88, 12);
+            lblKpiEnEsperaNum.Location = new Point(8, 28);
+            lblKpiEnEsperaNum.Name = "lblKpiEnEsperaNum";
+            lblKpiEnEsperaNum.Size = new Size(74, 32);
+            lblKpiEnEsperaNum.TabIndex = 1;
+            lblKpiEnEsperaNum.Text = "0 (0%)";
             // 
             // cardTopEspecialidad
             // 
@@ -534,8 +534,8 @@ namespace Gestion_de_Turnos_Medicos
             cardTotalTurnos.PerformLayout();
             cardAtendidos.ResumeLayout(false);
             cardAtendidos.PerformLayout();
-            cardCancelados.ResumeLayout(false);
-            cardCancelados.PerformLayout();
+            cardEnEspera.ResumeLayout(false);
+            cardEnEspera.PerformLayout();
             cardTopEspecialidad.ResumeLayout(false);
             cardTopEspecialidad.PerformLayout();
             pnlFiltrosWrapper.ResumeLayout(false);
@@ -564,9 +564,9 @@ namespace Gestion_de_Turnos_Medicos
         private Panel cardAtendidos;
         private Label lblKpiAtendidosTitulo;
         private Label lblKpiAtendidosNum;
-        private Panel cardCancelados;
-        private Label lblKpiCanceladosTitulo;
-        private Label lblKpiCanceladosNum;
+        private Panel cardEnEspera;
+        private Label lblKpiEnEsperaTitulo;
+        private Label lblKpiEnEsperaNum;
         private Panel cardTopEspecialidad;
         private Label lblKpiTopTitulo;
         private Label lblKpiTopNombre;

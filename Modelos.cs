@@ -188,7 +188,7 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>Código alfanumérico visible de orden para llamada en pantallas (ej. 'E-001', 'T-045').</summary>
         public string NroOrden { get; set; }
 
-        /// <summary>Estado operativo del turno ('En Espera', 'En Atencion', 'Finalizado', 'Cancelado').</summary>
+        /// <summary>Estado operativo del turno ('En Espera', 'Llamado', 'En Consulta', 'Atendido', 'Finalizado').</summary>
         public string Estado { get; set; }
 
         /// <summary>Fecha asignada para la atención médica.</summary>

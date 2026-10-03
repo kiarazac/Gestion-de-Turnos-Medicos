@@ -85,7 +85,7 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colEspecialidad",
                 HeaderText = "Especialidad Médica",
                 DataPropertyName = "Especialidad",
-                FillWeight = 35
+                FillWeight = 38
             });
 
             dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
@@ -94,7 +94,7 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "Total Turnos",
                 DataPropertyName = "TotalTurnos",
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight, Format = "N0" },
-                FillWeight = 15
+                FillWeight = 16
             });
 
             dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
@@ -103,16 +103,7 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "Atendidos",
                 DataPropertyName = "TurnosAtendidos",
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight, Format = "N0" },
-                FillWeight = 13
-            });
-
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colTurnosCancelados",
-                HeaderText = "Cancelados",
-                DataPropertyName = "TurnosCancelados",
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight, Format = "N0" },
-                FillWeight = 13
+                FillWeight = 15
             });
 
             dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
@@ -130,7 +121,7 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "% Resolutividad",
                 DataPropertyName = "PorcentajeAtencion",
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight, Format = "N2" },
-                FillWeight = 15
+                FillWeight = 16
             });
 
             // === Grilla 2: Productividad por Médico ===
@@ -368,14 +359,14 @@ namespace Gestion_de_Turnos_Medicos
         {
             int totalTurnos = _datosDemanda.Sum(x => x.TotalTurnos);
             int turnosAtendidos = _datosDemanda.Sum(x => x.TurnosAtendidos);
-            int turnosCancelados = _datosDemanda.Sum(x => x.TurnosCancelados);
+            int turnosEnEspera = _datosDemanda.Sum(x => x.TurnosEnEspera);
 
             decimal pctAtendidos = totalTurnos > 0 ? Math.Round((decimal)turnosAtendidos * 100m / totalTurnos, 1) : 0m;
-            decimal pctCancelados = totalTurnos > 0 ? Math.Round((decimal)turnosCancelados * 100m / totalTurnos, 1) : 0m;
+            decimal pctEnEspera = totalTurnos > 0 ? Math.Round((decimal)turnosEnEspera * 100m / totalTurnos, 1) : 0m;
 
             lblKpiTotalNum.Text = totalTurnos.ToString("N0");
             lblKpiAtendidosNum.Text = $"{turnosAtendidos:N0} ({pctAtendidos}%)";
-            lblKpiCanceladosNum.Text = $"{turnosCancelados:N0} ({pctCancelados}%)";
+            lblKpiEnEsperaNum.Text = $"{turnosEnEspera:N0} ({pctEnEspera}%)";
 
             var topEspecialidad = _datosDemanda
                 .Where(x => x.TotalTurnos > 0)
@@ -489,10 +480,10 @@ namespace Gestion_de_Turnos_Medicos
             sb.AppendLine();
 
             sb.AppendLine("=== SECCIÓN 1: DEMANDA Y RESOLUTIVIDAD POR ESPECIALIDAD ===");
-            sb.AppendLine("Especialidad;Total Turnos;Atendidos;Cancelados;En Espera / Consulta;% Resolutividad");
+            sb.AppendLine("Especialidad;Total Turnos;Atendidos;En Espera / Consulta;% Resolutividad");
             foreach (var d in _datosDemanda)
             {
-                sb.AppendLine($"\"{d.Especialidad}\";{d.TotalTurnos};{d.TurnosAtendidos};{d.TurnosCancelados};{d.TurnosEnEspera};{d.PorcentajeAtencion:N2}%");
+                sb.AppendLine($"\"{d.Especialidad}\";{d.TotalTurnos};{d.TurnosAtendidos};{d.TurnosEnEspera};{d.PorcentajeAtencion:N2}%");
             }
 
             sb.AppendLine();
@@ -528,21 +519,21 @@ namespace Gestion_de_Turnos_Medicos
             sb.AppendLine(lineaFina);
             sb.AppendLine($"Total de Turnos Emitidos        : {lblKpiTotalNum.Text}");
             sb.AppendLine($"Turnos Efectivamente Atendidos  : {lblKpiAtendidosNum.Text}");
-            sb.AppendLine($"Turnos Cancelados               : {lblKpiCanceladosNum.Text}");
+            sb.AppendLine($"Turnos en Espera / Sala         : {lblKpiEnEsperaNum.Text}");
             sb.AppendLine($"Especialidad con Mayor Demanda  : {lblKpiTopNombre.Text}");
             sb.AppendLine();
 
             sb.AppendLine("1. DETALLE DE DEMANDA POR ESPECIALIDAD MÉDICA:");
             sb.AppendLine(lineaFina);
-            sb.AppendLine(string.Format("{0,-28} | {1,7} | {2,9} | {3,10} | {4,10} | {5,10}",
-                "Especialidad", "Total", "Atendidos", "Cancelados", "En Espera", "% Atenc."));
+            sb.AppendLine(string.Format("{0,-30} | {1,7} | {2,10} | {3,12} | {4,10}",
+                "Especialidad", "Total", "Atendidos", "En Espera", "% Atenc."));
             sb.AppendLine(lineaFina);
 
             foreach (var d in _datosDemanda)
             {
-                string esp = d.Especialidad.Length > 28 ? d.Especialidad.Substring(0, 25) + "..." : d.Especialidad;
-                sb.AppendLine(string.Format("{0,-28} | {1,7} | {2,9} | {3,10} | {4,10} | {5,9:N2}%",
-                    esp, d.TotalTurnos, d.TurnosAtendidos, d.TurnosCancelados, d.TurnosEnEspera, d.PorcentajeAtencion));
+                string esp = d.Especialidad.Length > 30 ? d.Especialidad.Substring(0, 27) + "..." : d.Especialidad;
+                sb.AppendLine(string.Format("{0,-30} | {1,7} | {2,10} | {3,12} | {4,9:N2}%",
+                    esp, d.TotalTurnos, d.TurnosAtendidos, d.TurnosEnEspera, d.PorcentajeAtencion));
             }
 
             sb.AppendLine();
