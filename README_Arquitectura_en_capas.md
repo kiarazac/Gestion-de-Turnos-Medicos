@@ -34,7 +34,8 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │  Archivos: FrmLogin, FrmGestionUsuarios2 (Gestor Oficial Usuarios),    │
 │            FrmSalasAdmin, FrmGestionEspecialidades,                    │
 │            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
-│            FrmListaTurnosAtencion, MisSalas_PM, FrmAdmin, etc.         │
+│            FrmListaTurnosAtencion, MisSalas_PM, FrmMisAtenciones,      │
+│            FrmAdmin, FrmReportesAdmin, FrmPersonalMedico, etc.         │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Captura de eventos visuales (Click, Load, SelectedIndexChanged).   │
@@ -49,7 +50,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE LÓGICA DE NEGOCIO (BLL)                   │
 │  Namespace: Gestion_de_Turnos_Medicos.Negocio                          │
 │  Archivos: UsuarioBLL, SalaBLL, EspecialidadBLL,                       │
-│            PacienteBLL, TurnoBLL, HistoriaClinicaBLL                   │
+│            PacienteBLL, TurnoBLL, HistoriaClinicaBLL, ReporteBLL       │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Aplicar reglas de negocio médicas y administrativas.               │
@@ -65,7 +66,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE ACCESO A DATOS (DAL)                      │
 │  Namespace: Gestion_de_Turnos_Medicos.CapaDeDatos                      │
 │  Archivos: UsuarioDAL, SalaDAL, EspecialidadDAL,                       │
-│            PacienteDAL, TurnoDAL, HistoriaClinicaDAL                   │
+│            PacienteDAL, TurnoDAL, HistoriaClinicaDAL, ReporteDAL       │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Uso exclusivo de ConsultorioContext (DbContext EF Core).            │
@@ -178,6 +179,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string NombreEspecialidad { get; set; }
   public string PrioridadTexto { get; set; }
   public int IdPrioridad { get; set; }
+  public string? NombreSala { get; set; }
   ```
 
 ### 3.9 `TurnoEmergenciaDTO`
@@ -274,6 +276,51 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string NroMatricula { get; set; }
   public string Especialidades { get; set; }
   public string Salas { get; set; }
+  ```
+
+### 3.17 `AtencionMedicoDTO`
+- **Uso**: Retorno de `sp_ObtenerAtencionesPorMedico` para el historial de atenciones médicas y recetas en `FrmMisAtenciones`.
+- **Propiedades**:
+  ```csharp
+  public int IdHistoria { get; set; }
+  public DateTime Fecha { get; set; }
+  public string TipoTurno { get; set; }
+  public string DiagRapido { get; set; }
+  public string DescripHistoriaClinica { get; set; }
+  public string RecetaMedicamentos { get; set; }
+  public int IdPaciente { get; set; }
+  public string NombrePaciente { get; set; }
+  public string ApellidoPaciente { get; set; }
+  public string DniPaciente { get; set; }
+  public string ObraSocial { get; set; }
+  public string NroOrden { get; set; }
+  public string NombreSala { get; set; }
+  public string Especialidad { get; set; }
+  ```
+
+### 3.18 `ReporteDemandaEspecialidadDTO`
+- **Uso**: Retorno de `sp_ReporteDemandaEspecialidades` para estadísticas gerenciales de turnos y demanda en `FrmReportesAdmin`.
+- **Propiedades**:
+  ```csharp
+  public int IdEspecialidad { get; set; }
+  public string Especialidad { get; set; }
+  public int TotalTurnos { get; set; }
+  public int TurnosAtendidos { get; set; }
+  public int TurnosCancelados { get; set; }
+  public int TurnosEnEspera { get; set; }
+  ```
+
+### 3.19 `ReporteProductividadMedicoDTO`
+- **Uso**: Retorno de `sp_ReporteProductividadMedicos` para métricas de productividad clínica y pacientes únicos por profesional en `FrmReportesAdmin`.
+- **Propiedades**:
+  ```csharp
+  public int IdUsuario { get; set; }
+  public string NombreMedico { get; set; }
+  public string ApellidoMedico { get; set; }
+  public string Matricula { get; set; }
+  public string Especialidad { get; set; }
+  public int ConsultasAtendidas { get; set; }
+  public int PacientesUnicos { get; set; }
   ```
 
 ---
@@ -464,7 +511,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `TurnoBLL.ListarTurnosEspecialidad` | `TurnoDAL.ListarTurnosEspecialidad` | `sp_ListarTurnosEspecialidad` |
 | **`FrmListaTurnosAtencion`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerTurnosAtencion` | `TurnoDAL.ListarTurnosAtencion` | `sp_ListarTurnosAtencion` |
-| | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | `sp_LlamarSiguienteTurno` |
+| | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | Valida en BLL que la sala no esté `Ocupada` antes de llamar -> `sp_LlamarSiguienteTurno` |
 | | `TurnoBLL.IniciarAtencionTurno` | `TurnoDAL.IniciarAtencionTurno` | `sp_IniciarAtencionTurno` / `sp_ActualizarEstadoSala` |
 | | `HistoriaClinicaBLL.ObtenerHistoriaClinicaPaciente` | `HistoriaClinicaDAL.ObtenerHistoriaClinicaPaciente` | `sp_ObtenerHistoriaClinicaPaciente` |
 | | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencionTurno` |
@@ -472,6 +519,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`MisSalas_PM`** | `SalaBLL.ObtenerSalas` (`@IdUsuario`) | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.AbrirSala` | `SalaDAL.AbrirSala` | `sp_AbrirSala` |
 | | `SalaBLL.CerrarSala` | `SalaDAL.CerrarSala` | `sp_CerrarSala` |
+| **`FrmMisAtenciones`** | `HistoriaClinicaBLL.ObtenerAtencionesPorMedico` | `HistoriaClinicaDAL.ObtenerAtencionesPorMedico` | `sp_ObtenerAtencionesPorMedico` (Reportería y exportación .txt / .csv con diagnóstico clínico y prescripciones) |
 | **`FrmRecepcionista`** | *(Navegación UI / Contenedor)* | N/A | Botón `btnUsuarioVentana` ("Pantalla Turnos") para proyectar o incrustar `FrmUsuarioVentana` |
 | **`FrmUsuarioVentana`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` (Refresco cada 5s) |
 | | `TurnoBLL.ObtenerTurnosPantallaGeneral` | `TurnoDAL.ListarTurnosGeneralesPantalla` | `sp_ListarTurnosGeneralesPantalla` (Refresco cada 5s) |

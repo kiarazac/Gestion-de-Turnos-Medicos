@@ -127,17 +127,31 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return resultadoTurno.NroOrden;
         }
 
+        private readonly SalaDAL _salaDAL = new SalaDAL();
+
         /// <summary>
         /// Realiza el llamado a un paciente en espera asignándole el profesional médico y consultorio físico correspondiente.
+        /// Valida en la Capa de Negocio que la sala de atención no se encuentre ocupada por otra consulta en curso.
         /// </summary>
         /// <param name="idTurno">Identificador del turno a llamar.</param>
         /// <param name="nombreMedico">Nombre del médico que realiza la llamada.</param>
         /// <param name="salaAsignada">Denominación de la sala o box de atención.</param>
         /// <exception cref="ArgumentException">Se lanza si falta información requerida para el llamado.</exception>
+        /// <exception cref="InvalidOperationException">Se lanza si la sala se encuentra ocupada por otra atención.</exception>
         public void LlamarSiguientePaciente(int idTurno, string nombreMedico, string salaAsignada)
         {
             if (idTurno <= 0 || string.IsNullOrWhiteSpace(nombreMedico) || string.IsNullOrWhiteSpace(salaAsignada))
                 throw new ArgumentException("Se requieren todos los datos del turno y del profesional para llamar al paciente.");
+
+            if (!salaAsignada.Equals("(Sin sala abierta)", StringComparison.OrdinalIgnoreCase) &&
+                !salaAsignada.Equals("--", StringComparison.OrdinalIgnoreCase))
+            {
+                var sala = _salaDAL.ObtenerSalaPorNombre(salaAsignada);
+                if (sala != null && sala.EstadoSala.Equals("Ocupada", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"No se puede llamar a un paciente porque la sala '{salaAsignada}' se encuentra actualmente ocupada por otra atención médica en curso.");
+                }
+            }
 
             _turnoDAL.LlamarSiguientePaciente(idTurno, nombreMedico, salaAsignada);
         }

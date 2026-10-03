@@ -302,9 +302,9 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloEvolucion.ForeColor = Color.FromArgb(71, 85, 105);
             lblTituloEvolucion.Location = new Point(10, 28);
             lblTituloEvolucion.Name = "lblTituloEvolucion";
-            lblTituloEvolucion.Size = new Size(174, 13);
+            lblTituloEvolucion.Size = new Size(114, 13);
             lblTituloEvolucion.TabIndex = 1;
-            lblTituloEvolucion.Text = "Evolución Clínica / Anamnesis:";
+            lblTituloEvolucion.Text = "Diagnóstico Médico:";
             // 
             // txtDetalleEvolucion
             // 

@@ -73,6 +73,37 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
+        /// Obtiene la sala que se encuentra actualmente disponible ('Disponible' o 'Libre') asignada al profesional médico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>La sala disponible como <see cref="SalaDTO"/> o <c>null</c> si está ocupada o no tiene sala abierta.</returns>
+        public SalaDTO? ObtenerSalaDisponiblePorMedico(int idUsuario)
+        {
+            if (idUsuario <= 0)
+                return null;
+
+            return _salaDAL.ObtenerSalaDisponiblePorMedico(idUsuario);
+        }
+
+        /// <summary>
+        /// Comprueba si una sala específica por su nombre está actualmente libre/disponible para ser utilizada en atención médica.
+        /// </summary>
+        /// <param name="nombreSala">Nombre de la sala.</param>
+        /// <returns><c>true</c> si la sala está en estado 'Disponible' o 'Libre'; de lo contrario, <c>false</c>.</returns>
+        public bool EsSalaDisponible(string nombreSala)
+        {
+            if (string.IsNullOrWhiteSpace(nombreSala))
+                return false;
+
+            var sala = _salaDAL.ObtenerSalaPorNombre(nombreSala);
+            if (sala == null || !sala.Activo)
+                return false;
+
+            return sala.EstadoSala.Equals("Disponible", StringComparison.OrdinalIgnoreCase) ||
+                   sala.EstadoSala.Equals("Libre", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Registra el cierre operativo de una sala al finalizar la atención médica o jornada de trabajo.
         /// </summary>
         /// <param name="idSala">Identificador de la sala a cerrar.</param>

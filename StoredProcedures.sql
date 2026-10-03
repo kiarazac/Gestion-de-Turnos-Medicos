@@ -1937,11 +1937,13 @@ BEGIN
         p.Nombre AS NombrePaciente,
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
-        p.ObraSocial
+        p.ObraSocial,
+        ISNULL(s.NombreSala, '') AS NombreSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.Estado = 'En Espera'
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;

@@ -111,8 +111,12 @@ namespace Gestion_de_Turnos_Medicos
                 if (salaAbierta != null)
                 {
                     _salaAsignada = salaAbierta.NombreSala;
-                    lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
-                    lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
+                    bool esDisponible = salaAbierta.EstadoSala.Equals("Disponible", StringComparison.OrdinalIgnoreCase) ||
+                                       salaAbierta.EstadoSala.Equals("Libre", StringComparison.OrdinalIgnoreCase);
+
+                    string estadoTexto = esDisponible ? string.Empty : $" ({salaAbierta.EstadoSala})";
+                    lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}{estadoTexto}";
+                    lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}{estadoTexto}";
                     return true;
                 }
             }
@@ -120,8 +124,10 @@ namespace Gestion_de_Turnos_Medicos
                      !_salaAsignada.Equals("(Sin sala abierta)", StringComparison.OrdinalIgnoreCase) &&
                      !_salaAsignada.Equals("Consultorio de Atención", StringComparison.OrdinalIgnoreCase))
             {
-                lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}";
-                lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}";
+                bool esDisponible = _salaBLL.EsSalaDisponible(_salaAsignada);
+                string estadoTexto = esDisponible ? string.Empty : " (Ocupada)";
+                lblMedicoInfo.Text = $"{_nombreMedico} ({_matriculaMedico})  |  Sala: {_salaAsignada}{estadoTexto}";
+                lblTrazabilidad.Text = $"Trazabilidad: {_nombreMedico} | {_salaAsignada}{estadoTexto}";
                 return true;
             }
 
@@ -139,6 +145,24 @@ namespace Gestion_de_Turnos_Medicos
             return !string.IsNullOrWhiteSpace(_salaAsignada) && 
                    !_salaAsignada.Equals("(Sin sala abierta)", StringComparison.OrdinalIgnoreCase) &&
                    !_salaAsignada.Equals("Consultorio de Atención", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Comprueba si la sala asignada se encuentra actualmente disponible ('Disponible' o 'Libre')
+        /// para llamar y recibir nuevos pacientes.
+        /// </summary>
+        private bool TieneSalaDisponible()
+        {
+            if (!TieneSalaAbierta())
+                return false;
+
+            if (_usuarioActual != null && _usuarioActual.IdUsuario > 0)
+            {
+                var salaDisponible = _salaBLL.ObtenerSalaDisponiblePorMedico(_usuarioActual.IdUsuario);
+                return salaDisponible != null;
+            }
+
+            return _salaBLL.EsSalaDisponible(_salaAsignada);
         }
 
         // ---------------------------------------------------------------
@@ -385,6 +409,14 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
+            if (!TieneSalaDisponible())
+            {
+                MessageBox.Show($"No puedes llamar a un nuevo paciente porque la sala '{_salaAsignada}' se encuentra actualmente ocupada por otra atención médica en curso.\n\nEspera a que finalice la consulta o solicita su liberación.",
+                    "Sala Ocupada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
+            }
+
             if (_turnosVisibles == null || _turnosVisibles.Count == 0)
                 return;
 
@@ -395,6 +427,14 @@ namespace Gestion_de_Turnos_Medicos
             {
                 // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguientePaciente con la sala real abierta
                 _turnoBLL.LlamarSiguientePaciente(_turnoActual.IdTurno, _nombreMedico, _salaAsignada);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Acción Denegada - Sala Ocupada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _turnoActual = null;
+                VerificarYActualizarSalaAbierta();
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
             }
             catch (Exception ex)
             {
@@ -646,11 +686,21 @@ namespace Gestion_de_Turnos_Medicos
             switch (nuevoEstado)
             {
                 case EstadoPuesto.SinPaciente:
-                    btnSiguientePaciente.Enabled = TieneSalaAbierta() && _turnosVisibles != null && _turnosVisibles.Count > 0;
+                    bool salaDisponible = TieneSalaDisponible();
+                    btnSiguientePaciente.Enabled = salaDisponible && _turnosVisibles != null && _turnosVisibles.Count > 0;
                     btnIniciarAtencion.Enabled = false;
                     btnTerminarAtencion.Enabled = false;
                     cboServicio.Enabled = true;
-                    lblAvisoBloqueo.Visible = false;
+
+                    if (TieneSalaAbierta() && !salaDisponible)
+                    {
+                        lblAvisoBloqueo.Text = $"Atención: La sala '{_salaAsignada}' se encuentra actualmente ocupada por otra consulta.";
+                        lblAvisoBloqueo.Visible = true;
+                    }
+                    else
+                    {
+                        lblAvisoBloqueo.Visible = false;
+                    }
                     break;
 
                 case EstadoPuesto.Llamado:

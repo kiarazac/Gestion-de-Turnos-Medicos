@@ -245,9 +245,9 @@ namespace Gestion_de_Turnos_Medicos
         {
             if (dgvAtenciones.CurrentRow != null && dgvAtenciones.CurrentRow.DataBoundItem is AtencionMedicoDTO atencion)
             {
-                txtDetalleEvolucion.Text = !string.IsNullOrWhiteSpace(atencion.DescripHistoriaClinica)
-                    ? atencion.DescripHistoriaClinica
-                    : atencion.DiagRapido;
+                txtDetalleEvolucion.Text = !string.IsNullOrWhiteSpace(atencion.DiagRapido)
+                    ? atencion.DiagRapido
+                    : atencion.DescripHistoriaClinica;
 
                 txtDetalleReceta.Text = !string.IsNullOrWhiteSpace(atencion.RecetaMedicamentos)
                     ? atencion.RecetaMedicamentos
@@ -322,10 +322,6 @@ namespace Gestion_de_Turnos_Medicos
                 sb.AppendLine($"PACIENTE     : {a.PacienteCompleto} | DNI: {a.DniPaciente} | COBERTURA: {a.ObraSocial}");
                 sb.AppendLine($"MODALIDAD    : {a.TipoTurno} | ESPECIALIDAD: {a.Especialidad}");
                 sb.AppendLine($"DIAGNÓSTICO  : {a.DiagRapido}");
-                if (!string.IsNullOrWhiteSpace(a.DescripHistoriaClinica))
-                {
-                    sb.AppendLine($"EVOLUCIÓN    : {a.DescripHistoriaClinica}");
-                }
                 if (!string.IsNullOrWhiteSpace(a.RecetaMedicamentos))
                 {
                     sb.AppendLine($"RECETA       : {a.RecetaMedicamentos}");
@@ -344,15 +340,14 @@ namespace Gestion_de_Turnos_Medicos
         private void ExportarCsv(string rutaArchivo, List<AtencionMedicoDTO> lista)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("IdHistoria;Fecha;NroOrden;Paciente;DNI;ObraSocial;TipoTurno;Especialidad;Sala;Diagnostico;Evolucion;Receta");
+            sb.AppendLine("IdHistoria;Fecha;NroOrden;Paciente;DNI;ObraSocial;TipoTurno;Especialidad;Sala;Diagnostico;Receta");
 
             foreach (var a in lista)
             {
                 string diagnostico = (a.DiagRapido ?? "").Replace(";", ",").Replace("\r\n", " ");
-                string evolucion = (a.DescripHistoriaClinica ?? "").Replace(";", ",").Replace("\r\n", " ");
                 string receta = (a.RecetaMedicamentos ?? "").Replace(";", ",").Replace("\r\n", " ");
 
-                sb.AppendLine($"{a.IdHistoria};{a.Fecha:dd/MM/yyyy HH:mm};{a.NroOrden};{a.PacienteCompleto};{a.DniPaciente};{a.ObraSocial};{a.TipoTurno};{a.Especialidad};{a.NombreSala};{diagnostico};{evolucion};{receta}");
+                sb.AppendLine($"{a.IdHistoria};{a.Fecha:dd/MM/yyyy HH:mm};{a.NroOrden};{a.PacienteCompleto};{a.DniPaciente};{a.ObraSocial};{a.TipoTurno};{a.Especialidad};{a.NombreSala};{diagnostico};{receta}");
             }
 
             File.WriteAllText(rutaArchivo, sb.ToString(), Encoding.UTF8);

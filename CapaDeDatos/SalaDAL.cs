@@ -260,5 +260,34 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 s.EstadoSala.Equals("Ocupada", StringComparison.OrdinalIgnoreCase)
             ));
         }
+
+        /// <summary>
+        /// Obtiene la sala de atención que se encuentra actualmente disponible para llamar nuevos pacientes
+        /// (Estado 'Disponible' o 'Libre') asignada al médico especificado.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>La sala disponible activa como <see cref="SalaDTO"/> o <c>null</c> si no está disponible.</returns>
+        public SalaDTO? ObtenerSalaDisponiblePorMedico(int idUsuario)
+        {
+            var salas = ObtenerSalas(idUsuario, incluirInactivas: false);
+            return salas?.FirstOrDefault(s => s.Activo && (
+                s.EstadoSala.Equals("Disponible", StringComparison.OrdinalIgnoreCase) ||
+                s.EstadoSala.Equals("Libre", StringComparison.OrdinalIgnoreCase)
+            ));
+        }
+
+        /// <summary>
+        /// Obtiene una sala por su nombre descriptivo para validar su estado actual en tiempo real.
+        /// </summary>
+        /// <param name="nombreSala">Nombre de la sala a buscar.</param>
+        /// <returns>Datos de la sala como <see cref="SalaDTO"/> o <c>null</c> si no se encuentra.</returns>
+        public SalaDTO? ObtenerSalaPorNombre(string nombreSala)
+        {
+            if (string.IsNullOrWhiteSpace(nombreSala))
+                return null;
+
+            var salas = ObtenerSalas(null, incluirInactivas: false);
+            return salas?.FirstOrDefault(s => s.Activo && s.NombreSala.Equals(nombreSala.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
     }
 }

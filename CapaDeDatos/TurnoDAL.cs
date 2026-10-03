@@ -270,7 +270,36 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         {
             using (var context = new dbTurnosMedicos())
             {
-                return context.Database.SqlQueryRaw<TurnoAtencionDTO>("EXEC sp_ListarTurnosAtencion").ToList();
+                try
+                {
+                    return context.Database.SqlQueryRaw<TurnoAtencionDTO>("EXEC sp_ListarTurnosAtencion").ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT 
+                            t.IdTurno,
+                            t.NroOrden,
+                            t.Fecha,
+                            t.Estado,
+                            ISNULL(e.Nombre, 'Emergencias / Guardia') AS Especialidad,
+                            ISNULL(pr.Descripcion, 'MEDIA') AS Triage,
+                            p.Nombre AS NombrePaciente,
+                            p.Apellido AS ApellidoPaciente,
+                            p.Dni AS DniPaciente,
+                            p.ObraSocial,
+                            ISNULL(s.NombreSala, '') AS NombreSala
+                        FROM Turnos t
+                        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+                        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                        LEFT JOIN Salas s ON t.IdSala = s.IdSala
+                        WHERE t.Activo = 1 
+                          AND t.Estado = 'En Espera'
+                        ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;";
+
+                    return context.Database.SqlQueryRaw<TurnoAtencionDTO>(sql).ToList();
+                }
             }
         }
 
