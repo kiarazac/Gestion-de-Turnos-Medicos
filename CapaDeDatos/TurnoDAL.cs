@@ -93,20 +93,23 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_LlamarSiguienteTurno</c> para convocar al paciente a una sala con su médico asignado.
+        /// Valida en base de datos que solo profesionales con especialidad Clínico atiendan turnos de emergencia.
         /// </summary>
         /// <param name="idTurno">Identificador del turno.</param>
         /// <param name="nombreMedico">Nombre del médico que realiza la llamada.</param>
         /// <param name="salaAsignada">Consultorio o sala asignada para la atención.</param>
-        public void LlamarSiguientePaciente(int idTurno, string nombreMedico, string salaAsignada)
+        /// <param name="idUsuario">Identificador único del médico (opcional para validación de especialidad y trazabilidad).</param>
+        public void LlamarSiguientePaciente(int idTurno, string nombreMedico, string salaAsignada, int? idUsuario = null)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdTurno = new SqlParameter("@IdTurno", idTurno);
                 var pNombreMedico = new SqlParameter("@NombreMedico", nombreMedico);
                 var pSalaAsignada = new SqlParameter("@SalaAsignada", salaAsignada);
+                var pIdUsuario = new SqlParameter("@IdUsuario", (object?)idUsuario ?? DBNull.Value);
 
-                context.Database.ExecuteSqlRaw("EXEC sp_LlamarSiguienteTurno @IdTurno, @NombreMedico, @SalaAsignada",
-                    pIdTurno, pNombreMedico, pSalaAsignada);
+                context.Database.ExecuteSqlRaw("EXEC sp_LlamarSiguienteTurno @IdTurno, @NombreMedico, @SalaAsignada, @IdUsuario",
+                    pIdTurno, pNombreMedico, pSalaAsignada, pIdUsuario);
             }
         }
 
@@ -476,6 +479,69 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             {
                 var resultado = context.Database.SqlQueryRaw<PacienteDTO>(query, parametro).AsEnumerable().FirstOrDefault();
                 return resultado;
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_PuedeAtenderEmergencias</c> para comprobar si el médico
+        /// posee la especialidad Clínico (o afín a Clínica Médica) activa para atender turnos de guardia/emergencia.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns><c>true</c> si el médico tiene especialidad clínico activa; de lo contrario, <c>false</c>.</returns>
+        public bool PuedeAtenderEmergencias(int idUsuario)
+        {
+            if (idUsuario <= 0) return false;
+
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<bool>("EXEC sp_PuedeAtenderEmergencias @IdUsuario", pIdUsuario)
+                        .AsEnumerable()
+                        .FirstOrDefault();
+                }
+                catch (SqlException)
+                {
+                    // Fallback defensivo a consulta directa si el SP no estuviera disponible
+                    string sql = @"
+                        SELECT CAST(CASE WHEN EXISTS (
+                            SELECT 1 
+                            FROM MedicosEspecialidades me
+                            INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+                            INNER JOIN Usuarios u ON me.IdUsuario = u.IdUsuario
+                            WHERE me.IdUsuario = @IdUsuario 
+                              AND me.Activo = 1 
+                              AND e.Activo = 1 
+                              AND u.Activo = 1
+                              AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
+                        ) THEN 1 ELSE 0 END AS BIT);";
+
+                    return context.Database
+                        .SqlQueryRaw<bool>(sql, pIdUsuario)
+                        .AsEnumerable()
+                        .FirstOrDefault();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Comprueba si un turno médico corresponde a la modalidad de Emergencia o Guardia.
+        /// </summary>
+        /// <param name="idTurno">Identificador del turno.</param>
+        /// <returns><c>true</c> si el turno es de emergencia; de lo contrario, <c>false</c>.</returns>
+        public bool EsTurnoEmergencia(int idTurno)
+        {
+            if (idTurno <= 0) return false;
+
+            using (var context = new dbTurnosMedicos())
+            {
+                return context.Turnos
+                    .Where(t => t.IdTurno == idTurno && t.Activo)
+                    .Select(t => t.TipoTurno == "Emergencia" || (t.Especialidad != null && t.Especialidad.Nombre == "Emergencia") || (t.NroOrden != null && t.NroOrden.StartsWith("E-")))
+                    .FirstOrDefault();
             }
         }
     }

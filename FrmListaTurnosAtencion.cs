@@ -224,17 +224,29 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Obtiene el catálogo de especialidades disponibles desde la Capa de Negocio (BLL).
+        /// Restringe el servicio de guardia/emergencia exclusivamente a médicos con especialidad Clínico.
         /// </summary>
         private void CargarServiciosDelMedico()
         {
             cboServicio.Items.Clear();
 
-            // Opción fija siempre disponible para guardia/emergencias
-            cboServicio.Items.Add("Emergencias / Guardia");
+            int idUsuario = ObtenerIdUsuarioMedico();
+            bool esClinico = false;
 
             try
             {
-                // Si tenemos un usuario logueado y es un médico (puedes validar por IdRol o simplemente si _usuarioActual no es nulo)
+                if (idUsuario > 0)
+                {
+                    esClinico = _turnoBLL.PuedeAtenderEmergencias(idUsuario);
+                }
+
+                // Regla de Negocio: Solo profesionales médicos con especialidad Clínico pueden atender turnos de emergencia
+                if (esClinico)
+                {
+                    cboServicio.Items.Add("Emergencias / Guardia");
+                }
+
+                // Si tenemos un usuario logueado y es un médico
                 if (_usuarioActual != null)
                 {
                     // Consultamos solo las especialidades asignadas a este médico en la BD
@@ -245,20 +257,26 @@ namespace Gestion_de_Turnos_Medicos
                         foreach (var esp in especialidadesMedico)
                         {
                             if (!string.IsNullOrWhiteSpace(esp.Nombre))
-                                cboServicio.Items.Add(esp.Nombre);
+                            {
+                                if (!cboServicio.Items.Contains(esp.Nombre))
+                                    cboServicio.Items.Add(esp.Nombre);
+                            }
                         }
                     }
                 }
                 else
                 {
-                    // Fallback por si entra sin sesión (modo pruebas): Carga todas
+                    // Fallback por si entra sin sesión (modo pruebas)
                     var especialidades = _especialidadBLL.ObtenerEspecialidades();
                     if (especialidades != null)
                     {
                         foreach (var esp in especialidades)
                         {
                             if (!string.IsNullOrWhiteSpace(esp.Nombre))
-                                cboServicio.Items.Add(esp.Nombre);
+                            {
+                                if (!cboServicio.Items.Contains(esp.Nombre))
+                                    cboServicio.Items.Add(esp.Nombre);
+                            }
                         }
                     }
                 }
@@ -273,6 +291,14 @@ namespace Gestion_de_Turnos_Medicos
             {
                 cboServicio.SelectedIndex = 0;
                 _indiceServicioAnterior = 0;
+                btnSiguientePaciente.Enabled = true;
+            }
+            else
+            {
+                btnSiguientePaciente.Enabled = false;
+                btnIniciarAtencion.Enabled = false;
+                btnTerminarAtencion.Enabled = false;
+                lblEstadoInferior.Text = "Aviso: No posee servicios médicos ni especialidades activas para atención.";
             }
         }
 
@@ -293,12 +319,16 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     foreach (var dto in turnosAtencion)
                     {
+                        bool esEmergenciaTurno = dto.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true
+                            || (dto.Especialidad?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true);
+
                         Turno t = new Turno
                         {
                             IdTurno = dto.IdTurno,
                             NroOrden = !string.IsNullOrWhiteSpace(dto.NroOrden) ? dto.NroOrden : dto.IdTurno.ToString(),
                             Fecha = dto.Fecha,
                             Estado = !string.IsNullOrWhiteSpace(dto.Estado) ? dto.Estado : "En Espera",
+                            TipoTurno = esEmergenciaTurno ? "Emergencia" : "Especialidad",
                             Especialidad = new Especialidad { Nombre = !string.IsNullOrWhiteSpace(dto.Especialidad) ? dto.Especialidad : "Emergencias / Guardia" },
                             Prioridad = new Prioridad { Descripcion = !string.IsNullOrWhiteSpace(dto.Triage) ? dto.Triage : "MEDIA" },
                             Paciente = new Paciente
@@ -421,16 +451,31 @@ namespace Gestion_de_Turnos_Medicos
                 return;
 
             _turnoActual = _turnosVisibles[0];
+
+            int idUsuario = ObtenerIdUsuarioMedico();
+            bool esTurnoEmergencia = _turnoActual.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true;
+
+            if (esTurnoEmergencia && idUsuario > 0 && !_turnoBLL.PuedeAtenderEmergencias(idUsuario))
+            {
+                MessageBox.Show("Acción Denegada: Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) están autorizados para atender turnos de guardia/emergencia.",
+                    "Restricción de Especialidad Médica", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _turnoActual = null;
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
+            }
+
             _turnoActual.Estado = "Llamado";
 
             try
             {
-                // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguientePaciente con la sala real abierta
-                _turnoBLL.LlamarSiguientePaciente(_turnoActual.IdTurno, _nombreMedico, _salaAsignada);
+                // BLL delega a TurnoDAL y ejecuta sp_LlamarSiguienteTurno con la sala real abierta y el id del médico
+                _turnoBLL.LlamarSiguientePaciente(_turnoActual.IdTurno, _nombreMedico, _salaAsignada, idUsuario > 0 ? idUsuario : null);
             }
             catch (InvalidOperationException ex)
             {
-                MessageBox.Show(ex.Message, "Acción Denegada - Sala Ocupada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(ex.Message, "Acción Denegada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _turnoActual = null;
                 VerificarYActualizarSalaAbierta();
                 CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
@@ -463,6 +508,19 @@ namespace Gestion_de_Turnos_Medicos
 
             if (_turnoActual == null)
                 return;
+
+            int idUsuario = ObtenerIdUsuarioMedico();
+            bool esTurnoEmergencia = _turnoActual.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true;
+
+            if (esTurnoEmergencia && idUsuario > 0 && !_turnoBLL.PuedeAtenderEmergencias(idUsuario))
+            {
+                MessageBox.Show("Acción Denegada: Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) están autorizados para atender turnos de guardia/emergencia.",
+                    "Restricción de Especialidad Médica", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                return;
+            }
 
             _horaInicioAtencion = DateTime.Now;
             _turnoActual.Estado = "En Consulta";
@@ -635,6 +693,17 @@ namespace Gestion_de_Turnos_Medicos
 
             int idPaciente = ObtenerIdPacienteDelTurno(_turnoActual);
             int idUsuario = ObtenerIdUsuarioMedico();
+
+            bool esTurnoEmergencia = _turnoActual.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || _turnoActual.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true;
+
+            if (esTurnoEmergencia && idUsuario > 0 && !_turnoBLL.PuedeAtenderEmergencias(idUsuario))
+            {
+                MessageBox.Show("Acción Denegada: Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) están autorizados para atender turnos de guardia/emergencia.",
+                    "Restricción de Especialidad Médica", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             try
             {

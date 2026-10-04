@@ -131,14 +131,16 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
         /// <summary>
         /// Realiza el llamado a un paciente en espera asignándole el profesional médico y consultorio físico correspondiente.
-        /// Valida en la Capa de Negocio que la sala de atención no se encuentre ocupada por otra consulta en curso.
+        /// Valida en la Capa de Negocio que la sala de atención no se encuentre ocupada por otra consulta en curso
+        /// y que solo los profesionales con especialidad Clínico puedan atender turnos de guardia/emergencia.
         /// </summary>
         /// <param name="idTurno">Identificador del turno a llamar.</param>
         /// <param name="nombreMedico">Nombre del médico que realiza la llamada.</param>
         /// <param name="salaAsignada">Denominación de la sala o box de atención.</param>
+        /// <param name="idUsuario">Identificador único del profesional médico (opcional para control de especialidad).</param>
         /// <exception cref="ArgumentException">Se lanza si falta información requerida para el llamado.</exception>
-        /// <exception cref="InvalidOperationException">Se lanza si la sala se encuentra ocupada por otra atención.</exception>
-        public void LlamarSiguientePaciente(int idTurno, string nombreMedico, string salaAsignada)
+        /// <exception cref="InvalidOperationException">Se lanza si la sala se encuentra ocupada o si un médico no clínico intenta atender emergencias.</exception>
+        public void LlamarSiguientePaciente(int idTurno, string nombreMedico, string salaAsignada, int? idUsuario = null)
         {
             if (idTurno <= 0 || string.IsNullOrWhiteSpace(nombreMedico) || string.IsNullOrWhiteSpace(salaAsignada))
                 throw new ArgumentException("Se requieren todos los datos del turno y del profesional para llamar al paciente.");
@@ -153,7 +155,16 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 }
             }
 
-            _turnoDAL.LlamarSiguientePaciente(idTurno, nombreMedico, salaAsignada);
+            // Regla de Negocio: Solo usuarios con especialidad Clínico pueden atender turnos de emergencia
+            if (idUsuario.HasValue && idUsuario.Value > 0)
+            {
+                if (_turnoDAL.EsTurnoEmergencia(idTurno) && !_turnoDAL.PuedeAtenderEmergencias(idUsuario.Value))
+                {
+                    throw new InvalidOperationException("Solo los usuarios con especialidad Clínico pueden atender turnos de emergencia.");
+                }
+            }
+
+            _turnoDAL.LlamarSiguientePaciente(idTurno, nombreMedico, salaAsignada, idUsuario);
         }
 
         /// <summary>
@@ -319,6 +330,18 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("Debe indicar una especialidad válida para consultar la cola de espera.");
 
             return _turnoDAL.ObtenerTurnosEnEspera(idEspecialidad);
+        }
+
+        /// <summary>
+        /// Comprueba si el usuario médico cuenta con la especialidad Clínico (o afín a Clínica Médica) activa
+        /// para habilitar la atención de turnos de guardia/emergencias.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns><c>true</c> si el médico tiene especialidad clínico activa; de lo contrario, <c>false</c>.</returns>
+        public bool PuedeAtenderEmergencias(int idUsuario)
+        {
+            if (idUsuario <= 0) return false;
+            return _turnoDAL.PuedeAtenderEmergencias(idUsuario);
         }
     }
 }

@@ -2000,8 +2000,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_LlamarSiguienteTurno
 ** Sección       : 6.4
-** Propósito     : Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido previamente.
-** Entidad/Tablas: `Turnos`, `Salas`
+** Propósito     : Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención, registrando el médico y validando que solo profesionales con especialidad Clínico puedan atender turnos de emergencia.
+** Entidad/Tablas: `Turnos`, `Salas`, `MedicosEspecialidades`, `Especialidades`
 ** Invocado por  : `FrmListaTurnosAtencion` (Botón `btnSiguientePaciente`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
@@ -2009,11 +2009,13 @@ GO
 **                `@IdTurno` (`INT`, IN) - ID del turno llamado.
 **                `@NombreMedico` (`NVARCHAR(100)`, IN) - Nombre del profesional médico.
 **                `@SalaAsignada` (`NVARCHAR(100)`, IN) - Consultorio/sala donde se atiende.
+**                `@IdUsuario` (`INT = NULL`, IN) - ID del médico que realiza la atención (opcional para validación de especialidad).
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_LlamarSiguienteTurno
     @IdTurno INT,
     @NombreMedico NVARCHAR(100),
-    @SalaAsignada NVARCHAR(100)
+    @SalaAsignada NVARCHAR(100),
+    @IdUsuario INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2034,6 +2036,28 @@ BEGIN
             THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).', 1;
         END
 
+        -- 3. Validar si el turno es de Emergencia y el médico tiene especialidad Clínico
+        DECLARE @TipoTurno NVARCHAR(50);
+        DECLARE @IdEspecialidadTurno INT;
+        SELECT @TipoTurno = TipoTurno, @IdEspecialidadTurno = IdEspecialidad FROM Turnos WHERE IdTurno = @IdTurno;
+
+        IF (@TipoTurno = 'Emergencia' OR EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidadTurno AND Nombre = 'Emergencia'))
+           AND @IdUsuario IS NOT NULL
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM MedicosEspecialidades me
+                INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+                WHERE me.IdUsuario = @IdUsuario 
+                  AND me.Activo = 1 
+                  AND e.Activo = 1 
+                  AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
+            )
+            BEGIN
+                THROW 50085, 'Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) pueden atender turnos de emergencia.', 1;
+            END
+        END
+
         DECLARE @IdSala INT = NULL;
         IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
         BEGIN
@@ -2047,6 +2071,7 @@ BEGIN
         UPDATE Turnos
         SET Estado = 'Llamado',
             IdSala = COALESCE(@IdSala, IdSala),
+            IdUsuario = COALESCE(@IdUsuario, IdUsuario),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno AND Activo = 1;
     END TRY
@@ -2055,6 +2080,38 @@ BEGIN
             ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+END;
+GO
+
+
+/* =========================================================================
+** Procedimiento : sp_PuedeAtenderEmergencias
+** Sección       : 6.4.1
+** Propósito     : Comprueba si un usuario médico cuenta con la especialidad Clínico (o Clínica Médica) activa en MedicosEspecialidades para atender turnos de emergencia.
+** Entidad/Tablas: `MedicosEspecialidades`, `Especialidades`, `Usuarios`
+** Invocado por  : `FrmListaTurnosAtencion` (a través de `TurnoBLL` y `TurnoDAL`)
+** Estado        : `EN USO`
+** Retorno       : `PuedeAtender` (`BIT`: 1 si está habilitado, 0 si no)
+** Parámetros   :
+**                `@IdUsuario` (`INT`, IN) - Identificador único del usuario médico.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_PuedeAtenderEmergencias
+    @IdUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT CAST(CASE WHEN EXISTS (
+        SELECT 1
+        FROM MedicosEspecialidades me
+        INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+        INNER JOIN Usuarios u ON me.IdUsuario = u.IdUsuario
+        WHERE me.IdUsuario = @IdUsuario
+          AND me.Activo = 1
+          AND e.Activo = 1
+          AND u.Activo = 1
+          AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
+    ) THEN 1 ELSE 0 END AS BIT) AS PuedeAtender;
 END;
 GO
 

@@ -2418,10 +2418,10 @@ GO
 ---
 
 ### 6.4 `sp_LlamarSiguienteTurno`
-- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención y validando que el turno no haya sido concluido previamente.
-- **Entidad:** Turno / Sala
-- **Operación:** Llamado de Paciente a Consultorio
-- **Tablas:** `Turnos`, `Salas`
+- **Descripción:** Actualiza el estado del turno a `'Llamado'`, asociándole el consultorio de atención, registrando el profesional médico y validando que solo los médicos con especialidad en Clínica Médica (`Clinico`) puedan atender turnos de guardia/emergencia.
+- **Entidad:** Turno / Sala / Médico
+- **Operación:** Llamado de Paciente a Consultorio y Control de Especialidad
+- **Tablas:** `Turnos`, `Salas`, `MedicosEspecialidades`, `Especialidades`
 - **Forms que lo utilizan:** `FrmListaTurnosAtencion`
 - **Acción:** Botón `btnSiguientePaciente`
 - **Estado:** `EN USO`
@@ -2431,17 +2431,20 @@ GO
   | `@IdTurno` | `INT` | IN | ID del turno llamado. |
   | `@NombreMedico` | `NVARCHAR(100)` | IN | Nombre del profesional médico. |
   | `@SalaAsignada` | `NVARCHAR(100)` | IN | Consultorio/sala donde se atiende. |
+  | `@IdUsuario` | `INT` | IN (Opcional) | ID del usuario médico para validar especialidad clínica y trazabilidad. |
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
   | :--- | :--- | :--- |
   | `50080` | *El turno a llamar no existe o se encuentra inactivo en el sistema.* | `@IdTurno` inexistente o con `Activo = 0`. |
   | `50081` | *El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).* | El turno ya está en estado 'Atendido'. |
+  | `50085` | *Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) pueden atender turnos de emergencia.* | Turno de emergencia llamado por un usuario sin especialidad clínica activa. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_LlamarSiguienteTurno
     @IdTurno INT,
     @NombreMedico NVARCHAR(100),
-    @SalaAsignada NVARCHAR(100)
+    @SalaAsignada NVARCHAR(100),
+    @IdUsuario INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2462,12 +2465,42 @@ BEGIN
             THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).', 1;
         END
 
+        -- 3. Validar si el turno es de Emergencia y el médico tiene especialidad Clínico
+        DECLARE @TipoTurno NVARCHAR(50);
+        DECLARE @IdEspecialidadTurno INT;
+        SELECT @TipoTurno = TipoTurno, @IdEspecialidadTurno = IdEspecialidad FROM Turnos WHERE IdTurno = @IdTurno;
+
+        IF (@TipoTurno = 'Emergencia' OR EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidadTurno AND Nombre = 'Emergencia'))
+           AND @IdUsuario IS NOT NULL
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM MedicosEspecialidades me
+                INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+                WHERE me.IdUsuario = @IdUsuario 
+                  AND me.Activo = 1 
+                  AND e.Activo = 1 
+                  AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
+            )
+            BEGIN
+                THROW 50085, 'Solo los profesionales médicos con especialidad en Clínica Médica (Clínico) pueden atender turnos de emergencia.', 1;
+            END
+        END
+
         DECLARE @IdSala INT = NULL;
-        SELECT @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
+            END
+        END
 
         UPDATE Turnos
         SET Estado = 'Llamado',
-            IdSala = ISNULL(@IdSala, IdSala),
+            IdSala = COALESCE(@IdSala, IdSala),
+            IdUsuario = COALESCE(@IdUsuario, IdUsuario),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno AND Activo = 1;
     END TRY
@@ -2476,6 +2509,44 @@ BEGIN
             ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+END;
+GO
+```
+
+---
+
+### 6.4.1 `sp_PuedeAtenderEmergencias`
+- **Descripción:** Comprueba si un profesional médico cuenta con la especialidad `Clinico` (o afín a Clínica Médica) activa en `MedicosEspecialidades` para habilitar el servicio y atención de turnos de emergencia.
+- **Entidad:** Médico / Especialidad / Turno
+- **Operación:** Verificación de Habilitación Profesional
+- **Tablas:** `MedicosEspecialidades`, `Especialidades`, `Usuarios`
+- **Forms que lo utilizan:** `FrmListaTurnosAtencion` (mediante `TurnoBLL` y `TurnoDAL`)
+- **Acción:** Carga inicial de servicios en `cboServicio` y validación preventiva al llamar pacientes
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | Identificador del usuario médico a consultar. |
+- **Devuelve:** `PuedeAtender` (`BIT`: 1 si tiene la especialidad clínica activa, 0 si no).
+
+```sql
+CREATE OR ALTER PROCEDURE sp_PuedeAtenderEmergencias
+    @IdUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT CAST(CASE WHEN EXISTS (
+        SELECT 1
+        FROM MedicosEspecialidades me
+        INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+        INNER JOIN Usuarios u ON me.IdUsuario = u.IdUsuario
+        WHERE me.IdUsuario = @IdUsuario
+          AND me.Activo = 1
+          AND e.Activo = 1
+          AND u.Activo = 1
+          AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
+    ) THEN 1 ELSE 0 END AS BIT) AS PuedeAtender;
 END;
 GO
 ```
@@ -3110,16 +3181,17 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 39 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
 | 40 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
 | 41 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
-| 42 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` | `EN USO` |
-| 43 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
-| 44 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
-| 45 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
-| 46 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
-| 47 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
-| 48 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
-| 49 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico | `EN USO` |
-| 50 | `sp_ReporteDemandaEspecialidades` | Especialidad / Turno | Reporte / Demanda | `FrmReportesAdmin` | Carga de demanda y métricas por especialidad | `EN USO` |
-| 51 | `sp_ReporteProductividadMedicos` | Usuario / HistoriaClinica | Reporte / Productividad | `FrmReportesAdmin` | Carga de consultas y pacientes por médico | `EN USO` |
+| 42 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` (Valida médico clínico en emergencias) | `EN USO` |
+| 43 | `sp_PuedeAtenderEmergencias`| Usuario / Especialidad | Habilitación | `FrmListaTurnosAtencion` | Comprueba si el médico posee la especialidad Clínico para guardia | `EN USO` |
+| 44 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
+| 45 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
+| 46 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
+| 47 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
+| 48 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
+| 49 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
+| 50 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico | `EN USO` |
+| 51 | `sp_ReporteDemandaEspecialidades` | Especialidad / Turno | Reporte / Demanda | `FrmReportesAdmin` | Carga de demanda y métricas por especialidad | `EN USO` |
+| 52 | `sp_ReporteProductividadMedicos` | Usuario / HistoriaClinica | Reporte / Productividad | `FrmReportesAdmin` | Carga de consultas y pacientes por médico | `EN USO` |
 
 ---
 
@@ -3182,8 +3254,9 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 
 ### `FrmListaTurnosAtencion`
 - `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` → Carga del selector de servicios del médico (`CargarServiciosDelMedico`).
+- `sp_PuedeAtenderEmergencias` → Validación de habilitación para atención de emergencias/guardia en `CargarServiciosDelMedico` y llamadas de pacientes.
 - `sp_ListarTurnosAtencion` / `sp_ObtenerTurnosEnEspera` → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
-- `sp_LlamarSiguienteTurno` → Botón "Siguiente Paciente". Pasa el turno a estado 'Llamado'.
+- `sp_LlamarSiguienteTurno` → Botón "Siguiente Paciente". Pasa el turno a estado 'Llamado' (valida especialidad clínica si es guardia).
 - `sp_IniciarAtencionTurno` → Botón "Iniciar Atención". Pasa el turno a 'En Consulta' y marca el consultorio como 'Ocupada'.
 - `sp_ObtenerHistoriaClinicaPaciente` → Botón "Iniciar Atención". Consulta antecedentes cronológicos del paciente para el panel superior de lectura de antecedentes clínicos.
 - `sp_FinalizarAtencionTurno` → Botón "Terminar Atención". Pasa el turno a 'Atendido' y libera el consultorio a 'Disponible'.
