@@ -3369,6 +3369,210 @@ GO
 
 ---
 
+### 6.14 `sp_ReporteGuardiaTriage_Resumen`
+- **Descripción:** Genera métricas e indicadores clave de guardia médica (KPIs): volumen de ingresos clasificados por nivel de triage/severidad (`Alta`, `Media`, `Baja`), turnos atendidos, en espera y cancelados, junto con la tasa porcentual de resolución de guardia.
+- **Entidad:** Turno / Prioridad
+- **Operación:** Reportería Gerencial / Monitoreo Operativo de Guardia
+- **Tablas:** `Turnos`, `Prioridades`
+- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
+- **Acción:** Carga de tarjetas e indicadores superiores de flujo de guardia y triage.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de ingreso/turno a la guardia. |
+  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de ingreso/turno a la guardia. |
+  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico (1=Alta, 2=Media, 3=Baja). |
+- **Devuelve:** `TotalEmergencias`, `TotalAlta`, `TotalMedia`, `TotalBaja`, `TotalAtendidos`, `TotalEnEspera`, `TotalCancelados`, `TasaResolucion`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Resumen
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            COUNT(t.IdTurno) AS TotalEmergencias,
+            SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END) AS TotalAlta,
+            SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END) AS TotalMedia,
+            SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END) AS TotalBaja,
+            SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS TotalAtendidos,
+            SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END) AS TotalEnEspera,
+            SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TotalCancelados,
+            CAST(
+                CASE 
+                    WHEN COUNT(t.IdTurno) > 0 
+                    THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                    ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS TasaResolucion
+        FROM Turnos t
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+---
+
+### 6.15 `sp_ReporteGuardiaTriage_RankingSintomas`
+- **Descripción:** Genera el ranking de motivos de consulta y síntomas más frecuentes manifestados por los pacientes durante el triage de guardia, computando la cantidad de casos y la participación porcentual sobre el total de síntomas registrados.
+- **Entidad:** TurnoSintoma / Sintoma / Turno
+- **Operación:** Reportería Gerencial / Epidemiología de Guardia
+- **Tablas:** `TurnoSintomas`, `Sintomas`, `Turnos`
+- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
+- **Acción:** Carga de tabla de patologías y síntomas predominantes.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de consulta. |
+  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de consulta. |
+  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico. |
+- **Devuelve:** `IdSintoma`, `Sintoma`, `Gravedad`, `CantidadCasos`, `Porcentaje`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_RankingSintomas
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @TotalSintomas INT = 0;
+
+        SELECT @TotalSintomas = COUNT(ts.IdTurnoSintoma)
+        FROM TurnoSintomas ts
+        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND ts.Activo = 1
+          AND s.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
+
+        SELECT 
+            s.IdSintoma,
+            s.Descripcion AS Sintoma,
+            s.Gravedad,
+            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
+            CAST(
+                CASE 
+                    WHEN @TotalSintomas > 0 
+                    THEN (CAST(COUNT(ts.IdTurnoSintoma) AS DECIMAL(10,2)) / @TotalSintomas) * 100.0
+                    ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM TurnoSintomas ts
+        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND ts.Activo = 1
+          AND s.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
+        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
+        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+---
+
+### 6.16 `sp_ReporteGuardiaTriage_Detalle`
+- **Descripción:** Consulta detallada de turnos de guardia médica: código de turno, fecha/hora, datos del paciente, obra social, nivel de triage, síntomas asociados concatenados, estado de la atención y consultorio/sala asignada.
+- **Entidad:** Turno / Paciente / Prioridad / Sala / TurnoSintoma / Sintoma
+- **Operación:** Reportería Operativa / Auditoría de Triage
+- **Tablas:** `Turnos`, `Pacientes`, `Prioridades`, `Salas`, `TurnoSintomas`, `Sintomas`
+- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
+- **Acción:** Carga de grilla interactiva de turnos de guardia con codificación por colores de triage.
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de consulta. |
+  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de consulta. |
+  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico. |
+- **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `Prioridad`, `IdPrioridad`, `Sintomas`, `Estado`, `NombreSala`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Detalle
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            t.IdTurno,
+            t.NroOrden,
+            COALESCE(t.FechaCreacion, t.Fecha) AS Fecha,
+            p.Nombre AS NombrePaciente,
+            p.Apellido AS ApellidoPaciente,
+            p.Dni AS DniPaciente,
+            ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+            ISNULL(pr.Descripcion, 'Baja') AS Prioridad,
+            ISNULL(t.IdPrioridad, 3) AS IdPrioridad,
+            ISNULL(
+                (
+                    SELECT STRING_AGG(s.Descripcion, ', ')
+                    FROM TurnoSintomas ts
+                    INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+                    WHERE ts.IdTurno = t.IdTurno AND ts.Activo = 1 AND s.Activo = 1
+                ),
+                'Sin síntomas registrados'
+            ) AS Sintomas,
+            t.Estado,
+            ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
+        FROM Turnos t
+        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+        LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
+        ORDER BY t.IdPrioridad ASC, COALESCE(t.FechaCreacion, t.Fecha) DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+---
+
 ## 7. Scripts de Datos Iniciales (Seeds)
 
 ```sql
@@ -3493,6 +3697,9 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 50 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico | `EN USO` |
 | 51 | `sp_ReporteDemandaEspecialidades` | Especialidad / Turno | Reporte / Demanda | `FrmReportesAdmin` | Carga de demanda y métricas por especialidad | `EN USO` |
 | 52 | `sp_ReporteProductividadMedicos` | Usuario / HistoriaClinica | Reporte / Productividad | `FrmReportesAdmin` | Carga de consultas y pacientes por médico | `EN USO` |
+| 53 | `sp_ReporteGuardiaTriage_Resumen` | Turno / Prioridad | Reporte / Triage KPIs | `FrmReporteGuardiaAdmin` | Carga de KPIs y resumen operativo de guardia | `EN USO` |
+| 54 | `sp_ReporteGuardiaTriage_RankingSintomas` | TurnoSintoma / Sintoma | Reporte / Epidemiología | `FrmReporteGuardiaAdmin` | Ranking de síntomas predominantes en triage | `EN USO` |
+| 55 | `sp_ReporteGuardiaTriage_Detalle` | Turno / Paciente / Triage | Reporte / Detalle Guardia | `FrmReporteGuardiaAdmin` | Grilla interactiva de turnos de guardia | `EN USO` |
 
 ---
 
@@ -3570,11 +3777,16 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
-- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades` y `FrmReportesAdmin`.
+- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmReportesAdmin` y `FrmReporteGuardiaAdmin`.
 
 ### `FrmReportesAdmin` (Panel de Reportes Gerenciales y Estadísticas)
 - `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, en espera y cálculo de porcentajes relativos por especialidad médica.
 - `sp_ReporteProductividadMedicos` → Carga de tabla de productividad médica, total de consultas atendidas y pacientes únicos por profesional con filtros de fechas.
+
+### `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
+- `sp_ReporteGuardiaTriage_Resumen` → Carga de tarjetas KPI superiores con volumen total de ingresos, desglose por nivel de triage (Alta, Media, Baja), turnos atendidos, en espera, cancelados y tasa de resolución.
+- `sp_ReporteGuardiaTriage_RankingSintomas` → Carga de la grilla de patologías y síntomas predominantes manifestados en guardia con cantidad y porcentaje sobre el total de síntomas.
+- `sp_ReporteGuardiaTriage_Detalle` → Carga de la grilla detallada de pacientes atendidos en guardia, con codificación de colores de triage en la columna de prioridad, síntomas asociados concatenados, estado de atención y consultorio. Soporta exportación completa en formato CSV y TXT.
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)
 - Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM`, `FrmListaTurnosAtencion` y `FrmMisAtenciones`.

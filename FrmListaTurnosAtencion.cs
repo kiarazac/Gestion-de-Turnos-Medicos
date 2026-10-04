@@ -29,6 +29,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
         private readonly HistoriaClinicaBLL _historiaClinicaBLL = new HistoriaClinicaBLL();
         private readonly SalaBLL _salaBLL = new SalaBLL();
+        private readonly UsuarioBLL _usuarioBLL = new UsuarioBLL();
 
         // Datos del médico autenticado / sala asignada
         private readonly UsuarioLoginResult? _usuarioActual;
@@ -653,22 +654,17 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                using (var context = new dbTurnosMedicos())
+                var medicos = _usuarioBLL.ObtenerPersonalMedico();
+                if (medicos != null && medicos.Count > 0)
                 {
-                    var id = context.Usuarios
-                        .Where(u => u.Activo && (u.IdRol == 2 || u.NroMatricula != null))
-                        .Select(u => u.IdUsuario)
-                        .FirstOrDefault();
-
-                    if (id > 0) return id;
-
-                    return context.Usuarios.Where(u => u.Activo).Select(u => u.IdUsuario).FirstOrDefault();
+                    return medicos[0].IdUsuario;
                 }
             }
             catch
             {
-                return 1;
             }
+
+            return 1;
         }
 
         private void btnTerminarAtencion_Click(object sender, EventArgs e)

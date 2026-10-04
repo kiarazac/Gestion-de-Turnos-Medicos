@@ -31,6 +31,8 @@ namespace Gestion_de_Turnos_Medicos
             panel1 = new Panel();
             Lsalir = new Label();
             btnSalir = new Button();
+            LReporteGuardia = new Label();
+            btnReporteGuardia = new Button();
             LReportes = new Label();
             btnReportes = new Button();
             LEspecialidades = new Label();
@@ -47,6 +49,8 @@ namespace Gestion_de_Turnos_Medicos
             // 
             panel1.AutoScroll = true;
             panel1.BackColor = SystemColors.ActiveCaption;
+            panel1.Controls.Add(LReporteGuardia);
+            panel1.Controls.Add(btnReporteGuardia);
             panel1.Controls.Add(LReportes);
             panel1.Controls.Add(btnReportes);
             panel1.Controls.Add(Lsalir);
@@ -85,12 +89,34 @@ namespace Gestion_de_Turnos_Medicos
             btnReportes.UseVisualStyleBackColor = true;
             btnReportes.Click += btnReportes_Click;
             // 
+            // LReporteGuardia
+            // 
+            LReporteGuardia.AutoSize = true;
+            LReporteGuardia.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            LReporteGuardia.Location = new Point(32, 455);
+            LReporteGuardia.Name = "LReporteGuardia";
+            LReporteGuardia.Size = new Size(122, 20);
+            LReporteGuardia.TabIndex = 10;
+            LReporteGuardia.Text = "Triage Guardia";
+            // 
+            // btnReporteGuardia
+            // 
+            btnReporteGuardia.BackgroundImage = Properties.Resources.turnos_emergencia;
+            btnReporteGuardia.BackgroundImageLayout = ImageLayout.Zoom;
+            btnReporteGuardia.Cursor = Cursors.Hand;
+            btnReporteGuardia.Location = new Point(46, 480);
+            btnReporteGuardia.Name = "btnReporteGuardia";
+            btnReporteGuardia.Size = new Size(92, 73);
+            btnReporteGuardia.TabIndex = 11;
+            btnReporteGuardia.UseVisualStyleBackColor = true;
+            btnReporteGuardia.Click += btnReporteGuardia_Click;
+            // 
             // Lsalir
             // 
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 455);
+            Lsalir.Location = new Point(65, 565);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
             Lsalir.TabIndex = 6;
@@ -101,7 +127,7 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
             btnSalir.Cursor = Cursors.Hand;
-            btnSalir.Location = new Point(46, 480);
+            btnSalir.Location = new Point(46, 590);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
             btnSalir.TabIndex = 7;
@@ -208,5 +234,7 @@ namespace Gestion_de_Turnos_Medicos
         private Button btnSalir;
         private Label LReportes;
         private Button btnReportes;
+        private Label LReporteGuardia;
+        private Button btnReporteGuardia;
     }
 }

@@ -323,6 +323,45 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public int PacientesUnicos { get; set; }
   ```
 
+### 3.20 `ReporteGuardiaResumenDTO`
+- **Uso**: Retorno de `sp_ReporteGuardiaTriage_Resumen` para las tarjetas de KPIs en `FrmReporteGuardiaAdmin`.
+- **Propiedades**:
+  ```csharp
+  public int TotalIngresos { get; set; }
+  public int PrioridadAlta { get; set; }
+  public int PrioridadMedia { get; set; }
+  public int PrioridadBaja { get; set; }
+  public int Atendidos { get; set; }
+  public int EnEspera { get; set; }
+  public decimal TasaResolucion { get; set; }
+  ```
+
+### 3.21 `ReporteGuardiaSintomaDTO`
+- **Uso**: Retorno de `sp_ReporteGuardiaTriage_RankingSintomas` para el top de sintomatologías en `FrmReporteGuardiaAdmin`.
+- **Propiedades**:
+  ```csharp
+  public int IdSintoma { get; set; }
+  public string Descripcion { get; set; }
+  public int CantidadCasos { get; set; }
+  public decimal PorcentajeDelTotal { get; set; }
+  ```
+
+### 3.22 `ReporteGuardiaDetalleDTO`
+- **Uso**: Retorno de `sp_ReporteGuardiaTriage_Detalle` para la grilla tabular con colorimetría y búsqueda en vivo en `FrmReporteGuardiaAdmin`.
+- **Propiedades**:
+  ```csharp
+  public int IdTurno { get; set; }
+  public string NroOrden { get; set; }
+  public DateTime FechaIngreso { get; set; }
+  public string PacienteNombreCompleto { get; set; }
+  public string DniPaciente { get; set; }
+  public string PrioridadTriage { get; set; }
+  public string SintomasIngreso { get; set; }
+  public string EstadoTurno { get; set; }
+  public string? MedicoAsignado { get; set; }
+  public string? SalaAtencion { get; set; }
+  ```
+
 ---
 
 ## 4. Guía Técnica de Implementación: Capa DAL con Entity Framework Core
@@ -523,6 +562,9 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`FrmRecepcionista`** | *(Navegación UI / Contenedor)* | N/A | Botón `btnUsuarioVentana` ("Pantalla Turnos") para proyectar o incrustar `FrmUsuarioVentana` |
 | **`FrmUsuarioVentana`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` (Refresco cada 5s) |
 | | `TurnoBLL.ObtenerTurnosPantallaGeneral` | `TurnoDAL.ListarTurnosGeneralesPantalla` | `sp_ListarTurnosGeneralesPantalla` (Refresco cada 5s) |
+| **`FrmReporteGuardiaAdmin`** | `ReporteGuardiaBLL.ObtenerResumen` | `ReporteGuardiaDAL.ObtenerResumen` | `sp_ReporteGuardiaTriage_Resumen` (Tarjetas KPIs: Total, Alta, Media, Baja, Tasa Resolución) |
+| | `ReporteGuardiaBLL.ObtenerRankingSintomas` | `ReporteGuardiaDAL.ObtenerRankingSintomas` | `sp_ReporteGuardiaTriage_RankingSintomas` (Ranking de motivos y síntomas de urgencia) |
+| | `ReporteGuardiaBLL.ObtenerDetalle` | `ReporteGuardiaDAL.ObtenerDetalle` | `sp_ReporteGuardiaTriage_Detalle` (Grilla tabular con filtro de fecha, prioridad, búsqueda en vivo y exportación .csv/.txt) |
 
 ---
 

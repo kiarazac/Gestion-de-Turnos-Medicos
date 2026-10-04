@@ -78,6 +78,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
+        /// Abre el reporte operativo de guardia y distribución de triage en el panel contenedor central.
+        /// </summary>
+        private void btnReporteGuardia_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmReporteGuardiaAdmin(_usuarioActual));
+        }
+
+        /// <summary>
         /// Cierra la sesión activa del administrador y reabre el formulario de login.
         /// </summary>
         private void btnSalir_Click(object sender, EventArgs e)

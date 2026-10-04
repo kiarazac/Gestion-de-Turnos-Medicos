@@ -2953,6 +2953,200 @@ END;
 
 GO
 
+/* =========================================================================
+** Procedimiento : sp_ReporteGuardiaTriage_Resumen
+** Sección       : 6.14
+** Propósito     : Genera métricas e indicadores clave de guardia (KPIs):
+**                 volumen de ingresos por severidad de triage (Alta, Media, Baja),
+**                 turnos atendidos, pendientes, cancelados y tasa de resolución.
+** Entidad/Tablas: Turnos, Prioridades
+** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
+** Acción        : Carga de tarjetas/indicadores superiores de triage
+** Estado        : EN USO
+** Retorno       : TotalEmergencias, TotalAlta, TotalMedia, TotalBaja, TotalAtendidos, TotalEnEspera, TotalCancelados, TasaResolucion
+** Parámetros   :
+**                @FechaDesde   (DATETIME, IN, OPT) - Fecha y hora mínima de ingreso/turno.
+**                @FechaHasta   (DATETIME, IN, OPT) - Fecha y hora máxima de ingreso/turno.
+**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico (1=Alta, 2=Media, 3=Baja).
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Resumen
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            COUNT(t.IdTurno) AS TotalEmergencias,
+            SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END) AS TotalAlta,
+            SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END) AS TotalMedia,
+            SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END) AS TotalBaja,
+            SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS TotalAtendidos,
+            SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END) AS TotalEnEspera,
+            SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TotalCancelados,
+            CAST(
+                CASE 
+                    WHEN COUNT(t.IdTurno) > 0 
+                    THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                    ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS TasaResolucion
+        FROM Turnos t
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteGuardiaTriage_RankingSintomas
+** Sección       : 6.15
+** Propósito     : Genera el ranking de motivos de consulta y síntomas más frecuentes
+**                 manifestados por los pacientes durante el triage de guardia, con conteo y %.
+** Entidad/Tablas: TurnoSintomas, Sintomas, Turnos
+** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
+** Acción        : Carga de grilla/tabla de síntomas predominantes
+** Estado        : EN USO
+** Retorno       : IdSintoma, Sintoma, Gravedad, CantidadCasos, Porcentaje
+** Parámetros   :
+**                @FechaDesde   (DATETIME, IN, OPT) - Fecha mínima de consulta.
+**                @FechaHasta   (DATETIME, IN, OPT) - Fecha máxima de consulta.
+**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_RankingSintomas
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @TotalSintomas INT = 0;
+
+        SELECT @TotalSintomas = COUNT(ts.IdTurnoSintoma)
+        FROM TurnoSintomas ts
+        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND ts.Activo = 1
+          AND s.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
+
+        SELECT 
+            s.IdSintoma,
+            s.Descripcion AS Sintoma,
+            s.Gravedad,
+            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
+            CAST(
+                CASE 
+                    WHEN @TotalSintomas > 0 
+                    THEN (CAST(COUNT(ts.IdTurnoSintoma) AS DECIMAL(10,2)) / @TotalSintomas) * 100.0
+                    ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM TurnoSintomas ts
+        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND ts.Activo = 1
+          AND s.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
+        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
+        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteGuardiaTriage_Detalle
+** Sección       : 6.16
+** Propósito     : Consulta detallada e individual de turnos de guardia médica:
+**                 número de orden, paciente, DNI, nivel de triage, síntomas asociados,
+**                 estado de atención y consultorio/sala asignada.
+** Entidad/Tablas: Turnos, Pacientes, Prioridades, Salas, TurnoSintomas, Sintomas
+** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
+** Acción        : Carga de grilla interactiva de turnos de guardia
+** Estado        : EN USO
+** Retorno       : IdTurno, NroOrden, Fecha, NombrePaciente, ApellidoPaciente, DniPaciente, ObraSocial, Prioridad, IdPrioridad, Sintomas, Estado, NombreSala
+** Parámetros   :
+**                @FechaDesde   (DATETIME, IN, OPT) - Fecha mínima de consulta.
+**                @FechaHasta   (DATETIME, IN, OPT) - Fecha máxima de consulta.
+**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Detalle
+    @FechaDesde DATETIME = NULL,
+    @FechaHasta DATETIME = NULL,
+    @IdPrioridad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            t.IdTurno,
+            t.NroOrden,
+            COALESCE(t.FechaCreacion, t.Fecha) AS Fecha,
+            p.Nombre AS NombrePaciente,
+            p.Apellido AS ApellidoPaciente,
+            p.Dni AS DniPaciente,
+            ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+            ISNULL(pr.Descripcion, 'Baja') AS Prioridad,
+            ISNULL(t.IdPrioridad, 3) AS IdPrioridad,
+            ISNULL(
+                (
+                    SELECT STRING_AGG(s.Descripcion, ', ')
+                    FROM TurnoSintomas ts
+                    INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+                    WHERE ts.IdTurno = t.IdTurno AND ts.Activo = 1 AND s.Activo = 1
+                ),
+                'Sin síntomas registrados'
+            ) AS Sintomas,
+            t.Estado,
+            ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
+        FROM Turnos t
+        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+        LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
+          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
+        ORDER BY t.IdPrioridad ASC, COALESCE(t.FechaCreacion, t.Fecha) DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
 USE dbGestionTurnos;
 
 GO
