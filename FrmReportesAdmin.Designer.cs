@@ -95,7 +95,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubtituloHeader.ForeColor = Color.FromArgb(204, 251, 241);
             lblSubtituloHeader.Location = new Point(18, 35);
             lblSubtituloHeader.Name = "lblSubtituloHeader";
-            lblSubtituloHeader.Size = new Size(540, 15);
+            lblSubtituloHeader.Size = new Size(493, 15);
             lblSubtituloHeader.TabIndex = 1;
             lblSubtituloHeader.Text = "Estadísticas ejecutivas de demanda, resolución de turnos y productividad del cuerpo médico";
             // 
@@ -106,7 +106,7 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloHeader.ForeColor = Color.White;
             lblTituloHeader.Location = new Point(16, 9);
             lblTituloHeader.Name = "lblTituloHeader";
-            lblTituloHeader.Size = new Size(410, 25);
+            lblTituloHeader.Size = new Size(398, 25);
             lblTituloHeader.TabIndex = 0;
             lblTituloHeader.Text = "Panel de Reportes Gerenciales y Estadísticas";
             // 
@@ -150,7 +150,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiTotalTitulo.ForeColor = Color.FromArgb(100, 116, 139);
             lblKpiTotalTitulo.Location = new Point(10, 10);
             lblKpiTotalTitulo.Name = "lblKpiTotalTitulo";
-            lblKpiTotalTitulo.Size = new Size(160, 13);
+            lblKpiTotalTitulo.Size = new Size(163, 13);
             lblKpiTotalTitulo.TabIndex = 0;
             lblKpiTotalTitulo.Text = "TOTAL TURNOS REGISTRADOS";
             // 
@@ -185,7 +185,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiAtendidosTitulo.ForeColor = Color.FromArgb(100, 116, 139);
             lblKpiAtendidosTitulo.Location = new Point(10, 10);
             lblKpiAtendidosTitulo.Name = "lblKpiAtendidosTitulo";
-            lblKpiAtendidosTitulo.Size = new Size(118, 13);
+            lblKpiAtendidosTitulo.Size = new Size(115, 13);
             lblKpiAtendidosTitulo.TabIndex = 0;
             lblKpiAtendidosTitulo.Text = "TURNOS ATENDIDOS";
             // 
@@ -196,7 +196,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiAtendidosNum.ForeColor = Color.FromArgb(16, 185, 129);
             lblKpiAtendidosNum.Location = new Point(8, 28);
             lblKpiAtendidosNum.Name = "lblKpiAtendidosNum";
-            lblKpiAtendidosNum.Size = new Size(74, 32);
+            lblKpiAtendidosNum.Size = new Size(88, 32);
             lblKpiAtendidosNum.TabIndex = 1;
             lblKpiAtendidosNum.Text = "0 (0%)";
             // 
@@ -220,7 +220,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiEnEsperaTitulo.ForeColor = Color.FromArgb(100, 116, 139);
             lblKpiEnEsperaTitulo.Location = new Point(10, 10);
             lblKpiEnEsperaTitulo.Name = "lblKpiEnEsperaTitulo";
-            lblKpiEnEsperaTitulo.Size = new Size(140, 13);
+            lblKpiEnEsperaTitulo.Size = new Size(151, 13);
             lblKpiEnEsperaTitulo.TabIndex = 0;
             lblKpiEnEsperaTitulo.Text = "TURNOS EN ESPERA / SALA";
             // 
@@ -231,7 +231,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiEnEsperaNum.ForeColor = Color.FromArgb(234, 88, 12);
             lblKpiEnEsperaNum.Location = new Point(8, 28);
             lblKpiEnEsperaNum.Name = "lblKpiEnEsperaNum";
-            lblKpiEnEsperaNum.Size = new Size(74, 32);
+            lblKpiEnEsperaNum.Size = new Size(88, 32);
             lblKpiEnEsperaNum.TabIndex = 1;
             lblKpiEnEsperaNum.Text = "0 (0%)";
             // 
@@ -243,7 +243,6 @@ namespace Gestion_de_Turnos_Medicos
             cardTopEspecialidad.Controls.Add(lblKpiTopNombre);
             cardTopEspecialidad.Dock = DockStyle.Fill;
             cardTopEspecialidad.Location = new Point(822, 13);
-            cardTopEspecialidad.Margin = new Padding(3, 3, 3, 3);
             cardTopEspecialidad.Name = "cardTopEspecialidad";
             cardTopEspecialidad.Size = new Size(263, 68);
             cardTopEspecialidad.TabIndex = 3;
@@ -255,7 +254,7 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiTopTitulo.ForeColor = Color.FromArgb(100, 116, 139);
             lblKpiTopTitulo.Location = new Point(10, 10);
             lblKpiTopTitulo.Name = "lblKpiTopTitulo";
-            lblKpiTopTitulo.Size = new Size(182, 13);
+            lblKpiTopTitulo.Size = new Size(187, 13);
             lblKpiTopTitulo.TabIndex = 0;
             lblKpiTopTitulo.Text = "ESPECIALIDAD MAYOR DEMANDA";
             // 
@@ -369,7 +368,7 @@ namespace Gestion_de_Turnos_Medicos
             lblHasta.ForeColor = Color.FromArgb(71, 85, 105);
             lblHasta.Location = new Point(388, 4);
             lblHasta.Name = "lblHasta";
-            lblHasta.Size = new Size(40, 13);
+            lblHasta.Size = new Size(39, 13);
             lblHasta.TabIndex = 4;
             lblHasta.Text = "Hasta:";
             // 
@@ -410,7 +409,7 @@ namespace Gestion_de_Turnos_Medicos
             lblPeriodo.ForeColor = Color.FromArgb(71, 85, 105);
             lblPeriodo.Location = new Point(12, 4);
             lblPeriodo.Name = "lblPeriodo";
-            lblPeriodo.Size = new Size(50, 13);
+            lblPeriodo.Size = new Size(51, 13);
             lblPeriodo.TabIndex = 0;
             lblPeriodo.Text = "Período:";
             // 
@@ -510,7 +509,7 @@ namespace Gestion_de_Turnos_Medicos
             lblEstado.ForeColor = Color.FromArgb(71, 85, 105);
             lblEstado.Location = new Point(12, 7);
             lblEstado.Name = "lblEstado";
-            lblEstado.Size = new Size(38, 15);
+            lblEstado.Size = new Size(35, 15);
             lblEstado.TabIndex = 0;
             lblEstado.Text = "Listo.";
             // 
@@ -527,6 +526,7 @@ namespace Gestion_de_Turnos_Medicos
             Controls.Add(pnlHeader);
             Name = "FrmReportesAdmin";
             Text = "Reportes Gerenciales y Estadísticas";
+            Load += FrmReportesAdmin_Load_1;
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();
             pnlKpis.ResumeLayout(false);

@@ -575,5 +575,10 @@ namespace Gestion_de_Turnos_Medicos
 
             public override string ToString() => Nombre;
         }
+
+        private void FrmReportesAdmin_Load_1(object sender, EventArgs e)
+        {
+
+        }
     }
 }
