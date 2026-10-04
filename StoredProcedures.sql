@@ -1654,6 +1654,19 @@ BEGIN
             THROW 50001, 'El paciente especificado no se encuentra registrado o está inactivo.', 1;
         END
 
+        -- Validamos que no exista ya un turno activo para la misma fecha, horario y especialidad
+        IF EXISTS (
+            SELECT 1 
+            FROM Turnos t
+            WHERE t.IdEspecialidad = @IdEspecialidad
+              AND CAST(t.Fecha AS DATE) = @Fecha
+              AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
+              AND t.Activo = 1
+        )
+        BEGIN
+            THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
+        END
+
         DECLARE @IdTurno INT;
         DECLARE @NroOrden NVARCHAR(20);
         DECLARE @InicialEspecialidad CHAR(1);
@@ -1685,6 +1698,40 @@ BEGIN
 
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
+END;
+GO
+
+
+/* =========================================================================
+** Procedimiento : sp_ExisteTurnoEspecialidad
+** Sección       : 5.6.1
+** Propósito     : Comprueba de forma booleana (1 o 0) si ya se encuentra reservado un turno activo para la misma fecha, horario y especialidad médica. Si alguno de estos atributos difiere, retorna 0 (disponible).
+** Entidad/Tablas: `Turnos`, `Especialidades`
+** Invocado por  : `FrmTurnoEspecialidad` (Capa DAL `TurnoDAL.ExisteTurnoEspecialidad` y BLL `TurnoBLL.ExisteTurnoEspecialidad`)
+** Estado        : `EN USO`
+** Retorno       : `Existe` (`INT`: 1 si existe turno ocupado, 0 si está disponible)
+** Parámetros   :
+**                `@NombreEspecialidad` (`NVARCHAR(100)`, IN) - Nombre de la especialidad consultada.
+**                `@Fecha` (`DATE`, IN) - Fecha asignada a evaluar.
+**                `@Horario` (`NVARCHAR(10)`, IN) - Franja horaria solicitada (ej. '10:00').
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ExisteTurnoEspecialidad
+    @NombreEspecialidad NVARCHAR(100),
+    @Fecha DATE,
+    @Horario NVARCHAR(10)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT CAST(CASE WHEN EXISTS (
+        SELECT 1
+        FROM Turnos t
+        INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+        WHERE e.Nombre = @NombreEspecialidad
+          AND CAST(t.Fecha AS DATE) = @Fecha
+          AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
+          AND t.Activo = 1
+    ) THEN 1 ELSE 0 END AS INT) AS Existe;
 END;
 GO
 

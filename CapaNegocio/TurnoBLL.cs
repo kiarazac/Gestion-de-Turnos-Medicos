@@ -172,7 +172,24 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Registra un nuevo turno programado por especialidad médica validando que la fecha sea igual o posterior al día actual.
+        /// Comprueba si ya existe un turno activo reservado para la misma fecha, horario y especialidad médica.
+        /// Si cualquiera de estos tres atributos difiere, la asignación es permitida.
+        /// </summary>
+        /// <param name="nombreEspecialidad">Nombre de la especialidad médica solicitada.</param>
+        /// <param name="fecha">Fecha requerida para el turno.</param>
+        /// <param name="horario">Horario solicitado (ej. '10:00').</param>
+        /// <returns><c>true</c> si el turno ya está reservado; <c>false</c> si se encuentra disponible.</returns>
+        public bool ExisteTurnoEspecialidad(string nombreEspecialidad, DateTime fecha, string horario)
+        {
+            if (string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
+                return false;
+
+            return _turnoDAL.ExisteTurnoEspecialidad(nombreEspecialidad.Trim(), fecha.Date, horario.Trim());
+        }
+
+        /// <summary>
+        /// Registra un nuevo turno programado por especialidad médica validando que la fecha sea igual o posterior al día actual
+        /// y comprobando que no exista previamente otro turno activo con la misma fecha, horario y especialidad médica.
         /// </summary>
         /// <param name="idPaciente">Identificador del paciente.</param>
         /// <param name="nombreEspecialidad">Nombre de la especialidad solicitada.</param>
@@ -181,6 +198,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="estado">Estado inicial del turno (por defecto 'En Espera').</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID de turno y código de orden generado.</returns>
         /// <exception cref="ArgumentException">Se lanza si faltan datos o la fecha es anterior al día actual.</exception>
+        /// <exception cref="InvalidOperationException">Se lanza si ya existe un turno asignado para la misma fecha, horario y especialidad.</exception>
         public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera")
         {
             if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
@@ -188,6 +206,12 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             if (fecha.Date < DateTime.Now.Date)
                 throw new ArgumentException("No se pueden registrar turnos en fechas pasadas.");
+
+            // Control de duplicidad: no se puede sacar más de un turno con la misma fecha, horario y especialidad
+            if (ExisteTurnoEspecialidad(nombreEspecialidad, fecha, horario))
+            {
+                throw new InvalidOperationException($"El horario de las {horario} hs para la especialidad '{nombreEspecialidad}' en la fecha {fecha:dd/MM/yyyy} ya se encuentra reservado. Por favor, seleccione otro horario disponible.");
+            }
 
             return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado);
         }  

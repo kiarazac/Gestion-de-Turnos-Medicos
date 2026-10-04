@@ -2001,6 +2001,7 @@ GO
   | :--- | :--- | :--- |
   | `50001` | *El paciente especificado no se encuentra registrado o está inactivo.* | `@IdPaciente` inexistente o inactivo en `Pacientes`. |
   | `50003` | *La especialidad seleccionada no existe o se encuentra inactiva.* | `@NombreEspecialidad` no encontrada o inactiva en `Especialidades`. |
+  | `50004` | *Ya existe un turno reservado para la misma fecha, horario y especialidad médica.* | Registro preexistente activo con la misma combinación (`@IdEspecialidad`, `@Fecha`, `@Horario`) en `Turnos`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
@@ -2029,6 +2030,19 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM Pacientes WHERE IdPaciente = @IdPaciente AND Activo = 1)
         BEGIN
             THROW 50001, 'El paciente especificado no se encuentra registrado o está inactivo.', 1;
+        END
+
+        -- Validamos que no exista ya un turno activo para la misma fecha, horario y especialidad
+        IF EXISTS (
+            SELECT 1 
+            FROM Turnos t
+            WHERE t.IdEspecialidad = @IdEspecialidad
+              AND CAST(t.Fecha AS DATE) = @Fecha
+              AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
+              AND t.Activo = 1
+        )
+        BEGIN
+            THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
         END
 
         DECLARE @IdTurno INT;
@@ -2062,6 +2076,46 @@ BEGIN
 
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
+END;
+GO
+```
+
+---
+
+### 5.6.1 `sp_ExisteTurnoEspecialidad`
+- **Descripción:** Comprueba si ya existe un turno activo reservado para la misma fecha, horario y especialidad médica. Si alguno de estos tres atributos difiere, retorna `0` (disponible), permitiendo el otorgamiento del turno.
+- **Entidad:** Turno / Especialidad
+- **Operación:** Verificación de unicidad y disponibilidad
+- **Tablas:** `Turnos`, `Especialidades`
+- **Forms que lo utilizan:** `FrmTurnoEspecialidad` (a través de `TurnoBLL` y `TurnoDAL`)
+- **Acción:** Validación previa al click "Generar Turno" y comprobación defensiva concurrente
+- **Estado:** `EN USO`
+- **Devuelve:** `Existe` (`INT`: 1 si ya está reservado, 0 si está libre).
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@NombreEspecialidad` | `NVARCHAR(100)` | IN | Nombre de la especialidad médica. |
+  | `@Fecha` | `DATE` | IN | Fecha del turno a consultar. |
+  | `@Horario` | `NVARCHAR(10)` | IN | Franja horaria requerida (ej. `'10:00'`). |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ExisteTurnoEspecialidad
+    @NombreEspecialidad NVARCHAR(100),
+    @Fecha DATE,
+    @Horario NVARCHAR(10)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT CAST(CASE WHEN EXISTS (
+        SELECT 1
+        FROM Turnos t
+        INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+        WHERE e.Nombre = @NombreEspecialidad
+          AND CAST(t.Fecha AS DATE) = @Fecha
+          AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
+          AND t.Activo = 1
+    ) THEN 1 ELSE 0 END AS INT) AS Existe;
 END;
 GO
 ```
@@ -3010,8 +3064,7 @@ GO
 
 ## 8. Tabla Resumen General de Stored Procedures (dbGestionTurnos)
 
-
-A continuación se detalla el universo completo de los **47 Stored Procedures** existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
+A continuación se detalla el universo completo de los **47 Stored Procedures** principales (48 incluyendo `sp_ObtenerHistoriaClinicaPaciente`) existentes en la base de datos `dbGestionTurnos`, su clasificación funcional y su estado operativo real en el proyecto:
 
 | N° | Stored Procedure | Entidad | Operación | Componente / Form(s) | Acción dentro del Sistema | Estado en Proyecto |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -3031,7 +3084,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 14 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios (con soporte de inactivas) | `EN USO` |
 | 15 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 16 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
-| 17 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a En Mantenimiento) | `EN USO` |
+| 17 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
 | 18 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
 | 19 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas (con soporte de inactivas) | `EN USO` |
 | 20 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
@@ -3049,7 +3102,8 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 32 | `sp_CrearTurnoEmergencia`| Turno | Alta urgencia | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Ticket `E-xxx`) | `EN USO` |
 | 33 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
 | 34 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
-| 35 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
+| 35 | `sp_ExisteTurnoEspecialidad`| Turno | Control unicidad | `FrmTurnoEspecialidad` | Verificación de fecha, horario y especialidad | `EN USO` |
+| 36 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
 | 36 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
 | 37 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
 | 38 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
@@ -3116,6 +3170,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 ### `FrmTurnoEspecialidad`
 - `sp_ListarEspecialidades` → Carga del desplegable de especialidades médicas (`CargarEspecialidades`).
 - `sp_ObtenerHorariosDisponibles` → Selección de fecha en calendario (`calFechaTurno_DateChanged`). Lista horarios libres disponibles.
+- `sp_ExisteTurnoEspecialidad` → Verificación interactiva previa y concurrente de disponibilidad para la combinación de fecha, horario y especialidad.
 - `sp_BuscarPacientePorDNI` → Autocompleta los datos filiatorios del paciente por su DNI.
 - `sp_GuardarPaciente` → Botón "Generar Turno". Registra o actualiza al paciente por DNI.
 - `sp_CrearTurnoEspecialidad` → Botón "Generar Turno". Registra el turno programado correlativo (ej. `C-001`).
@@ -3219,4 +3274,5 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
   - **`sp_CrearTurnoEmergencia`**: Genera automáticamente el código de guardia `E-001`, asigna el nivel de triage y vincula el servicio de emergencias (códigos `50001` y `50002`).
 
 *(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra plenamente integrado en el formulario de atención médica `FrmListaTurnosAtencion`, consumido por el botón "Iniciar Atención" para la consulta de antecedentes del paciente).*
+
 

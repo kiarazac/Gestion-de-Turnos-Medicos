@@ -132,20 +132,39 @@ namespace Gestion_de_Turnos_Medicos
             DateTime hoy = DateTime.Today;
             calFechaTurno.BoldedDates = new DateTime[] { hoy.AddDays(1), hoy.AddDays(2), hoy.AddDays(3), hoy.AddDays(4), hoy.AddDays(5) };
             calFechaTurno.UpdateBoldedDates();
+
+            // Si ya hay una fecha seleccionada en el calendario, cargamos los horarios disponibles
+            if (calFechaTurno.SelectionStart.Date >= DateTime.Today)
+            {
+                string especialidad = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
+                CargarHorariosDisponibles(especialidad, calFechaTurno.SelectionStart.Date);
+            }
         }
 
         private void calFechaTurno_DateChanged(object sender, DateRangeEventArgs e)
         {
-            cmbHorarios.Items.Clear();
-
             if (cmbEspecialidad.SelectedIndex <= 0)
             {
+                cmbHorarios.Items.Clear();
                 MessageBox.Show("Por favor, seleccione una especialidad antes de elegir la fecha.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             string especialidad = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
-            DateTime fechaElegida = e.Start.Date;
+            CargarHorariosDisponibles(especialidad, e.Start.Date);
+        }
+
+        /// <summary>
+        /// Consulta y carga en el selector <see cref="cmbHorarios"/> las franjas horarias libres para la especialidad y fecha especificadas.
+        /// </summary>
+        /// <param name="especialidad">Nombre de la especialidad seleccionada.</param>
+        /// <param name="fechaElegida">Fecha seleccionada en el calendario.</param>
+        private void CargarHorariosDisponibles(string especialidad, DateTime fechaElegida)
+        {
+            cmbHorarios.Items.Clear();
+
+            if (string.IsNullOrWhiteSpace(especialidad) || cmbEspecialidad.SelectedIndex <= 0)
+                return;
 
             try
             {
@@ -236,13 +255,26 @@ namespace Gestion_de_Turnos_Medicos
 
                 LimpiarCampos();
             }
+            catch (InvalidOperationException invEx)
+            {
+                MessageBox.Show(invEx.Message, "Turno No Disponible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarHorariosDisponibles(especialidad, fecha);
+            }
             catch (ArgumentException argEx)
             {
                 MessageBox.Show(argEx.Message, "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al registrar el turno de especialidad:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (ex.Message.Contains("Ya existe un turno reservado") || ex.InnerException?.Message.Contains("Ya existe un turno reservado") == true)
+                {
+                    MessageBox.Show("Ya existe un turno reservado para la misma fecha, horario y especialidad médica.\nPor favor, elija otro horario disponible.", "Turno No Disponible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    CargarHorariosDisponibles(especialidad, fecha);
+                }
+                else
+                {
+                    MessageBox.Show("Ocurrió un error al registrar el turno de especialidad:\n" + ex.Message, "Error Inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -321,6 +353,23 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("Por favor, seleccione un horario para el turno.", "Falta horario", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cmbHorarios.Focus();
+                return false;
+            }
+
+            // Control de concurrencia/duplicidad: Validar que no exista un turno registrado con la misma fecha, horario y especialidad
+            string especialidad = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
+            DateTime fecha = calFechaTurno.SelectionStart.Date;
+            string horario = cmbHorarios.SelectedItem?.ToString() ?? string.Empty;
+
+            if (_turnoBLL.ExisteTurnoEspecialidad(especialidad, fecha, horario))
+            {
+                MessageBox.Show(
+                    $"Ya existe un turno reservado para la especialidad '{especialidad}' en la fecha {fecha:dd/MM/yyyy} a las {horario} hs.\n\nPor favor, seleccione otro horario o fecha disponible.",
+                    "Turno No Disponible",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                CargarHorariosDisponibles(especialidad, fecha);
                 return false;
             }
 

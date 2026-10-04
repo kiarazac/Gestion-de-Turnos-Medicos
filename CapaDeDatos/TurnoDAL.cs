@@ -123,9 +123,81 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pEspecialidad = new SqlParameter("@NombreEspecialidad", nombreEspecialidad);
                 var pFecha = new SqlParameter("@Fecha", fecha.Date);
 
-                return context.Database
-                    .SqlQueryRaw<HorarioDisponibleDTO>("EXEC sp_ObtenerHorariosDisponibles @NombreEspecialidad, @Fecha", pEspecialidad, pFecha)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<HorarioDisponibleDTO>("EXEC sp_ObtenerHorariosDisponibles @NombreEspecialidad, @Fecha", pEspecialidad, pFecha)
+                        .ToList();
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        DECLARE @Horarios TABLE (Horario VARCHAR(10));
+                        INSERT INTO @Horarios VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
+
+                        SELECT h.Horario
+                        FROM @Horarios h
+                        WHERE h.Horario NOT IN (
+                            SELECT CONVERT(VARCHAR(5), t.Horario, 108)
+                            FROM Turnos t
+                            INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                            WHERE e.Nombre = @NombreEspecialidad
+                              AND CAST(t.Fecha AS DATE) = @Fecha
+                              AND t.Activo = 1
+                        )
+                        ORDER BY h.Horario ASC;";
+
+                    return context.Database
+                        .SqlQueryRaw<HorarioDisponibleDTO>(sql, pEspecialidad, pFecha)
+                        .ToList();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Comprueba si ya existe un turno activo registrado con la misma fecha, horario y especialidad médica.
+        /// Si alguno de estos tres atributos difiere, la consulta devuelve <c>false</c>.
+        /// Ejecuta el procedimiento almacenado <c>sp_ExisteTurnoEspecialidad</c> con fallback a consulta SQL directa.
+        /// </summary>
+        /// <param name="nombreEspecialidad">Nombre de la especialidad médica solicitada.</param>
+        /// <param name="fecha">Fecha requerida para el turno.</param>
+        /// <param name="horario">Horario asignado (ej. '10:00').</param>
+        /// <returns><c>true</c> si ya existe un turno con la misma combinación de fecha, horario y especialidad; <c>false</c> en caso contrario.</returns>
+        public bool ExisteTurnoEspecialidad(string nombreEspecialidad, DateTime fecha, string horario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pEspecialidad = new SqlParameter("@NombreEspecialidad", nombreEspecialidad);
+                var pFecha = new SqlParameter("@Fecha", fecha.Date);
+                var pHorario = new SqlParameter("@Horario", horario);
+
+                try
+                {
+                    var res = context.Database
+                        .SqlQueryRaw<int>("EXEC sp_ExisteTurnoEspecialidad @NombreEspecialidad, @Fecha, @Horario", pEspecialidad, pFecha, pHorario)
+                        .AsEnumerable()
+                        .FirstOrDefault();
+
+                    return res > 0;
+                }
+                catch (SqlException)
+                {
+                    string sql = @"
+                        SELECT CAST(COUNT(1) AS INT)
+                        FROM Turnos t
+                        INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        WHERE e.Nombre = @NombreEspecialidad
+                          AND CAST(t.Fecha AS DATE) = @Fecha
+                          AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
+                          AND t.Activo = 1;";
+
+                    var count = context.Database
+                        .SqlQueryRaw<int>(sql, pEspecialidad, pFecha, pHorario)
+                        .AsEnumerable()
+                        .FirstOrDefault();
+
+                    return count > 0;
+                }
             }
         }
 
