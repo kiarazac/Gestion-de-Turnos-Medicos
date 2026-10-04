@@ -106,6 +106,9 @@ BEGIN
 
     END TRY
     BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
         DECLARE @ErrorMessage NVARCHAR(4000);
         DECLARE @ErrorSeverity INT;
         DECLARE @ErrorState INT;
@@ -149,10 +152,18 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdRol, Descripcion
     FROM Roles
     WHERE Activo = 1
     ORDER BY IdRol ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -179,8 +190,16 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
     VALUES (@Descripcion, 1, GETDATE());
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -204,19 +223,13 @@ GO
 - **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `Dni`, `Telefono`, `Rol`, `NroMatricula`, `Especialidades`, `Salas`, `Activo`.
 
 ```sql
--- =========================================================================
--- Procedimiento: sp_ListarUsuarios
--- Descripción: Obtiene el listado de usuarios con roles, salas y especialidades.
--- Soporta filtrado opcional de usuarios dados de baja (@IncluirInactivos).
--- Optimización: Resuelve el producto cartesiano de múltiples salas y especialidades
--- mediante subconsultas correlacionadas con DISTINCT, evitando duplicaciones ("Sala I, Sala I").
--- Preserva asignaciones de salas y especialidades tanto para usuarios activos como inactivos.
--- =========================================================================
 CREATE OR ALTER PROCEDURE sp_ListarUsuarios
     @IncluirInactivos BIT = 0 -- 0: solo activos (por defecto), 1: activos e inactivos
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         u.IdUsuario,
@@ -257,6 +270,12 @@ BEGIN
     -- Filtrado condicional: si @IncluirInactivos = 1 devuelve todos; si es 0, solo u.Activo = 1
     WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
     ORDER BY u.Activo DESC, u.Apellido, u.Nombre;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -324,11 +343,10 @@ BEGIN
 
     END TRY
     BEGIN CATCH
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
-    END CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -470,11 +488,6 @@ GO
   | `50037` | *La cuenta administradora principal (admin@gmail.com) posee inmunidad total y no puede ser desactivada.* | Intento de baja sobre la cuenta con correo `admin@gmail.com`. |
 
 ```sql
--- =========================================================================
--- Procedimiento: sp_EliminarUsuario
--- Descripción: Baja lógica de usuario protegiendo la cuenta admin@gmail.com
--- y preservando intactas las asignaciones de salas y especialidades médicas.
--- =========================================================================
 CREATE OR ALTER PROCEDURE sp_EliminarUsuario
     @IdUsuario INT
 AS
@@ -547,12 +560,6 @@ GO
   | `50039` | *El usuario ya se encuentra activo en el sistema.* | `@IdUsuario` ya posee `Activo = 1`. |
 
 ```sql
--- =========================================================================
--- Procedimiento: sp_ReactivarUsuario
--- Descripción: Reactiva lógicamente a un usuario en el sistema (Activo = 1),
--- limpiando la fecha de baja y registrando la fecha de modificación.
--- Restaura además sus relaciones previas de salas y especialidades médicas.
--- =========================================================================
 CREATE OR ALTER PROCEDURE sp_ReactivarUsuario
     @IdUsuario INT -- Identificador del usuario inactivo a dar de alta
 AS
@@ -622,6 +629,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         u.IdUsuario,
         CONCAT('Dr. ', u.Apellido, ', ', u.Nombre) AS NombreCompleto
@@ -630,11 +639,91 @@ BEGIN
     WHERE u.Activo = 1 
       AND (r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
     ORDER BY u.Apellido, u.Nombre;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
 
 ---
+
+---
+
+### 1.10 `sp_ObtenerUsuarioPorDni`
+- **Descripción:** Busca y recupera la ficha completa de un usuario por su número de DNI, concatenando sus consultorios y especialidades médicas asignadas mediante subconsultas correlacionadas con `DISTINCT` para evitar productos cartesianos. Soporta el parámetro opcional `@IncluirInactivos` (por defecto `1`) para permitir la recuperación de perfiles dados de baja lógica para su reactivación interactiva en `FrmGestionUsuarios2`.
+- **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
+- **Operación:** Consulta / Búsqueda
+- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `DetallesSalas`, `Salas`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
+- **Acción:** Búsqueda y autocompletado en panel inicial (`txtDniBusqueda` / método `BuscarPorDni`)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Dni` | `NVARCHAR(20)` | IN | Número de documento de identidad del usuario. |
+  | `@IncluirInactivos` | `BIT` | IN (Opcional, default `1`) | Determina si busca tanto usuarios activos como dados de baja lógica (`1`) o solo activos (`0`). |
+- **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `Dni`, `Telefono`, `Rol`, `NroMatricula`, `Especialidades`, `Salas`, `Activo`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ObtenerUsuarioPorDni
+    @Dni NVARCHAR(20),
+    @IncluirInactivos BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            u.IdUsuario,
+            u.Nombre,
+            u.Apellido,
+            u.Correo,
+            u.Dni,
+            u.Telefono,
+            r.Descripcion AS Rol,
+            ISNULL(u.NroMatricula, '') AS NroMatricula,
+            -- Subconsulta correlacionada con DISTINCT para evitar productos cartesianos y duplicaciones de especialidades
+            ISNULL((
+                SELECT STRING_AGG(subE.Nombre, ', ')
+                FROM (
+                    SELECT DISTINCT e2.Nombre
+                    FROM MedicosEspecialidades me2
+                    INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
+                    WHERE me2.IdUsuario = u.IdUsuario
+                      AND (me2.Activo = 1 OR u.Activo = 0)
+                      AND e2.Activo = 1
+                ) subE
+            ), '') AS Especialidades,
+            -- Subconsulta correlacionada con DISTINCT para evitar duplicaciones de salas ("Sala I, Sala I")
+            ISNULL((
+                SELECT STRING_AGG(subS.NombreSala, ', ')
+                FROM (
+                    SELECT DISTINCT s2.NombreSala
+                    FROM DetallesSalas ds2
+                    INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
+                    WHERE ds2.IdUsuario = u.IdUsuario
+                      AND (ds2.Activo = 1 OR u.Activo = 0)
+                      AND s2.Activo = 1
+                ) subS
+            ), '') AS Salas,
+            u.Activo
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        WHERE u.Dni = @Dni
+          AND (@IncluirInactivos = 1 OR u.Activo = 1);
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
 
 ## Módulo 2: Salas y Consultorios
 
@@ -868,6 +957,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         s.IdSala,
         s.NombreSala,
@@ -883,6 +974,12 @@ BEGIN
     WHERE (@IncluirInactivas = 1 OR s.Activo = 1)
       AND (@IdUsuario IS NULL OR ds.IdUsuario = @IdUsuario)
     ORDER BY s.Activo DESC, s.NombreSala ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -995,6 +1092,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     IF EXISTS (
         SELECT 1 
         FROM DetallesSalas ds
@@ -1002,6 +1101,7 @@ BEGIN
         WHERE ds.IdUsuario = @IdUsuario 
           AND s.EstadoSala IN ('Libre', 'Disponible', 'Ocupada') 
           AND s.Activo = 1
+          AND ds.Activo = 1
           AND s.IdSala <> @IdSala
     )
     BEGIN
@@ -1017,10 +1117,25 @@ BEGIN
         THROW 50003, 'Acción denegada: No tienes permisos para abrir esta sala porque no te ha sido asignada.', 1;
     END
 
+    IF EXISTS (
+        SELECT 1 
+        FROM Salas 
+        WHERE IdSala = @IdSala AND EstadoSala IN ('Libre', 'Disponible', 'Ocupada') AND Activo = 1
+    )
+    BEGIN
+        THROW 50004, 'La sala seleccionada ya se encuentra abierta.', 1;
+    END
+
     UPDATE Salas
     SET EstadoSala = 'Disponible',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1047,6 +1162,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     IF EXISTS (
         SELECT 1 
         FROM Salas 
@@ -1057,9 +1174,15 @@ BEGIN
     END
 
     UPDATE Salas
-    SET EstadoSala = 'Cerrada',
+    SET EstadoSala = 'En Mantenimiento',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1210,6 +1333,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         IdEspecialidad, 
         Nombre,
@@ -1217,6 +1342,12 @@ BEGIN
     FROM Especialidades
     WHERE (@IncluirInactivas = 1 OR Activo = 1)
     ORDER BY Activo DESC, Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1518,6 +1649,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         e.IdEspecialidad,
         e.Nombre,
@@ -1528,6 +1661,12 @@ BEGIN
       AND me.Activo = 1 
       AND e.Activo = 1
     ORDER BY e.Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1623,9 +1762,17 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdPaciente, Nombre, Apellido, Dni, ObraSocial 
     FROM Pacientes 
     WHERE DNI = @DNI AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1735,10 +1882,18 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, FechaCreacion, Activo)
     VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, GETDATE(), 1);
 
     SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1763,10 +1918,18 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdSintoma, Descripcion, Gravedad 
     FROM Sintomas 
     WHERE Activo = 1
     ORDER BY Gravedad ASC, Descripcion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1794,9 +1957,17 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT Gravedad 
     FROM Sintomas 
     WHERE IdSintoma = @IdSintoma;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -1958,6 +2129,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     -- Tabla de horarios estándar
     DECLARE @Horarios TABLE (Horario VARCHAR(10));
     INSERT INTO @Horarios VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
@@ -1973,6 +2146,12 @@ BEGIN
           AND t.Activo = 1
     )
     ORDER BY h.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2107,6 +2286,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT CAST(CASE WHEN EXISTS (
         SELECT 1
         FROM Turnos t
@@ -2116,6 +2297,12 @@ BEGIN
           AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
           AND t.Activo = 1
     ) THEN 1 ELSE 0 END AS INT) AS Existe;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2137,6 +2324,8 @@ CREATE OR ALTER PROCEDURE sp_ListarTurnosEmergencia
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         t.IdTurno,
@@ -2171,6 +2360,12 @@ BEGIN
         END ASC,
         t.IdPrioridad ASC, 
         t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2198,6 +2393,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.IdTurno,
         t.NroOrden,
@@ -2216,6 +2413,12 @@ BEGIN
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
     ORDER BY t.Fecha ASC, t.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2239,6 +2442,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.NroOrden AS Turno,
         LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
@@ -2252,6 +2457,12 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
     ORDER BY t.Fecha ASC, t.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2286,8 +2497,16 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
     VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2316,12 +2535,20 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT * 
     FROM Turnos
     WHERE Activo = 1 
       AND Estado = 'En Espera'
       AND IdEspecialidad = @IdEspecialidad
     ORDER BY IdPrioridad ASC, FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2351,6 +2578,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.IdTurno,
         t.NroOrden,
@@ -2369,6 +2598,12 @@ BEGIN
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2391,6 +2626,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.IdTurno,
         t.NroOrden,
@@ -2402,7 +2639,7 @@ BEGIN
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
         p.ObraSocial,
-        ISNULL(s.NombreSala, 'Sin Asignar') AS NombreSala
+        ISNULL(s.NombreSala, '') AS NombreSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
@@ -2411,6 +2648,12 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.Estado = 'En Espera'
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2536,6 +2779,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT CAST(CASE WHEN EXISTS (
         SELECT 1
         FROM MedicosEspecialidades me
@@ -2547,6 +2792,12 @@ BEGIN
           AND u.Activo = 1
           AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
     ) THEN 1 ELSE 0 END AS BIT) AS PuedeAtender;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2595,19 +2846,19 @@ BEGIN
 
         DECLARE @IdSala INT = NULL;
 
-        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--'
+        IF @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
         BEGIN
-            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada;
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
             
             IF @IdSala IS NULL
             BEGIN
-                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%';
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
             END
         END
 
         BEGIN TRANSACTION;
 
-        -- 3. Actualizar el turno a 'En Consulta'
+        -- 3. Actualizar el turno a 'En Consulta' y vincular la sala
         UPDATE Turnos
         SET Estado = 'En Consulta',
             IdSala = COALESCE(@IdSala, IdSala),
@@ -2817,6 +3068,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.NroOrden,
         s.NombreSala,
@@ -2827,6 +3080,12 @@ BEGIN
     WHERE t.Estado = 'Llamado' 
       AND t.Activo = 1
     ORDER BY t.FechaModificacion DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2853,17 +3112,26 @@ CREATE OR ALTER PROCEDURE sp_FinalizarAtencion
     @IdSala INT
 AS
 BEGIN
-    -- 1. Marcar el turno como Atendido
-    UPDATE Turnos
-    SET Estado = 'Atendido',
-        FechaModificacion = GETDATE()
-    WHERE IdTurno = @IdTurno;
+    SET NOCOUNT ON;
 
-    -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
-    UPDATE Salas
-    SET EstadoSala = 'Libre',
-        FechaModificacion = GETDATE()
-    WHERE IdSala = @IdSala;
+    BEGIN TRY
+        -- 1. Marcar el turno como Atendido
+        UPDATE Turnos
+        SET Estado = 'Atendido',
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
+
+        -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
+        UPDATE Salas
+        SET EstadoSala = 'Libre',
+            FechaModificacion = GETDATE()
+        WHERE IdSala = @IdSala;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2891,11 +3159,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT hc.*, u.Apellido AS ApellidoMedico, u.Nombre AS NombreMedico
     FROM HistoriasClinicas hc
     INNER JOIN Usuarios u ON hc.IdUsuario = u.IdUsuario
     WHERE hc.IdPaciente = @IdPaciente AND hc.Activo = 1
     ORDER BY hc.Fecha DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2926,6 +3202,8 @@ CREATE OR ALTER PROCEDURE sp_ObtenerAtencionesPorMedico
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     -- Validar existencia del usuario médico
     IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
@@ -2958,6 +3236,12 @@ BEGIN
       AND (@FechaDesde IS NULL OR hc.Fecha >= @FechaDesde)
       AND (@FechaHasta IS NULL OR hc.Fecha <= @FechaHasta)
     ORDER BY hc.Fecha DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -2989,6 +3273,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         e.IdEspecialidad,
         e.Nombre AS Especialidad,
@@ -3011,6 +3297,12 @@ BEGIN
       AND e.Activo = 1
     GROUP BY e.IdEspecialidad, e.Nombre
     ORDER BY TotalTurnos DESC, e.Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -3042,6 +3334,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         u.IdUsuario,
         u.Nombre AS NombreMedico,
@@ -3063,6 +3357,12 @@ BEGIN
       AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
     GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
     ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 ```
@@ -3148,6 +3448,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 7 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios2` | Botón `btnEliminar` (Desactivar) | `EN USO` |
 | 8 | `sp_ReactivarUsuario` | Usuario | Reactivación / Alta | `FrmGestionUsuarios2` | Botón `btnReactivar` (Re-dar de Alta) | `EN USO` |
 | 9 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `EN USO` |
+| 10 | `sp_ObtenerUsuarioPorDni` | Usuario | Búsqueda / Consulta | `FrmGestionUsuarios2` | Búsqueda por DNI y precarga de ficha | `EN USO` |
 | 10 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
 | 11 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
 | 12 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
@@ -3207,6 +3508,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_ObtenerSalas` → Carga del listado con selección múltiple de consultorios (`CargarSalasDesdeBD`).
 - `sp_ListarUsuarios` → Carga y refresco de la grilla de usuarios (`CargarUsuariosDesdeBD`). Resuelve productos cartesianos con `DISTINCT`, eliminando duplicaciones de salas/especialidades, y preserva asignaciones para registros inactivos.
 - `sp_BuscarPacientePorDNI` → Utilizado internamente para validar que un DNI ingresado para un usuario no esté asignado a un paciente.
+- `sp_ObtenerUsuarioPorDni` → Búsqueda directa y precarga del usuario por número de DNI (`txtDniBusqueda`). Recupera el perfil con salas y especialidades asignadas para edición o reactivación.
 - `sp_ObtenerEspecialidadesPorMedico` → Precarga de las especialidades activas vinculadas al médico al seleccionarlo en la grilla o buscarlo por DNI.
 - `sp_InsertarUsuario` → Botón "Registrar Nuevo Usuario" (`btnGuardar_Click`). Da de alta el usuario y orquesta asignaciones en `DetallesSalas` y `MedicosEspecialidades`.
 - `sp_ModificarUsuario` → Botón "Modificar Datos" (`btnModificar_Click`). Actualiza datos personales y delega reasignación atómica de salas y especialidades con control de excepciones.

@@ -17,8 +17,8 @@
 ** ========================================================================= */
 
 USE dbGestionTurnos;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ValidarLogin
@@ -27,7 +27,7 @@ GO
 ** Entidad/Tablas: `Usuarios`, `Roles`
 ** Invocado por  : `FrmLogin` (Botón `button1` ("Iniciar Sesión"))
 ** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Retorno       : `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `IdRol`, `NombreRol`
 ** Parámetros   :
 **                `@Correo` (`NVARCHAR(150)`, IN) - Correo electrónico de acceso.
 **                `@Contrasena` (`NVARCHAR(255)`, IN) - Contraseña (o hash de contraseña).
@@ -39,21 +39,73 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        u.IdUsuario, 
-        u.Nombre, 
-        u.Apellido, 
-        u.Correo, 
-        u.IdRol, 
-        r.Descripcion AS NombreRol
-    FROM Usuarios u
-    INNER JOIN Roles r ON u.IdRol = r.IdRol
-    WHERE u.Correo = @Correo 
-      AND u.Contrasena = @Contrasena 
-      AND u.Activo = 1;
-END;
-GO
+    BEGIN TRY
+        -- 1. Validación de campos vacíos
+        IF LTRIM(RTRIM(ISNULL(@Correo, ''))) = '' OR LTRIM(RTRIM(ISNULL(@Contrasena, ''))) = ''
+        BEGIN
+            THROW 50020, 'Debe ingresar obligatoriamente el correo electrónico y la contraseña.', 1;
+        END
 
+        -- 2. Verificar si el correo existe en la base de datos (independientemente de si está activo o no)
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo)
+        BEGIN
+            THROW 50021, 'El correo electrónico ingresado no se encuentra registrado en el sistema.', 1;
+        END
+
+        -- 3. Verificar si el usuario está dado de baja (Activo = 0)
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Activo = 0)
+        BEGIN
+            THROW 50022, 'Este usuario se encuentra dado de baja en el sistema. Contacte al administrador.', 1;
+        END
+
+        -- 4. Verificar si la contraseña es incorrecta para ese correo
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Contrasena = @Contrasena AND Activo = 1)
+        BEGIN
+            THROW 50023, 'La contraseña ingresada es incorrecta. Verifique sus datos e intente nuevamente.', 1;
+        END
+
+        -- 5. Si todo es correcto, devolvemos los datos del usuario y su rol
+        SELECT 
+            u.IdUsuario, 
+            u.Nombre, 
+            u.Apellido, 
+            u.Correo, 
+            u.IdRol, 
+            r.Descripcion AS NombreRol
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        WHERE u.Correo = @Correo 
+          AND u.Contrasena = @Contrasena 
+          AND u.Activo = 1;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessage NVARCHAR(4000);
+        DECLARE @ErrorSeverity INT;
+        DECLARE @ErrorState INT;
+
+        SET @ErrorSeverity = ERROR_SEVERITY();
+        SET @ErrorState = ERROR_STATE();
+
+        IF ERROR_NUMBER() NOT BETWEEN 50020 AND 50029
+        BEGIN
+            SET @ErrorMessage = 'El sistema no se encuentra disponible temporalmente o hay problemas de conexión con la Base de Datos. Intente más tarde.';
+            SET @ErrorSeverity = 16;
+            SET @ErrorState = 1;
+        END
+        ELSE
+        BEGIN
+            SET @ErrorMessage = ERROR_MESSAGE();
+        END
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
+END;
+
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarRoles
@@ -70,13 +122,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdRol, Descripcion
     FROM Roles
     WHERE Activo = 1
     ORDER BY IdRol ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarRol
@@ -95,11 +155,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
     VALUES (@Descripcion, 1, GETDATE());
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarUsuarios
@@ -125,6 +193,8 @@ CREATE OR ALTER PROCEDURE sp_ListarUsuarios
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         u.IdUsuario,
@@ -165,18 +235,24 @@ BEGIN
     -- Filtrado condicional: si @IncluirInactivos = 1 devuelve todos; si es 0, solo u.Activo = 1
     WHERE (@IncluirInactivos = 1 OR u.Activo = 1)
     ORDER BY u.Activo DESC, u.Apellido, u.Nombre;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarUsuario
 ** Sección       : 1.5
-** Propósito     : Registra un nuevo usuario en la tabla `Usuarios` asignándole su rol correspondiente y devuelve el `IdUsuario` generado.
-** Entidad/Tablas: `Usuarios`
-** Invocado por  : `FrmGestionUsuarios` (Botón `btnGuardar`)
+** Propósito     : Registra un nuevo usuario en la tabla `Usuarios` asignándole su rol correspondiente y devuelve el `IdUsuario` generado. Cuenta con validación contra colisión de DNI con pacientes y usuarios.
+** Entidad/Tablas: `Usuarios`, `Pacientes`
+** Invocado por  : `FrmGestionUsuarios2` (Botón `btnGuardar`)
 ** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Retorno       : `IdNuevoUsuario` (INT)
 ** Parámetros   :
 **                `@Nombre` (`NVARCHAR(100)`, IN) - Nombre del usuario.
 **                `@Apellido` (`NVARCHAR(100)`, IN) - Apellido del usuario.
@@ -200,13 +276,34 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
-    VALUES (@Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol, 1, GETDATE());
+    BEGIN TRY
+        -- Validar si el DNI ya existe como Paciente activo en el sistema
+        IF EXISTS (SELECT 1 FROM Pacientes WHERE Dni = @Dni AND Activo = 1)
+        BEGIN
+            THROW 50011, 'Ya existe un paciente registrado en el sistema con este mismo número de DNI. Un usuario del sistema no puede duplicar el DNI de un paciente.', 1;
+        END
 
-    SELECT SCOPE_IDENTITY() AS IdNuevoUsuario;
+        -- Validar también si ya existe en la misma tabla de Usuarios por seguridad
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
+        BEGIN
+            THROW 50012, 'Ya existe otro usuario registrado con este número de DNI.', 1;
+        END
+
+        INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
+        VALUES (@Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol, 1, GETDATE());
+
+        -- Se castea explícitamente el resultado a INT para que EF Core lo pueda mapear al DTO
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS IdNuevoUsuario;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ModificarUsuario
@@ -303,8 +400,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_EliminarUsuario
@@ -370,8 +467,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ReactivarUsuario
@@ -437,8 +534,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarPersonalMedico
@@ -455,6 +552,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         u.IdUsuario,
         CONCAT('Dr. ', u.Apellido, ', ', u.Nombre) AS NombreCompleto
@@ -463,9 +562,83 @@ BEGIN
     WHERE u.Activo = 1 
       AND (r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
     ORDER BY u.Apellido, u.Nombre;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
+/* =========================================================================
+** Procedimiento : sp_ObtenerUsuarioPorDni
+** Sección       : 1.10
+** Propósito     : Busca un usuario específico por su número de DNI con soporte de filtrado opcional de bajas lógicas (@IncluirInactivos), devolviendo el perfil completo con salas y especialidades para FrmGestionUsuarios2.
+** Entidad/Tablas: `Usuarios`, `Roles`, `MedicosEspecialidades`, `DetallesSalas`
+** Invocado por  : `FrmGestionUsuarios2` (Búsqueda por DNI en paso inicial)
+** Estado        : `EN USO`
+** Retorno       : 1 fila de `UsuarioListadoDTO` o conjunto vacío si no existe
+** Parámetros   :
+**                `@Dni` (`NVARCHAR(20)`, IN) - Documento de identidad del usuario.
+**                `@IncluirInactivos` (`BIT`, IN) - Opcional (por defecto 1). Si es 1, busca tanto activos como inactivos; si es 0, solo activos.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ObtenerUsuarioPorDni
+    @Dni NVARCHAR(20),
+    @IncluirInactivos BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            u.IdUsuario,
+            u.Nombre,
+            u.Apellido,
+            u.Correo,
+            u.Dni,
+            u.Telefono,
+            r.Descripcion AS Rol,
+            ISNULL(u.NroMatricula, '') AS NroMatricula,
+            -- Subconsulta correlacionada con DISTINCT para evitar productos cartesianos y duplicaciones de especialidades
+            ISNULL((
+                SELECT STRING_AGG(subE.Nombre, ', ')
+                FROM (
+                    SELECT DISTINCT e2.Nombre
+                    FROM MedicosEspecialidades me2
+                    INNER JOIN Especialidades e2 ON me2.IdEspecialidad = e2.IdEspecialidad
+                    WHERE me2.IdUsuario = u.IdUsuario
+                      AND (me2.Activo = 1 OR u.Activo = 0)
+                      AND e2.Activo = 1
+                ) subE
+            ), '') AS Especialidades,
+            -- Subconsulta correlacionada con DISTINCT para evitar duplicaciones de salas ("Sala I, Sala I")
+            ISNULL((
+                SELECT STRING_AGG(subS.NombreSala, ', ')
+                FROM (
+                    SELECT DISTINCT s2.NombreSala
+                    FROM DetallesSalas ds2
+                    INNER JOIN Salas s2 ON ds2.IdSala = s2.IdSala
+                    WHERE ds2.IdUsuario = u.IdUsuario
+                      AND (ds2.Activo = 1 OR u.Activo = 0)
+                      AND s2.Activo = 1
+                ) subS
+            ), '') AS Salas,
+            u.Activo
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        WHERE u.Dni = @Dni
+          AND (@IncluirInactivos = 1 OR u.Activo = 1);
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarSala
@@ -517,8 +690,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ModificarSala
@@ -582,8 +755,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_EliminarSala
@@ -637,8 +810,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerSalas
@@ -659,6 +832,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         s.IdSala,
         s.NombreSala,
@@ -674,9 +849,15 @@ BEGIN
     WHERE (@IncluirInactivas = 1 OR s.Activo = 1)
       AND (@IdUsuario IS NULL OR ds.IdUsuario = @IdUsuario)
     ORDER BY s.Activo DESC, s.NombreSala ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_AsignarSalaMedico
@@ -749,8 +930,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_AbrirSala
@@ -770,6 +951,8 @@ CREATE OR ALTER PROCEDURE sp_AbrirSala
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     IF EXISTS (
         SELECT 1 
@@ -807,9 +990,15 @@ BEGIN
     SET EstadoSala = 'Disponible',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_CerrarSala
@@ -828,6 +1017,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     IF EXISTS (
         SELECT 1 
         FROM Salas 
@@ -841,9 +1032,15 @@ BEGIN
     SET EstadoSala = 'En Mantenimiento',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ActualizarEstadoSala
@@ -886,8 +1083,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ReactivarSala
@@ -943,8 +1140,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarEspecialidades
@@ -963,6 +1160,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         IdEspecialidad, 
         Nombre,
@@ -970,9 +1169,15 @@ BEGIN
     FROM Especialidades
     WHERE (@IncluirInactivas = 1 OR Activo = 1)
     ORDER BY Activo DESC, Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarEspecialidad
@@ -1024,8 +1229,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ModificarEspecialidad
@@ -1077,8 +1282,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_EliminarEspecialidad
@@ -1138,8 +1343,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_AsignarEspecialidadMedico
@@ -1204,8 +1409,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerEspecialidadesPorMedico
@@ -1224,6 +1429,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         e.IdEspecialidad,
         e.Nombre,
@@ -1234,9 +1441,15 @@ BEGIN
       AND me.Activo = 1 
       AND e.Activo = 1
     ORDER BY e.Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ReactivarEspecialidad
@@ -1291,8 +1504,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_BuscarPacientePorDNI
@@ -1311,12 +1524,20 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdPaciente, Nombre, Apellido, Dni, ObraSocial 
     FROM Pacientes 
     WHERE DNI = @DNI AND Activo = 1;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_GuardarPaciente
@@ -1381,8 +1602,8 @@ BEGIN
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarPaciente
@@ -1407,13 +1628,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, FechaCreacion, Activo)
     VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, GETDATE(), 1);
 
     SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerSintomas
@@ -1430,13 +1659,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT IdSintoma, Descripcion, Gravedad 
     FROM Sintomas 
     WHERE Activo = 1
     ORDER BY Gravedad ASC, Descripcion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerGravedadSintoma
@@ -1455,12 +1692,20 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT Gravedad 
     FROM Sintomas 
     WHERE IdSintoma = @IdSintoma;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_GuardarTurnoSintoma
@@ -1507,8 +1752,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_CrearTurnoEmergencia
@@ -1570,8 +1815,8 @@ BEGIN
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerHorariosDisponibles
@@ -1592,6 +1837,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     -- Tabla de horarios estándar
     DECLARE @Horarios TABLE (Horario VARCHAR(10));
     INSERT INTO @Horarios VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
@@ -1607,9 +1854,15 @@ BEGIN
           AND t.Activo = 1
     )
     ORDER BY h.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_CrearTurnoEspecialidad
@@ -1699,8 +1952,8 @@ BEGIN
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ExisteTurnoEspecialidad
@@ -1723,6 +1976,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT CAST(CASE WHEN EXISTS (
         SELECT 1
         FROM Turnos t
@@ -1732,9 +1987,15 @@ BEGIN
           AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
           AND t.Activo = 1
     ) THEN 1 ELSE 0 END AS INT) AS Existe;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosEmergencia
@@ -1750,6 +2011,8 @@ CREATE OR ALTER PROCEDURE sp_ListarTurnosEmergencia
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         t.IdTurno,
@@ -1784,9 +2047,15 @@ BEGIN
         END ASC,
         t.IdPrioridad ASC, 
         t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosEspecialidad
@@ -1804,6 +2073,8 @@ CREATE OR ALTER PROCEDURE sp_ListarTurnosEspecialidad
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         t.IdTurno,
@@ -1823,9 +2094,15 @@ BEGIN
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
     ORDER BY t.Fecha ASC, t.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosGeneralesPantalla
@@ -1842,6 +2119,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.NroOrden AS Turno,
         LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
@@ -1855,9 +2134,15 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
     ORDER BY t.Fecha ASC, t.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarTurno
@@ -1884,11 +2169,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
     VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerTurnosEnEspera
@@ -1907,15 +2200,23 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT * 
     FROM Turnos
     WHERE Activo = 1 
       AND Estado = 'En Espera'
       AND IdEspecialidad = @IdEspecialidad
     ORDER BY IdPrioridad ASC, FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerListaTurnos
@@ -1936,6 +2237,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.IdTurno,
         t.NroOrden,
@@ -1954,9 +2257,15 @@ BEGIN
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosAtencion
@@ -1972,6 +2281,8 @@ CREATE OR ALTER PROCEDURE sp_ListarTurnosAtencion
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     SELECT 
         t.IdTurno,
@@ -1993,9 +2304,15 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.Estado = 'En Espera'
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_LlamarSiguienteTurno
@@ -2081,8 +2398,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_PuedeAtenderEmergencias
@@ -2101,6 +2418,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT CAST(CASE WHEN EXISTS (
         SELECT 1
         FROM MedicosEspecialidades me
@@ -2112,9 +2431,15 @@ BEGIN
           AND u.Activo = 1
           AND (e.Nombre = 'Clinico' OR e.Nombre LIKE '%clinic%')
     ) THEN 1 ELSE 0 END AS BIT) AS PuedeAtender;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_IniciarAtencionTurno
@@ -2186,8 +2511,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_FinalizarAtencionTurno
@@ -2264,8 +2589,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_InsertarHistoriaClinica
@@ -2330,8 +2655,8 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
 
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerTurnosPantallaPublica
@@ -2348,6 +2673,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         t.NroOrden,
         s.NombreSala,
@@ -2358,42 +2685,56 @@ BEGIN
     WHERE t.Estado = 'Llamado' 
       AND t.Activo = 1
     ORDER BY t.FechaModificacion DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
-
 /* =========================================================================
-** Procedimiento : sp_ListarTurnosGeneralesPantalla
+** Procedimiento : sp_FinalizarAtencion
 ** Sección       : 6.9
-** Propósito     : Obtiene los turnos programados y de especialidad del día para la grilla general de la pantalla pública de sala de espera (`FrmUsuarioVentana`). Muestra el código de turno, horario, fecha, especialidad médica, estado de atención y consultorio asignado.
-** Entidad/Tablas: `Turnos`, `Especialidades`, `Salas`
-** Invocado por  : `FrmUsuarioVentana` (Carga inicial y refresco automático periódico (`dgvGeneral`))
-** Estado        : `PENDIENTE DE IMPLEMENTACIÓN`
+** Propósito     : Versión previa para la finalización de atención de turnos y liberación de salas. Superado por sp_FinalizarAtencionTurno (que incorpora validación con THROW 50084, registro de evolución diagnóstica y control transaccional).
+** Entidad/Tablas: `Turnos`, `Salas`
+** Invocado por  : Ninguno actualmente (superado por `sp_FinalizarAtencionTurno`).
+** Estado        : `NO UTILIZADO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   : Ninguno.
+** Parámetros   :
+**                `@IdTurno` (`INT`, IN) - ID del turno a finalizar.
+**                `@IdSala` (`INT`, IN) - ID de la sala a liberar.
 ** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ListarTurnosGeneralesPantalla
+CREATE OR ALTER PROCEDURE sp_FinalizarAtencion
+    @IdTurno INT,
+    @IdSala INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        t.NroOrden AS Turno,
-        CONVERT(VARCHAR(5), t.Horario, 108) AS Hora,
-        CONVERT(VARCHAR(10), t.Fecha, 103) AS Fecha,
-        ISNULL(e.Nombre, 'General') AS Especialidad,
-        t.Estado,
-        ISNULL(s.NombreSala, '--') AS Sala
-    FROM Turnos t
-    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
-    LEFT JOIN Salas s ON t.IdSala = s.IdSala
-    WHERE t.Activo = 1 
-      AND (t.TipoTurno <> 'Emergencia' OR t.TipoTurno IS NULL)
-      AND CAST(t.Fecha AS DATE) = CAST(GETDATE() AS DATE)
-    ORDER BY t.Horario ASC, t.FechaCreacion ASC;
-END;
-GO
+    BEGIN TRY
+        -- 1. Marcar el turno como Atendido
+        UPDATE Turnos
+        SET Estado = 'Atendido',
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
 
+        -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
+        UPDATE Salas
+        SET EstadoSala = 'Libre',
+            FechaModificacion = GETDATE()
+        WHERE IdSala = @IdSala;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_ObtenerHistoriaClinicaPaciente
@@ -2413,12 +2754,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT hc.*, u.Apellido AS ApellidoMedico, u.Nombre AS NombreMedico
     FROM HistoriasClinicas hc
     INNER JOIN Usuarios u ON hc.IdUsuario = u.IdUsuario
     WHERE hc.IdPaciente = @IdPaciente AND hc.Activo = 1
     ORDER BY hc.Fecha DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
 /* =========================================================================
@@ -2444,6 +2794,8 @@ CREATE OR ALTER PROCEDURE sp_ObtenerAtencionesPorMedico
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    BEGIN TRY
 
     -- Validar existencia del usuario médico
     IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
@@ -2476,7 +2828,14 @@ BEGIN
       AND (@FechaDesde IS NULL OR hc.Fecha >= @FechaDesde)
       AND (@FechaHasta IS NULL OR hc.Fecha <= @FechaHasta)
     ORDER BY hc.Fecha DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
 /* =========================================================================
@@ -2503,6 +2862,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         e.IdEspecialidad,
         e.Nombre AS Especialidad,
@@ -2525,7 +2886,14 @@ BEGIN
       AND e.Activo = 1
     GROUP BY e.IdEspecialidad, e.Nombre
     ORDER BY TotalTurnos DESC, e.Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
 /* =========================================================================
@@ -2552,6 +2920,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    BEGIN TRY
+
     SELECT 
         u.IdUsuario,
         u.Nombre AS NombreMedico,
@@ -2573,10 +2943,18 @@ BEGIN
       AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
     GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
     ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
+
 GO
 
 USE dbGestionTurnos;
+
 GO
 
 -- 1. Roles Base del Sistema
@@ -2586,6 +2964,7 @@ VALUES
 ('Personal médico', 1, GETDATE()),
 ('Recepcionista', 1, GETDATE()),
 ('Usuario Ventana', 1, GETDATE());
+
 GO
 
 -- 2. Catálogo Base de Síntomas para Triage
@@ -2608,6 +2987,7 @@ VALUES
 ('Tos y síntomas de resfrío', 'Baja', 1, GETDATE()),
 ('Dolor muscular o articular', 'Baja', 1, GETDATE()),
 ('Malestar estomacal leve', 'Baja', 1, GETDATE());
+
 GO
 
 -- 3. Usuario Administrador Inicial
@@ -2620,6 +3000,7 @@ EXEC sp_InsertarUsuario
     @Telefono = '3794000000', 
     @NroMatricula = '0',
     @IdRol = 1;
+
 GO
 
 -- 4. Usuario Ventana / Pantalla de Sala de Espera Inicial
@@ -2632,5 +3013,5 @@ EXEC sp_InsertarUsuario
     @Telefono = '0000000000', 
     @NroMatricula = '0',
     @IdRol = 4;
-GO
 
+GO
