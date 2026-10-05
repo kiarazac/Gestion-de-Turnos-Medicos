@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
+using Gestion_de_Turnos_Medicos.Servicios;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -485,9 +486,9 @@ namespace Gestion_de_Turnos_Medicos
             using (var sfd = new SaveFileDialog())
             {
                 sfd.Title = "Exportar Reporte Operativo de Guardia";
-                sfd.Filter = "Archivo CSV (*.csv)|*.csv|Archivo de Texto Plano (*.txt)|*.txt";
+                sfd.Filter = "Libro de Excel (*.xlsx)|*.xlsx|Archivo CSV (*.csv)|*.csv|Archivo de Texto Plano (*.txt)|*.txt";
                 sfd.FilterIndex = 1;
-                sfd.FileName = $"Reporte_Guardia_Triage_{DateTime.Now:yyyyMMdd_HHmm}";
+                sfd.FileName = $"Reporte_Guardia_Triage_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
@@ -495,7 +496,19 @@ namespace Gestion_de_Turnos_Medicos
                     {
                         string extension = Path.GetExtension(sfd.FileName).ToLowerInvariant();
 
-                        if (extension == ".csv")
+                        if (extension == ".xlsx")
+                        {
+                            ExportadorExcel.ExportarReporteGuardia(
+                                sfd.FileName,
+                                _resumenActual,
+                                _rankingSintomas,
+                                _detallesFiltrados,
+                                dtpDesde.Value.Date,
+                                dtpHasta.Value.Date,
+                                cmbPrioridad.SelectedItem?.ToString() ?? "Todas las prioridades",
+                                _usuarioActual);
+                        }
+                        else if (extension == ".csv")
                         {
                             ExportarACSV(sfd.FileName);
                         }
@@ -517,51 +530,52 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Genera un archivo CSV con formato estandarizado y delimitado por comas.
+        /// Genera un archivo CSV con formato estandarizado, delimitado por punto y coma y codificación UTF-8 con BOM.
         /// </summary>
         private void ExportarACSV(string rutaArchivo)
         {
             var sb = new StringBuilder();
 
+            sb.AppendLine("sep=;");
             // Metadatos
-            sb.AppendLine("# REPORTE OPERATIVO DE GUARDIA: TRIAGE Y DISTRIBUCION DE URGENCIAS");
-            sb.AppendLine($"# Fecha de emision,{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"# Periodo analizado,{dtpDesde.Value:yyyy-MM-dd} a {dtpHasta.Value:yyyy-MM-dd}");
-            sb.AppendLine($"# Prioridad filtrada,{cmbPrioridad.SelectedItem}");
+            sb.AppendLine("REPORTE OPERATIVO DE GUARDIA: TRIAGE Y DISTRIBUCION DE URGENCIAS");
+            sb.AppendLine($"Fecha de Emisión;{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"Período Analizado;{dtpDesde.Value:yyyy-MM-dd} a {dtpHasta.Value:yyyy-MM-dd}");
+            sb.AppendLine($"Prioridad Filtrada;{cmbPrioridad.SelectedItem}");
             sb.AppendLine();
 
             // Sección 1: Indicadores Clave
-            sb.AppendLine("## INDICADORES CLAVE (KPIS)");
-            sb.AppendLine("Metrica,Valor");
-            sb.AppendLine($"Total Ingresos Guardia,{_resumenActual.TotalEmergencias}");
-            sb.AppendLine($"Triage Alta (Rojo),{_resumenActual.TotalAlta}");
-            sb.AppendLine($"Triage Media (Amarillo),{_resumenActual.TotalMedia}");
-            sb.AppendLine($"Triage Baja (Verde),{_resumenActual.TotalBaja}");
-            sb.AppendLine($"Atendidos,{_resumenActual.TotalAtendidos}");
-            sb.AppendLine($"En Espera,{_resumenActual.TotalEnEspera}");
-            sb.AppendLine($"Cancelados,{_resumenActual.TotalCancelados}");
-            sb.AppendLine($"Tasa de Resolucion (%),{_resumenActual.TasaResolucion:F2}");
+            sb.AppendLine("INDICADORES CLAVE (KPIS)");
+            sb.AppendLine("Métrica;Valor");
+            sb.AppendLine($"Total Ingresos Guardia;{_resumenActual.TotalEmergencias}");
+            sb.AppendLine($"Triage Alta (Rojo);{_resumenActual.TotalAlta}");
+            sb.AppendLine($"Triage Media (Amarillo);{_resumenActual.TotalMedia}");
+            sb.AppendLine($"Triage Baja (Verde);{_resumenActual.TotalBaja}");
+            sb.AppendLine($"Atendidos;{_resumenActual.TotalAtendidos}");
+            sb.AppendLine($"En Espera;{_resumenActual.TotalEnEspera}");
+            sb.AppendLine($"Cancelados;{_resumenActual.TotalCancelados}");
+            sb.AppendLine($"Tasa de Resolución (%);{_resumenActual.TasaResolucion:F2}%");
             sb.AppendLine();
 
             // Sección 2: Ranking de Síntomas
-            sb.AppendLine("## RANKING DE SINTOMAS Y MOTIVOS DE CONSULTA");
-            sb.AppendLine("Sintoma,Severidad,Cantidad de Casos,Porcentaje (%)");
+            sb.AppendLine("RANKING DE SÍNTOMAS Y MOTIVOS DE CONSULTA");
+            sb.AppendLine("Síntoma;Severidad;Cantidad de Casos;Porcentaje (%)");
             foreach (var s in _rankingSintomas)
             {
-                sb.AppendLine($"\"{s.Sintoma}\",\"{s.Gravedad}\",{s.CantidadCasos},{s.Porcentaje:F2}");
+                sb.AppendLine($"\"{s.Sintoma}\";\"{s.Gravedad}\";{s.CantidadCasos};{s.Porcentaje:F2}%");
             }
             sb.AppendLine();
 
             // Sección 3: Detalle de Ingresos
-            sb.AppendLine("## DETALLE DE INGRESOS A GUARDIA");
-            sb.AppendLine("Fecha y Hora,Turno,Paciente,DNI,Cobertura,Triage,Sintomas,Estado,Consultorio");
+            sb.AppendLine("DETALLE DE INGRESOS A GUARDIA");
+            sb.AppendLine("Fecha y Hora;Turno;Paciente;DNI;Cobertura;Triage;Síntomas;Estado;Consultorio");
             foreach (var d in _detallesFiltrados)
             {
-                string sintomasEscapados = d.Sintomas.Replace("\"", "\"\"");
-                sb.AppendLine($"\"{d.Fecha:yyyy-MM-dd HH:mm}\",\"{d.NroOrden}\",\"{d.PacienteCompleto}\",\"{d.DniPaciente}\",\"{d.ObraSocial}\",\"{d.Prioridad}\",\"{sintomasEscapados}\",\"{d.Estado}\",\"{d.NombreSala}\"");
+                string sintomasEscapados = d.Sintomas.Replace("\"", "\"\"").Replace(";", ",");
+                sb.AppendLine($"\"{d.Fecha:yyyy-MM-dd HH:mm}\";\"{d.NroOrden}\";\"{d.PacienteCompleto}\";\"{d.DniPaciente}\";\"{d.ObraSocial}\";\"{d.Prioridad}\";\"{sintomasEscapados}\";\"{d.Estado}\";\"{d.NombreSala}\"");
             }
 
-            File.WriteAllText(rutaArchivo, sb.ToString(), Encoding.UTF8);
+            File.WriteAllText(rutaArchivo, sb.ToString(), new UTF8Encoding(true));
         }
 
         /// <summary>

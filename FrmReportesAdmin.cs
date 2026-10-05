@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
+using Gestion_de_Turnos_Medicos.Servicios;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -439,18 +440,36 @@ namespace Gestion_de_Turnos_Medicos
             {
                 string fechaNom = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 sfd.Title = "Guardar Reporte Gerencial";
-                sfd.Filter = "Documento de Valores Separados por Comas (*.csv)|*.csv|Informe Ejecutivo de Texto (*.txt)|*.txt";
-                sfd.FileName = $"Reporte_Gerencial_CentroMedico_{fechaNom}";
+                sfd.Filter = "Libro de Excel (*.xlsx)|*.xlsx|Documento de Valores Separados por Comas (*.csv)|*.csv|Informe Ejecutivo de Texto (*.txt)|*.txt";
+                sfd.FilterIndex = 1;
+                sfd.FileName = $"Reporte_Gerencial_CentroMedico_{fechaNom}.xlsx";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        if (sfd.FilterIndex == 1) // CSV
+                        string extension = Path.GetExtension(sfd.FileName).ToLowerInvariant();
+
+                        if (extension == ".xlsx")
+                        {
+                            string espFiltro = cmbEspecialidad.SelectedItem?.ToString() ?? "Todas las especialidades";
+                            string perFiltro = cmbPeriodo.SelectedItem?.ToString() ?? "Personalizado";
+
+                            ExportadorExcel.ExportarReporteGerencial(
+                                sfd.FileName,
+                                _datosDemanda,
+                                _datosProductividad,
+                                dtpDesde.Value.Date,
+                                dtpHasta.Value.Date,
+                                perFiltro,
+                                espFiltro,
+                                _usuarioActual);
+                        }
+                        else if (extension == ".csv")
                         {
                             ExportarACSV(sfd.FileName);
                         }
-                        else // TXT
+                        else
                         {
                             ExportarATextoEjecutivo(sfd.FileName);
                         }
@@ -466,14 +485,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Genera un archivo CSV con las dos secciones del reporte separadas claramente.
+        /// Genera un archivo CSV con las dos secciones del reporte separadas claramente y con codificación UTF-8 con BOM.
         /// </summary>
         private void ExportarACSV(string rutaArchivo)
         {
             var sb = new StringBuilder();
 
             sb.AppendLine("sep=;");
-            sb.AppendLine($"REPORTE GERENCIAL Y ESTADÍSTICO - CENTRO MÉDICO");
+            sb.AppendLine("REPORTE GERENCIAL Y ESTADÍSTICO - CENTRO MÉDICO");
             sb.AppendLine($"Fecha de Emisión;{DateTime.Now:dd/MM/yyyy HH:mm:ss}");
             sb.AppendLine($"Generado por;{(_usuarioActual != null ? $"{_usuarioActual.Nombre} {_usuarioActual.Apellido} (Admin)" : "Administrador")}");
             sb.AppendLine($"Rango Consultado;Desde {dtpDesde.Value:dd/MM/yyyy} hasta {dtpHasta.Value:dd/MM/yyyy} ({cmbPeriodo.SelectedItem})");
@@ -494,7 +513,7 @@ namespace Gestion_de_Turnos_Medicos
                 sb.AppendLine($"\"{p.MedicoCompleto}\";\"{p.Matricula}\";\"{p.Especialidad}\";{p.ConsultasAtendidas};{p.PacientesUnicos}");
             }
 
-            File.WriteAllText(rutaArchivo, sb.ToString(), Encoding.UTF8);
+            File.WriteAllText(rutaArchivo, sb.ToString(), new UTF8Encoding(true));
         }
 
         /// <summary>

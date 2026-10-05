@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
+using Gestion_de_Turnos_Medicos.Servicios;
 
 namespace Gestion_de_Turnos_Medicos
 {
@@ -273,14 +274,26 @@ namespace Gestion_de_Turnos_Medicos
             using (var sfd = new SaveFileDialog())
             {
                 string fechaArchivo = DateTime.Now.ToString("yyyyMMdd_HHmm");
-                sfd.Filter = "Archivo de Texto (*.txt)|*.txt|Archivo CSV (*.csv)|*.csv";
-                sfd.FileName = $"Reporte_Atenciones_Dr_{_usuarioActual?.Apellido ?? "Medico"}_{fechaArchivo}.txt";
+                sfd.Filter = "Libro de Excel (*.xlsx)|*.xlsx|Archivo CSV (*.csv)|*.csv|Archivo de Texto (*.txt)|*.txt";
+                sfd.FilterIndex = 1;
+                sfd.FileName = $"Reporte_Atenciones_Dr_{_usuarioActual?.Apellido ?? "Medico"}_{fechaArchivo}.xlsx";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        if (sfd.FilterIndex == 2)
+                        string extension = Path.GetExtension(sfd.FileName).ToLowerInvariant();
+
+                        if (extension == ".xlsx")
+                        {
+                            ExportadorExcel.ExportarAtencionesMedico(
+                                sfd.FileName,
+                                atenciones,
+                                dtpDesde.Value.Date,
+                                dtpHasta.Value.Date,
+                                _usuarioActual);
+                        }
+                        else if (extension == ".csv")
                         {
                             ExportarCsv(sfd.FileName, atenciones);
                         }
@@ -340,6 +353,7 @@ namespace Gestion_de_Turnos_Medicos
         private void ExportarCsv(string rutaArchivo, List<AtencionMedicoDTO> lista)
         {
             var sb = new StringBuilder();
+            sb.AppendLine("sep=;");
             sb.AppendLine("IdHistoria;Fecha;NroOrden;Paciente;DNI;ObraSocial;TipoTurno;Especialidad;Sala;Diagnostico;Receta");
 
             foreach (var a in lista)
@@ -350,7 +364,7 @@ namespace Gestion_de_Turnos_Medicos
                 sb.AppendLine($"{a.IdHistoria};{a.Fecha:dd/MM/yyyy HH:mm};{a.NroOrden};{a.PacienteCompleto};{a.DniPaciente};{a.ObraSocial};{a.TipoTurno};{a.Especialidad};{a.NombreSala};{diagnostico};{receta}");
             }
 
-            File.WriteAllText(rutaArchivo, sb.ToString(), Encoding.UTF8);
+            File.WriteAllText(rutaArchivo, sb.ToString(), new UTF8Encoding(true));
         }
     }
 }
