@@ -202,15 +202,37 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// Registra un nuevo turno programado por especialidad médica validando que la fecha sea igual o posterior al día actual
         /// y comprobando que no exista previamente otro turno activo con la misma fecha, horario y especialidad médica.
         /// </summary>
+        /// <summary>
+        /// Genera una palabra clave o código alfanumérico seguro para la confirmación de doble factor (2FA) en cancelaciones.
+        /// Formato: 'CAN-XXXX' con caracteres alfanuméricos legibles.
+        /// </summary>
+        /// <returns>Cadena con el código alfanumérico generado.</returns>
+        public string GenerarCodigoCancelacion()
+        {
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            var random = Random.Shared;
+            var token = new char[4];
+            for (int i = 0; i < token.Length; i++)
+            {
+                token[i] = chars[random.Next(chars.Length)];
+            }
+            return $"CAN-{new string(token)}";
+        }
+
+        /// <summary>
+        /// Registra un nuevo turno programado de consultorio externo para una especialidad médica,
+        /// generando automáticamente la palabra clave alfanumérica de seguridad (2FA) para cancelación.
+        /// </summary>
         /// <param name="idPaciente">Identificador del paciente.</param>
         /// <param name="nombreEspecialidad">Nombre de la especialidad solicitada.</param>
         /// <param name="fecha">Fecha asignada para el turno.</param>
         /// <param name="horario">Horario de atención acordado.</param>
         /// <param name="estado">Estado inicial del turno (por defecto 'En Espera').</param>
-        /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID de turno y código de orden generado.</returns>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica personalizada (si es nula, se autogenera).</param>
+        /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID de turno, código de orden generado y clave 2FA.</returns>
         /// <exception cref="ArgumentException">Se lanza si faltan datos o la fecha es anterior al día actual.</exception>
         /// <exception cref="InvalidOperationException">Se lanza si ya existe un turno asignado para la misma fecha, horario y especialidad.</exception>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera")
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null)
         {
             if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
                 throw new ArgumentException("Todos los datos del turno programado son obligatorios.");
@@ -224,8 +246,30 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new InvalidOperationException($"El horario de las {horario} hs para la especialidad '{nombreEspecialidad}' en la fecha {fecha:dd/MM/yyyy} ya se encuentra reservado. Por favor, seleccione otro horario disponible.");
             }
 
-            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado);
-        }  
+            if (string.IsNullOrWhiteSpace(codigoCancelacion))
+            {
+                codigoCancelacion = GenerarCodigoCancelacion();
+            }
+
+            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion);
+        }
+
+        /// <summary>
+        /// Cancela un turno programado de especialidad previa validación de la palabra clave / código 2FA.
+        /// </summary>
+        /// <param name="idTurno">Identificador del turno a cancelar.</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica proporcionada por el usuario.</param>
+        /// <exception cref="ArgumentException">Se lanza si el código de cancelación está vacío o el ID es inválido.</exception>
+        public void CancelarTurnoEspecialidad(int idTurno, string codigoCancelacion)
+        {
+            if (idTurno <= 0)
+                throw new ArgumentException("El ID del turno es inválido.");
+
+            if (string.IsNullOrWhiteSpace(codigoCancelacion))
+                throw new ArgumentException("Debe ingresar la palabra clave / código 2FA para cancelar el turno.");
+
+            _turnoDAL.CancelarTurnoEspecialidad(idTurno, codigoCancelacion.Trim());
+        }
 
         /// <summary>
         /// Obtiene el listado de todos los turnos registrados bajo la modalidad de Emergencia / Triage.

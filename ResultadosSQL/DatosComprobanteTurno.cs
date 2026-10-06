@@ -36,6 +36,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Franja horaria programada (aplicable en turnos por especialidad).</summary>
         public string? HorarioTurnoProgramado { get; set; }
 
+        /// <summary>Palabra clave alfanumérica de confirmación de doble factor (2FA) para cancelación del turno.</summary>
+        public string? CodigoCancelacion { get; set; }
+
         /// <summary>
         /// Genera el contenido formateado del comprobante médico en texto plano.
         /// </summary>
@@ -64,6 +67,13 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
                 sb.AppendLine($"FECHA PROGRAMADA  : {FechaTurnoProgramado}");
                 if (!string.IsNullOrWhiteSpace(HorarioTurnoProgramado))
                     sb.AppendLine($"HORARIO ASIGNADO  : {HorarioTurnoProgramado} hs");
+            }
+
+            if (!string.IsNullOrWhiteSpace(CodigoCancelacion))
+            {
+                sb.AppendLine("------------------------------------------------------------");
+                sb.AppendLine($"CLAVE DE CANCELACIÓN (2FA): {CodigoCancelacion}");
+                sb.AppendLine("* Conserve esta clave personal para gestionar o cancelar su turno.");
             }
 
             sb.AppendLine("============================================================");

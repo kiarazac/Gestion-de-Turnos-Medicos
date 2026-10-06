@@ -2106,23 +2106,23 @@ GO
 
 ---
 
-### 5.5 `sp_ObtenerHorariosDisponibles`
-- **Descripción:** Retorna las franjas horarias libres (no reservadas) para una fecha y especialidad específicas.
+### 5.5 `sp_ObtenerHorariosConEstado`
+- **Descripción:** Retorna todos los horarios estándar de atención médica junto a su estado de disponibilidad (`EstaDisponible`) y los detalles del turno asociado si está reservado (paciente, DNI, número de orden y clave de cancelación 2FA).
 - **Entidad:** Turno / Especialidad
-- **Operación:** Consulta de Disponibilidad
-- **Tablas:** `Turnos`, `Especialidades`
+- **Operación:** Consulta de Disponibilidad y Estado de Turnos
+- **Tablas:** `Turnos`, `Especialidades`, `Pacientes`
 - **Forms que lo utilizan:** `FrmTurnoEspecialidad`
-- **Acción:** Selección de fecha en calendario (`calFechaTurno_DateChanged`)
+- **Acción:** Selección de fecha en calendario (`calFechaTurno_DateChanged`) y especialidad
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@NombreEspecialidad` | `NVARCHAR(100)` | IN | Nombre de la especialidad. |
   | `@Fecha` | `DATE` | IN | Fecha consultada. |
-- **Devuelve:** Filas con columna `Horario` (`VARCHAR(10)`).
+- **Devuelve:** `Horario`, `EstaDisponible`, `IdTurno`, `NroOrden`, `Paciente`, `Dni`, `ObraSocial`, `Estado`, `CodigoCancelacion`.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_ObtenerHorariosDisponibles
+CREATE OR ALTER PROCEDURE sp_ObtenerHorariosConEstado
     @NombreEspecialidad NVARCHAR(100),
     @Fecha DATE
 AS
@@ -2133,18 +2133,37 @@ BEGIN
 
     -- Tabla de horarios estándar
     DECLARE @Horarios TABLE (Horario VARCHAR(10));
-    INSERT INTO @Horarios VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
+    INSERT INTO @Horarios VALUES 
+        ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), 
+        ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
 
-    SELECT h.Horario
+    SELECT 
+        h.Horario,
+        CAST(CASE WHEN t.IdTurno IS NULL THEN 1 ELSE 0 END AS BIT) AS EstaDisponible,
+        t.IdTurno,
+        t.NroOrden,
+        CASE WHEN t.IdTurno IS NOT NULL THEN CONCAT(pac.Apellido, ', ', pac.Nombre) ELSE NULL END AS Paciente,
+        pac.Dni,
+        pac.ObraSocial,
+        t.Estado,
+        t.CodigoCancelacion
     FROM @Horarios h
-    WHERE h.Horario NOT IN (
-        SELECT CONVERT(VARCHAR(5), t.Horario, 108)
-        FROM Turnos t
-        INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN (
+        SELECT 
+            t_sub.IdTurno,
+            CONVERT(VARCHAR(5), t_sub.Horario, 108) AS HorarioTexto,
+            t_sub.NroOrden,
+            t_sub.IdPaciente,
+            t_sub.Estado,
+            t_sub.CodigoCancelacion
+        FROM Turnos t_sub
+        INNER JOIN Especialidades e ON t_sub.IdEspecialidad = e.IdEspecialidad
         WHERE e.Nombre = @NombreEspecialidad
-          AND CAST(t.Fecha AS DATE) = @Fecha
-          AND t.Activo = 1
-    )
+          AND CAST(t_sub.Fecha AS DATE) = @Fecha
+          AND t_sub.Activo = 1
+          AND t_sub.Estado <> 'Cancelado'
+    ) t ON h.Horario = t.HorarioTexto
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     ORDER BY h.Horario ASC;
     END TRY
     BEGIN CATCH
@@ -2159,9 +2178,9 @@ GO
 ---
 
 ### 5.6 `sp_CrearTurnoEspecialidad`
-- **Descripción:** Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha y horario asignado. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001` para Cardiología, `P-001` para Pediatría) y devuelve el ID recién creado.
+- **Descripción:** Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha, horario asignado y palabra clave alfanumérica (2FA) para cancelación. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001` para Cardiología, `P-001` para Pediatría) y devuelve el ID recién creado.
 - **Entidad:** Turno / Especialidad / Paciente
-- **Operación:** Alta Programada con Validación de Negocio
+- **Operación:** Alta Programada con Validación de Negocio y Generación 2FA
 - **Tablas:** `Turnos`, `Especialidades`, `Pacientes`
 - **Forms que lo utilizan:** `FrmTurnoEspecialidad`
 - **Acción:** Botón `BtnGenerarTurno`
@@ -2174,6 +2193,7 @@ GO
   | `@Fecha` | `DATE` | IN | Fecha del turno. |
   | `@Horario` | `NVARCHAR(10)` | IN | Horario asignado (ej. '10:30'). |
   | `@Estado` | `NVARCHAR(50)` | IN | Estado inicial ('En Espera'). |
+  | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Palabra clave alfanumérica de seguridad para 2FA. |
 - **Devuelve:** `IdNuevoTurno`, `NroOrden`.
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
@@ -2188,7 +2208,8 @@ CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @NombreEspecialidad NVARCHAR(100),
     @Fecha DATE,
     @Horario NVARCHAR(10),
-    @Estado NVARCHAR(50) = 'En Espera'
+    @Estado NVARCHAR(50) = 'En Espera',
+    @CodigoCancelacion NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2219,6 +2240,7 @@ BEGIN
               AND CAST(t.Fecha AS DATE) = @Fecha
               AND CAST(t.Horario AS TIME) = CAST(@Horario AS TIME)
               AND t.Activo = 1
+              AND t.Estado <> 'Cancelado'
         )
         BEGIN
             THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
@@ -2232,8 +2254,8 @@ BEGIN
         SET @InicialEspecialidad = UPPER(LEFT(@NombreEspecialidad, 1));
 
         -- Insertamos con un valor temporal
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Activo, FechaCreacion)
+        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
         
@@ -2255,6 +2277,86 @@ BEGIN
 
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
+END;
+GO
+```
+
+---
+
+### 5.6.0 `sp_CancelarTurnoEspecialidad`
+- **Descripción:** Cancela lógicamente un turno programado de especialidad (`Estado = 'Cancelado'`, `Activo = 0`), liberando el horario de consulta en la matriz de turnos tras validar la coincidencia exacta de la palabra clave alfanumérica de confirmación de doble factor (2FA) emitida en el ticket.
+- **Entidad:** Turno
+- **Operación:** Cancelación de Turno con Confirmación 2FA
+- **Tablas:** `Turnos`
+- **Forms que lo utilizan:** `FrmTurnoEspecialidad`
+- **Acción:** Botón `btnCancelarTurno`
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdTurno` | `INT` | IN | Identificador del turno a cancelar. |
+  | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Palabra clave alfanumérica (2FA) emitida en el comprobante. |
+- **Devuelve:** `IdTurnoCancelado`, `Mensaje`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_CancelarTurnoEspecialidad
+    @IdTurno INT,
+    @CodigoCancelacion NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @IdTurno IS NULL OR @IdTurno <= 0
+        BEGIN
+            THROW 50050, 'El ID de turno proporcionado es inválido.', 1;
+        END
+
+        IF LTRIM(RTRIM(ISNULL(@CodigoCancelacion, ''))) = ''
+        BEGIN
+            THROW 50051, 'Debe ingresar la palabra clave / código 2FA para cancelar el turno.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        BEGIN
+            THROW 50052, 'El turno especificado no existe en el sistema.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND (Activo = 0 OR Estado = 'Cancelado'))
+        BEGIN
+            THROW 50053, 'El turno ya se encuentra cancelado o dado de baja.', 1;
+        END
+
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE IdTurno = @IdTurno 
+              AND UPPER(LTRIM(RTRIM(ISNULL(CodigoCancelacion, '')))) = UPPER(LTRIM(RTRIM(@CodigoCancelacion)))
+        )
+        BEGIN
+            THROW 50054, 'La palabra clave o código 2FA ingresado es incorrecto. No se puede cancelar el turno.', 1;
+        END
+
+        UPDATE Turnos
+        SET 
+            Estado = 'Cancelado',
+            Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
+
+        SELECT @IdTurno AS IdTurnoCancelado, 'Turno cancelado exitosamente' AS Mensaje;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
 END;
 GO
 ```
@@ -3392,32 +3494,49 @@ CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Resumen
     @IdPrioridad INT = NULL
 AS
 BEGIN
+    -- Suprime los mensajes informativos de conteo de filas afectadas para optimizar rendimiento de red
     SET NOCOUNT ON;
 
     BEGIN TRY
         SELECT 
+            -- 1. Total general de turnos de guardia registrados en el intervalo seleccionado
             COUNT(t.IdTurno) AS TotalEmergencias,
-            SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END) AS TotalAlta,
-            SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END) AS TotalMedia,
-            SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END) AS TotalBaja,
-            SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS TotalAtendidos,
-            SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END) AS TotalEnEspera,
-            SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END) AS TotalCancelados,
-            CAST(
+
+            -- 2. Conteo por nivel de Triage Manchester:
+            -- Se utiliza ISNULL(SUM(...), 0) para que, en caso de que no existan turnos en el rango de fechas,
+            -- la función agregada SUM retorne 0 en lugar de NULL, evitando la excepción 'Data is Null' en EF Core.
+            ISNULL(SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END), 0) AS TotalAlta,
+            ISNULL(SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END), 0) AS TotalMedia,
+            ISNULL(SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END), 0) AS TotalBaja,
+
+            -- 3. Conteo según el estado de la atención médica del paciente en guardia:
+            -- Atendidos: Turnos cuya consulta médica fue completada o se encuentra actualmente en curso
+            ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TotalAtendidos,
+            -- En Espera: Pacientes aguardando en sala de espera o con llamado activo a consultorio
+            ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END), 0) AS TotalEnEspera,
+            -- Cancelados: Turnos cancelados por el paciente o bajas administrativas
+            ISNULL(SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END), 0) AS TotalCancelados,
+
+            -- 4. Tasa de resolución médica (% de turnos resueltos respecto al total de ingresos de guardia):
+            -- Se calcula sólo si existen ingresos (> 0) para prevenir división por cero; de lo contrario devuelve 0.00
+            ISNULL(CAST(
                 CASE 
                     WHEN COUNT(t.IdTurno) > 0 
-                    THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                    THEN (CAST(ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
                     ELSE 0.0 
                 END AS DECIMAL(5,2)
-            ) AS TasaResolucion
+            ), 0.0) AS TasaResolucion
         FROM Turnos t
         WHERE t.TipoTurno = 'Emergencia'
           AND t.Activo = 1
+          -- Normalización de fechas a tipo DATE para comparar únicamente día/mes/año sin sesgo por la hora
           AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
           AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
+          -- Filtro opcional por nivel de prioridad (1=Alta, 2=Media, 3=Baja)
           AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
     END TRY
     BEGIN CATCH
+        -- Manejo seguro de errores con reversión transaccional si hubiere transacciones abiertas
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
         THROW;

@@ -283,9 +283,9 @@ namespace Gestion_de_Turnos_Medicos
             try
             {
                 // Invocaciones desacopladas a la Capa de Lógica de Negocio (BLL)
-                _resumenActual = _reporteBLL.ObtenerResumenGuardia(fechaDesde, fechaHasta, idPrioridad);
-                _rankingSintomas = _reporteBLL.ObtenerRankingSintomas(fechaDesde, fechaHasta, idPrioridad);
-                _todosLosDetalles = _reporteBLL.ObtenerDetalleGuardia(fechaDesde, fechaHasta, idPrioridad);
+                _resumenActual = _reporteBLL.ObtenerResumenGuardia(fechaDesde, fechaHasta, idPrioridad) ?? new ReporteGuardiaResumenDTO();
+                _rankingSintomas = _reporteBLL.ObtenerRankingSintomas(fechaDesde, fechaHasta, idPrioridad) ?? new List<ReporteGuardiaSintomaDTO>();
+                _todosLosDetalles = _reporteBLL.ObtenerDetalleGuardia(fechaDesde, fechaHasta, idPrioridad) ?? new List<ReporteGuardiaDetalleDTO>();
 
                 ActualizarTarjetasKPI();
                 AplicarFiltroEnMemoria();

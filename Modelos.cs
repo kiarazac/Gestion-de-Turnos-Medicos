@@ -240,6 +240,9 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>Registros médicos e historias clínicas generadas a partir de este turno.</summary>
         public ICollection<HistoriaClinica> HistoriasClinicas { get; set; }
+
+        /// <summary>Palabra clave o código alfanumérico de verificación de doble factor (2FA) para cancelación del turno.</summary>
+        public string? CodigoCancelacion { get; set; }
     }
 
     /// <summary>

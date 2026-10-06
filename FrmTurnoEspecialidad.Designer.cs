@@ -56,10 +56,18 @@ namespace Gestion_de_Turnos_Medicos
             Lid_turno = new Label();
             LdescripTurno = new Label();
             btnDescargarTxt = new Button();
+            gbDetalleTurno = new GroupBox();
+            lblDetallePaciente = new Label();
+            lblDetalleDni = new Label();
+            lblDetalleTurnoNro = new Label();
+            lblClaveCancelacion = new Label();
+            txtClaveCancelacion = new TextBox();
+            btnCancelarTurno = new Button();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
             panel3.SuspendLayout();
+            gbDetalleTurno.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
@@ -186,6 +194,7 @@ namespace Gestion_de_Turnos_Medicos
             cmbHorarios.Name = "cmbHorarios";
             cmbHorarios.Size = new Size(268, 23);
             cmbHorarios.TabIndex = 17;
+            cmbHorarios.SelectedIndexChanged += cmbHorarios_SelectedIndexChanged;
             // 
             // calFechaTurno
             // 
@@ -363,12 +372,96 @@ namespace Gestion_de_Turnos_Medicos
             btnDescargarTxt.Text = "DESCARGAR COMPROBANTE (.TXT)";
             btnDescargarTxt.UseVisualStyleBackColor = false;
             // 
+            // gbDetalleTurno
+            // 
+            gbDetalleTurno.Controls.Add(btnCancelarTurno);
+            gbDetalleTurno.Controls.Add(txtClaveCancelacion);
+            gbDetalleTurno.Controls.Add(lblClaveCancelacion);
+            gbDetalleTurno.Controls.Add(lblDetalleTurnoNro);
+            gbDetalleTurno.Controls.Add(lblDetalleDni);
+            gbDetalleTurno.Controls.Add(lblDetallePaciente);
+            gbDetalleTurno.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            gbDetalleTurno.Location = new Point(826, 475);
+            gbDetalleTurno.Name = "gbDetalleTurno";
+            gbDetalleTurno.Size = new Size(367, 185);
+            gbDetalleTurno.TabIndex = 21;
+            gbDetalleTurno.TabStop = false;
+            gbDetalleTurno.Text = "Detalle y Cancelación de Turno (2FA)";
+            gbDetalleTurno.Visible = false;
+            // 
+            // lblDetallePaciente
+            // 
+            lblDetallePaciente.AutoSize = true;
+            lblDetallePaciente.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblDetallePaciente.Location = new Point(12, 22);
+            lblDetallePaciente.Name = "lblDetallePaciente";
+            lblDetallePaciente.Size = new Size(71, 15);
+            lblDetallePaciente.TabIndex = 0;
+            lblDetallePaciente.Text = "Paciente: --";
+            // 
+            // lblDetalleDni
+            // 
+            lblDetalleDni.AutoSize = true;
+            lblDetalleDni.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblDetalleDni.Location = new Point(12, 42);
+            lblDetalleDni.Name = "lblDetalleDni";
+            lblDetalleDni.Size = new Size(95, 15);
+            lblDetalleDni.TabIndex = 1;
+            lblDetalleDni.Text = "DNI: -- | O.S.: --";
+            // 
+            // lblDetalleTurnoNro
+            // 
+            lblDetalleTurnoNro.AutoSize = true;
+            lblDetalleTurnoNro.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblDetalleTurnoNro.ForeColor = Color.MidnightBlue;
+            lblDetalleTurnoNro.Location = new Point(12, 62);
+            lblDetalleTurnoNro.Name = "lblDetalleTurnoNro";
+            lblDetalleTurnoNro.Size = new Size(135, 15);
+            lblDetalleTurnoNro.TabIndex = 2;
+            lblDetalleTurnoNro.Text = "Turno: -- | Estado: --";
+            // 
+            // lblClaveCancelacion
+            // 
+            lblClaveCancelacion.AutoSize = true;
+            lblClaveCancelacion.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblClaveCancelacion.ForeColor = Color.DarkRed;
+            lblClaveCancelacion.Location = new Point(12, 85);
+            lblClaveCancelacion.Name = "lblClaveCancelacion";
+            lblClaveCancelacion.Size = new Size(160, 15);
+            lblClaveCancelacion.TabIndex = 3;
+            lblClaveCancelacion.Text = "Palabra Clave 2FA (Ticket):";
+            // 
+            // txtClaveCancelacion
+            // 
+            txtClaveCancelacion.CharacterCasing = CharacterCasing.Upper;
+            txtClaveCancelacion.Font = new Font("Segoe UI", 9.5F);
+            txtClaveCancelacion.Location = new Point(12, 105);
+            txtClaveCancelacion.Name = "txtClaveCancelacion";
+            txtClaveCancelacion.PlaceholderText = "Ingrese código 2FA (ej. CAN-XXXX)";
+            txtClaveCancelacion.Size = new Size(343, 24);
+            txtClaveCancelacion.TabIndex = 4;
+            // 
+            // btnCancelarTurno
+            // 
+            btnCancelarTurno.BackColor = Color.Crimson;
+            btnCancelarTurno.Cursor = Cursors.Hand;
+            btnCancelarTurno.FlatStyle = FlatStyle.Flat;
+            btnCancelarTurno.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnCancelarTurno.ForeColor = SystemColors.ButtonHighlight;
+            btnCancelarTurno.Location = new Point(12, 137);
+            btnCancelarTurno.Name = "btnCancelarTurno";
+            btnCancelarTurno.Size = new Size(343, 36);
+            btnCancelarTurno.TabIndex = 5;
+            btnCancelarTurno.Text = "CANCELAR TURNO (2FA)";
+            btnCancelarTurno.UseVisualStyleBackColor = false;
+            // 
             // FrmTurnoEspecialidad
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Control;
             ClientSize = new Size(1205, 668);
+            Controls.Add(gbDetalleTurno);
             Controls.Add(btnDescargarTxt);
             Controls.Add(LdescripTurno);
             Controls.Add(panel3);
@@ -387,6 +480,8 @@ namespace Gestion_de_Turnos_Medicos
             Condicionales.PerformLayout();
             panel3.ResumeLayout(false);
             panel3.PerformLayout();
+            gbDetalleTurno.ResumeLayout(false);
+            gbDetalleTurno.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -421,5 +516,12 @@ namespace Gestion_de_Turnos_Medicos
         private Label Lid_turno;
         private Label LdescripTurno;
         private Button btnDescargarTxt;
+        private GroupBox gbDetalleTurno;
+        private Label lblDetallePaciente;
+        private Label lblDetalleDni;
+        private Label lblDetalleTurnoNro;
+        private Label lblClaveCancelacion;
+        private TextBox txtClaveCancelacion;
+        private Button btnCancelarTurno;
     }
 }

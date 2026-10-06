@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 {
     /// <summary>
@@ -12,5 +14,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Código alfanumérico visible de orden para llamada en pantallas.</summary>
         public string NroOrden { get; set; } = string.Empty;
+
+        /// <summary>Palabra clave alfanumérica de 2FA para cancelación del turno (asignada en memoria por capa BLL/DAL).</summary>
+        [NotMapped]
+        public string? CodigoCancelacion { get; set; }
     }
 }

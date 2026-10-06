@@ -66,9 +66,9 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 - **Tablas involucradas**: `Especialidades`
 - **Parámetros**: Ninguno. Retorna un conjunto de resultados con `Nombre` (y opcionalmente `IdEspecialidad`).
 
-### 2. `sp_ObtenerHorariosDisponibles`
-- **Descripción**: Retorna los horarios disponibles (no ocupados) para una especialidad y fecha determinadas.
-- **Tablas involucradas**: `Turnos`, `Especialidades`
+### 2. `sp_ObtenerHorariosConEstado`
+- **Descripción**: Retorna todos los horarios estándar de atención médica (libres y ocupados) junto a su estado de disponibilidad (`EstaDisponible`) y los detalles del turno asignado (paciente, DNI, obra social, número de orden y palabra clave 2FA).
+- **Tablas involucradas**: `Turnos`, `Especialidades`, `Pacientes`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -76,8 +76,8 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | `@Fecha` | `DATE` | IN | Fecha consultada en el calendario. |
 
 ### 3. `sp_CrearTurnoEspecialidad`
-- **Descripción**: Registra un turno programado de consulta por especialidad, vinculando paciente, especialidad, fecha y horario asignado.
-- **Tablas involucradas**: `Turnos`, `Especialidades`, `Prioridades`
+- **Descripción**: Registra un turno programado de consulta por especialidad, vinculando paciente, especialidad, fecha, horario asignado y la palabra clave/código alfanumérico 2FA de cancelación.
+- **Tablas involucradas**: `Turnos`, `Especialidades`, `Pacientes`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
@@ -86,8 +86,18 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | `@Fecha` | `DATE` | IN | Fecha del turno. |
   | `@Horario` | `VARCHAR(10)` | IN | Horario asignado (ej. '10:30'). |
   | `@Estado` | `VARCHAR(50)` | IN | Estado inicial ('En Espera'). |
+  | `@CodigoCancelacion` | `VARCHAR(50)` | IN | Palabra clave alfanumérica (2FA) para cancelación. |
   | `@IdTurno` | `INT` | OUT | ID autoincremental del turno insertado. |
-  | `@NroOrden` | `VARCHAR(20)` | OUT | Código de llamado correlativo (ej. 'T-015'). |
+  | `@NroOrden` | `VARCHAR(20)` | OUT | Código de llamado correlativo (ej. 'C-015'). |
+
+### 4. `sp_CancelarTurnoEspecialidad`
+- **Descripción**: Cancela lógicamente un turno activo (`Activo = 0`, `Estado = 'Cancelado'`), liberando el horario de consulta tras validar estrictamente la palabra clave alfanumérica de doble factor (2FA) emitida en el ticket.
+- **Tablas involucradas**: `Turnos`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdTurno` | `INT` | IN | Identificador del turno a cancelar. |
+  | `@CodigoCancelacion` | `VARCHAR(50)` | IN | Palabra clave alfanumérica del comprobante para verificación 2FA. |
 
 ---
 

@@ -27,6 +27,7 @@ namespace Gestion_de_Turnos_Medicos
             this.Load += FrmTurnoEspecialidad_Load;
             this.button1.Click += BtnGenerarTurno_Click;
             this.btnDescargarTxt.Click += BtnDescargarTxt_Click;
+            this.btnCancelarTurno.Click += BtnCancelarTurno_Click;
 
             txtDNI.Leave += TxtDNI_Leave;
             txtDNI.KeyDown += TxtDNI_KeyDown;
@@ -156,6 +157,9 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Consulta y carga en el selector <see cref="cmbHorarios"/> las franjas horarias libres para la especialidad y fecha especificadas.
+        /// <summary>
+        /// Consulta y carga en el selector <see cref="cmbHorarios"/> todas las franjas horarias con su estado (disponible u ocupado)
+        /// y el detalle asociado para la especialidad y fecha especificadas.
         /// </summary>
         /// <param name="especialidad">Nombre de la especialidad seleccionada.</param>
         /// <param name="fechaElegida">Fecha seleccionada en el calendario.</param>
@@ -175,18 +179,132 @@ namespace Gestion_de_Turnos_Medicos
                     foreach (var h in horarios)
                     {
                         if (!string.IsNullOrWhiteSpace(h.Horario))
-                            cmbHorarios.Items.Add(h.Horario);
+                            cmbHorarios.Items.Add(h);
                     }
                     cmbHorarios.SelectedIndex = 0;
+                    ActualizarEstadoHorarioSeleccionado();
                 }
                 else
                 {
-                    MessageBox.Show("No hay turnos disponibles para esta fecha y especialidad.", "Sin disponibilidad", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("No hay turnos configurados para esta fecha y especialidad.", "Sin turnos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ActualizarEstadoHorarioSeleccionado();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron consultar los horarios disponibles:\n" + ex.Message, "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se pudieron consultar los horarios:\n" + ex.Message, "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ActualizarEstadoHorarioSeleccionado();
+            }
+        }
+
+        /// <summary>
+        /// Manejador del cambio de selección de horario para alternar entre reserva y detalle/cancelación por 2FA.
+        /// </summary>
+        private void cmbHorarios_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            ActualizarEstadoHorarioSeleccionado();
+        }
+
+        /// <summary>
+        /// Actualiza la visibilidad de los paneles y botones según si el horario elegido está disponible u ocupado.
+        /// </summary>
+        private void ActualizarEstadoHorarioSeleccionado()
+        {
+            if (cmbHorarios.SelectedItem is not HorarioDisponibleDTO slot)
+            {
+                gbDetalleTurno.Visible = false;
+                button1.Enabled = true;
+                return;
+            }
+
+            if (slot.EstaDisponible)
+            {
+                // Horario libre para reservar
+                gbDetalleTurno.Visible = false;
+                button1.Enabled = true;
+                txtClaveCancelacion.Clear();
+            }
+            else
+            {
+                // Horario ocupado: mostrar datos del turno y activar cancelación con 2FA
+                button1.Enabled = false;
+                gbDetalleTurno.Visible = true;
+                lblDetallePaciente.Text = $"Paciente: {slot.Paciente ?? "--"}";
+                lblDetalleDni.Text = $"DNI: {slot.Dni ?? "--"} | O.S.: {slot.ObraSocial ?? "--"}";
+                lblDetalleTurnoNro.Text = $"Turno: #{slot.NroOrden ?? "--"} | Estado: {slot.Estado ?? "En Espera"}";
+                txtClaveCancelacion.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Manejador del evento click para cancelar un turno ocupado validando la palabra clave (2FA) del comprobante.
+        /// </summary>
+        private void BtnCancelarTurno_Click(object? sender, EventArgs e)
+        {
+            if (cmbHorarios.SelectedItem is not HorarioDisponibleDTO slot || slot.EstaDisponible || !slot.IdTurno.HasValue)
+            {
+                MessageBox.Show("Por favor, seleccione un horario ocupado para cancelar.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string claveIngresada = txtClaveCancelacion.Text.Trim();
+            if (string.IsNullOrWhiteSpace(claveIngresada))
+            {
+                MessageBox.Show(
+                    "Debe ingresar la palabra clave alfanumérica (2FA) emitida en el comprobante del paciente para confirmar la cancelación.",
+                    "Clave 2FA Requerida",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                txtClaveCancelacion.Focus();
+                return;
+            }
+
+            // Validación de doble factor (2FA)
+            if (!string.Equals(claveIngresada, slot.CodigoCancelacion, StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(
+                    "La palabra clave / código 2FA ingresado no es válido para este turno.\n\nVerifique el código en el comprobante impreso del paciente e intente nuevamente.",
+                    "Confirmación 2FA Fallida",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                txtClaveCancelacion.Focus();
+                txtClaveCancelacion.SelectAll();
+                return;
+            }
+
+            // Confirmación de seguridad
+            var confirmacion = MessageBox.Show(
+                $"¿Confirma la cancelación del turno #{slot.NroOrden} del paciente {slot.Paciente}?\n\nEsta acción liberará el horario de las {slot.Horario} hs para nuevas reservas.",
+                "Confirmar Cancelación (2FA)",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            try
+            {
+                string especialidad = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
+                DateTime fecha = calFechaTurno.SelectionStart.Date;
+
+                _turnoBLL.CancelarTurnoEspecialidad(slot.IdTurno.Value, claveIngresada);
+
+                MessageBox.Show(
+                    $"¡El turno #{slot.NroOrden} fue cancelado exitosamente!\n\nEl horario de las {slot.Horario} hs ha quedado liberado.",
+                    "Cancelación Exitosa",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+
+                txtClaveCancelacion.Clear();
+                CargarHorariosDisponibles(especialidad, fecha);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ocurrió un error al procesar la cancelación:\n{ex.Message}", "Error de Cancelación", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -201,7 +319,9 @@ namespace Gestion_de_Turnos_Medicos
             string obraSocial = txtObraSocial.Text.Trim();
             string especialidad = cmbEspecialidad.SelectedItem!.ToString()!;
             DateTime fecha = calFechaTurno.SelectionStart.Date;
-            string horario = cmbHorarios.SelectedItem!.ToString()!;
+
+            var slotSeleccionado = cmbHorarios.SelectedItem as HorarioDisponibleDTO;
+            string horario = slotSeleccionado?.Horario ?? cmbHorarios.SelectedItem!.ToString()!;
 
             try
             {
@@ -218,14 +338,15 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = idPaciente;
                 }
 
-                // Registro del turno con la nueva inicial dinámica en el SP
+                // Registro del turno con generación automática de palabra clave 2FA
                 var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera");
                 string nroOrden = resultadoTurno.NroOrden ?? $"T-{resultadoTurno.IdNuevoTurno:D3}";
+                string codigoCancelacion = resultadoTurno.CodigoCancelacion ?? string.Empty;
 
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
 
-                // Guardamos los datos del comprobante para su exportación a .txt
+                // Guardamos los datos del comprobante para su exportación a .txt incluyendo la clave 2FA
                 _ultimoTurnoEmitido = new DatosComprobanteTurno
                 {
                     NroOrden = nroOrden,
@@ -236,7 +357,8 @@ namespace Gestion_de_Turnos_Medicos
                     DniPaciente = dni,
                     ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial,
                     FechaTurnoProgramado = fecha.ToString("dd/MM/yyyy"),
-                    HorarioTurnoProgramado = horario
+                    HorarioTurnoProgramado = horario,
+                    CodigoCancelacion = codigoCancelacion
                 };
 
                 // Habilitamos el botón de descarga del comprobante
@@ -247,13 +369,16 @@ namespace Gestion_de_Turnos_Medicos
                     $"Paciente: {apellido}, {nombre}\n" +
                     $"Especialidad: {especialidad}\n" +
                     $"Fecha: {fecha:dd/MM/yyyy} a las {horario} hs\n" +
-                    $"N° Turno: {nroOrden}",
+                    $"N° Turno: {nroOrden}\n\n" +
+                    $"CLAVE DE CANCELACIÓN (2FA): {codigoCancelacion}\n" +
+                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)",
                     "Turno Generado",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );
 
                 LimpiarCampos();
+                CargarHorariosDisponibles(especialidad, fecha);
             }
             catch (InvalidOperationException invEx)
             {
@@ -349,17 +474,28 @@ namespace Gestion_de_Turnos_Medicos
                 return false;
             }
 
-            if (cmbHorarios.SelectedItem == null || string.IsNullOrWhiteSpace(cmbHorarios.SelectedItem.ToString()))
+            if (cmbHorarios.SelectedItem is not HorarioDisponibleDTO slot || string.IsNullOrWhiteSpace(slot.Horario))
             {
                 MessageBox.Show("Por favor, seleccione un horario para el turno.", "Falta horario", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cmbHorarios.Focus();
                 return false;
             }
 
+            if (!slot.EstaDisponible)
+            {
+                MessageBox.Show(
+                    $"El horario de las {slot.Horario} hs ya se encuentra reservado (Turno #{slot.NroOrden}).\n\nPor favor, seleccione un horario disponible o proceda a cancelar dicho turno con su clave 2FA.",
+                    "Horario Ocupado",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return false;
+            }
+
             // Control de concurrencia/duplicidad: Validar que no exista un turno registrado con la misma fecha, horario y especialidad
             string especialidad = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
             DateTime fecha = calFechaTurno.SelectionStart.Date;
-            string horario = cmbHorarios.SelectedItem?.ToString() ?? string.Empty;
+            string horario = slot.Horario;
 
             if (_turnoBLL.ExisteTurnoEspecialidad(especialidad, fecha, horario))
             {
@@ -388,8 +524,7 @@ namespace Gestion_de_Turnos_Medicos
             txtObraSocial.ReadOnly = false;
 
             idPacienteActual = null;
-            cmbEspecialidad.SelectedIndex = 0;
-            cmbHorarios.Items.Clear();
+            txtClaveCancelacion.Clear();
             txtDNI.Focus();
         }
     }

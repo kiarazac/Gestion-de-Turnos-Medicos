@@ -35,12 +35,12 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │            FrmSalasAdmin, FrmGestionEspecialidades,                    │
 │            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
 │            FrmListaTurnosAtencion, MisSalas_PM, FrmMisAtenciones,      │
-│            FrmAdmin, FrmReportesAdmin, FrmPersonalMedico, etc.         │
+│            FrmAdmin, FrmReportesAdmin, FrmReporteGuardiaAdmin, etc.    │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Captura de eventos visuales (Click, Load, SelectedIndexChanged).   │
 │  - Validación visual de entradas (campos vacíos, regex, formatos).     │
-│  - Llamada exclusiva a métodos de la Capa BLL.                         │
+│  - Llamada exclusiva a métodos de la Capa BLL y servicios utilitarios. │
 │  - Binding de DataGridViews y ComboBoxes mediante DTOs recibidos.      │
 │  - Feedback visual (MessageBox, colores de triage, mensajes de error). │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -50,7 +50,8 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE LÓGICA DE NEGOCIO (BLL)                   │
 │  Namespace: Gestion_de_Turnos_Medicos.Negocio                          │
 │  Archivos: UsuarioBLL, SalaBLL, EspecialidadBLL,                       │
-│            PacienteBLL, TurnoBLL, HistoriaClinicaBLL, ReporteBLL       │
+│            PacienteBLL, TurnoBLL, HistoriaClinicaBLL, ReporteBLL,      │
+│            ReporteGuardiaBLL                                           │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Aplicar reglas de negocio médicas y administrativas.               │
@@ -66,7 +67,8 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE ACCESO A DATOS (DAL)                      │
 │  Namespace: Gestion_de_Turnos_Medicos.CapaDeDatos                      │
 │  Archivos: UsuarioDAL, SalaDAL, EspecialidadDAL,                       │
-│            PacienteDAL, TurnoDAL, HistoriaClinicaDAL, ReporteDAL       │
+│            PacienteDAL, TurnoDAL, HistoriaClinicaDAL, ReporteDAL,      │
+│            ReporteGuardiaDAL                                           │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Uso exclusivo de ConsultorioContext (DbContext EF Core).            │
@@ -236,10 +238,19 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.13 `HorarioDisponibleDTO`
-- **Uso**: Retorno de `sp_ObtenerHorariosDisponibles`.
+- **Uso**: Retorno de `sp_ObtenerHorariosConEstado` para la matriz de horarios y estado de ocupación en `FrmTurnoEspecialidad`.
 - **Propiedades**:
   ```csharp
   public string Horario { get; set; }
+  public bool EstaDisponible { get; set; }
+  public int? IdTurno { get; set; }
+  public string? NroOrden { get; set; }
+  public string? Paciente { get; set; }
+  public string? Dni { get; set; }
+  public string? ObraSocial { get; set; }
+  public string? Estado { get; set; }
+  public string? CodigoCancelacion { get; set; }
+  public string TextoDisplay { get; }
   ```
 
 ### 3.14 `TurnoGeneralPantallaDTO`
@@ -542,9 +553,10 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_CrearTurnoEmergencia` |
 | | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
 | **`FrmTurnoEspecialidad`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
-| | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosDisponibles` |
+| | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosConEstado` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` |
-| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` |
+| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` (con generación 2FA) |
+| | `TurnoBLL.CancelarTurnoEspecialidad` | `TurnoDAL.CancelarTurnoEspecialidad` | `sp_CancelarTurnoEspecialidad` (con confirmación 2FA) |
 | **`FrmListaTurnos`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` |
 | | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ListarTurnosEspecialidad` | `TurnoDAL.ListarTurnosEspecialidad` | `sp_ListarTurnosEspecialidad` |
@@ -574,3 +586,28 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 2. **Sin referencias a DAL ni ADO.NET**: Queda terminantemente prohibido importar namespaces de datos (`using Microsoft.Data.SqlClient;`, `using Gestion_de_Turnos_Medicos.CapaDeDatos;`) dentro de los Forms.
 3. **Cero datos simulados**: Ningún bloque `catch` o método auxiliar debe cargar datos ficticios de contingencia. Las fallas de conexión o ejecución de SP deben notificarse al usuario con `MessageBox.Show` explicando el error devuelto por la BLL o el motor.
 4. **Paso de contexto de sesión**: Formularios operativos como `MisSalas_PM` y `FrmListaTurnosAtencion` reciben al médico autenticado (`UsuarioLoginResult`) desde su formulario contenedor (`Pantalla_Principal_PERSONAL_MEDICO`), garantizando trazabilidad y filtrado por profesional.
+
+---
+
+## 8. Servicios Transversales y Exportación Nativa (ClosedXML / OpenXML)
+
+El proyecto incorpora una capa de servicios utilitarios bajo el espacio de nombres `Gestion_de_Turnos_Medicos.Servicios`.
+
+### 8.1 `ExportadorExcel` (`ClosedXML.Excel`)
+Centraliza la generación de planillas corporativas nativas en formato Microsoft Excel (`.xlsx`), implementando estilos visuales médicos y consistencia en los informes:
+- **Paleta de Colores Corporativos:** Encabezados en verde médico (`#0F766E` / `ColorTealPrincipal`), grilla oscura (`#1E293B` / `ColorSlateOscuro`), bordes suaves (`#CBD5E1`) y sombreado zebra alternado (`#F8FAFC`).
+- **Colores Semánticos Manchester / Triage:**
+  - **Alta (Rojo):** Fondo `#FEE2E2`, Texto `#991B1B`.
+  - **Media (Amarillo):** Fondo `#FEF3C7`, Texto `#92400E`.
+  - **Baja (Verde):** Fondo `#DCFCE7`, Texto `#166534`.
+- **Auto-Ajuste Inteligente de Columnas:** Emplea `ws.Columns().AdjustToContents(2, ultimaFila)` para omitir el banner combinado superior y aplica anchos mínimos garantizados para evitar recortes o visualización de `###`.
+
+#### Métodos de Exportación Expuestos:
+1. `ExportarReporteGuardia(...)`: Genera el libro Excel con 2 hojas:
+   - *"Resumen y Triage"*: Banner, metadatos, ficha de KPIs y tabla de ranking de síntomas predominantes.
+   - *"Detalle de Ingresos"*: Listado nominal de turnos con formato condicional de triage según severidad.
+2. `ExportarReporteGerencial(...)`: Genera el libro con 2 hojas:
+   - *"Demanda por Especialidad"*: Totales, atendidos, en espera y porcentaje de resolutividad con formato numérico tipado.
+   - *"Productividad Médica"*: Consultas realizadas y pacientes únicos por profesional con matrícula.
+3. `ExportarAtencionesMedico(...)`: Genera el historial clínico de atenciones del médico con ajuste de texto multilinea (`WrapText`) para diagnósticos y recetas farmacológicas.
+

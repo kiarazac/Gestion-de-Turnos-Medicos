@@ -114,11 +114,12 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerHorariosDisponibles</c> para una especialidad y fecha determinadas.
+        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerHorariosConEstado</c> para una especialidad y fecha determinadas.
+        /// Retorna la matriz completa de franjas horarias con su indicador de disponibilidad y datos de turnos ocupados.
         /// </summary>
         /// <param name="nombreEspecialidad">Nombre de la especialidad.</param>
         /// <param name="fecha">Fecha requerida.</param>
-        /// <returns>Lista de <see cref="HorarioDisponibleDTO"/> con las franjas horarias vacantes.</returns>
+        /// <returns>Lista de <see cref="HorarioDisponibleDTO"/> con horarios disponibles y ocupados con su respectivo detalle.</returns>
         public List<HorarioDisponibleDTO> ObtenerHorariosDisponibles(string nombreEspecialidad, DateTime fecha)
         {
             using (var context = new dbTurnosMedicos())
@@ -129,7 +130,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 try
                 {
                     return context.Database
-                        .SqlQueryRaw<HorarioDisponibleDTO>("EXEC sp_ObtenerHorariosDisponibles @NombreEspecialidad, @Fecha", pEspecialidad, pFecha)
+                        .SqlQueryRaw<HorarioDisponibleDTO>("EXEC sp_ObtenerHorariosConEstado @NombreEspecialidad, @Fecha", pEspecialidad, pFecha)
                         .ToList();
                 }
                 catch (SqlException)
@@ -138,16 +139,33 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         DECLARE @Horarios TABLE (Horario VARCHAR(10));
                         INSERT INTO @Horarios VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
 
-                        SELECT h.Horario
+                        SELECT 
+                            h.Horario,
+                            CAST(CASE WHEN t.IdTurno IS NULL THEN 1 ELSE 0 END AS BIT) AS EstaDisponible,
+                            t.IdTurno,
+                            t.NroOrden,
+                            CASE WHEN t.IdTurno IS NOT NULL THEN CONCAT(pac.Apellido, ', ', pac.Nombre) ELSE NULL END AS Paciente,
+                            pac.Dni,
+                            pac.ObraSocial,
+                            t.Estado,
+                            t.CodigoCancelacion
                         FROM @Horarios h
-                        WHERE h.Horario NOT IN (
-                            SELECT CONVERT(VARCHAR(5), t.Horario, 108)
-                            FROM Turnos t
-                            INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        LEFT JOIN (
+                            SELECT 
+                                t_sub.IdTurno,
+                                CONVERT(VARCHAR(5), t_sub.Horario, 108) AS HorarioTexto,
+                                t_sub.NroOrden,
+                                t_sub.IdPaciente,
+                                t_sub.Estado,
+                                t_sub.CodigoCancelacion
+                            FROM Turnos t_sub
+                            INNER JOIN Especialidades e ON t_sub.IdEspecialidad = e.IdEspecialidad
                             WHERE e.Nombre = @NombreEspecialidad
-                              AND CAST(t.Fecha AS DATE) = @Fecha
-                              AND t.Activo = 1
-                        )
+                              AND CAST(t_sub.Fecha AS DATE) = @Fecha
+                              AND t_sub.Activo = 1
+                              AND t_sub.Estado <> 'Cancelado'
+                        ) t ON h.Horario = t.HorarioTexto
+                        LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
                         ORDER BY h.Horario ASC;";
 
                     return context.Database
@@ -212,8 +230,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="fecha">Fecha acordada.</param>
         /// <param name="horario">Horario asignado.</param>
         /// <param name="estado">Estado inicial del turno.</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica de 2FA para cancelación.</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del nuevo turno y número de orden.</returns>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera")
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -221,14 +240,38 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pEspecialidad = new SqlParameter("@NombreEspecialidad", nombreEspecialidad);
                 var pFecha = new SqlParameter("@Fecha", fecha.Date);
                 var pHorario = new SqlParameter("@Horario", horario);
+                var pEstado = new SqlParameter("@Estado", estado);
+                var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
 
                 var res = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario",
-                        pIdPaciente, pEspecialidad, pFecha, pHorario)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion",
+                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo)
                     .AsEnumerable()
                     .FirstOrDefault();
 
-                return res ?? new ResultadoTurnoDTO();
+                if (res != null)
+                {
+                    res.CodigoCancelacion = codigoCancelacion;
+                }
+
+                return res ?? new ResultadoTurnoDTO { CodigoCancelacion = codigoCancelacion };
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_CancelarTurnoEspecialidad</c> para cancelar un turno de especialidad
+        /// mediante validación estricta de doble factor (2FA) con la palabra clave alfanumérica.
+        /// </summary>
+        /// <param name="idTurno">Identificador del turno a cancelar.</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica de seguridad.</param>
+        public void CancelarTurnoEspecialidad(int idTurno, string codigoCancelacion)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdTurno = new SqlParameter("@IdTurno", idTurno);
+                var pCodigo = new SqlParameter("@CodigoCancelacion", codigoCancelacion.Trim());
+
+                context.Database.ExecuteSqlRaw("EXEC sp_CancelarTurnoEspecialidad @IdTurno, @CodigoCancelacion", pIdTurno, pCodigo);
             }
         }
 

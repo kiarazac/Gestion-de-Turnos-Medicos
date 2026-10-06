@@ -51,7 +51,13 @@ El sistema implementa una separación rigurosa de responsabilidades:
   - **Regla de Mayor Gravedad:** En caso de que se seleccionen múltiples síntomas de diferente severidad (ej. un síntoma de gravedad Alta junto con síntomas de gravedad Media o la opción "Otro"), el sistema garantiza que la prioridad asignada al turno corresponda a la del **síntoma con la gravedad más alta** (`1 = Alta`, `2 = Media`, `3 = Baja`).
   - **Persistencia atómica:** Persiste todos los síntomas seleccionados en la tabla `TurnoSintomas` (`sp_GuardarTurnoSintoma`).
   - **Retroalimentación visual:** Informa en pantalla y mediante código de color el nivel de prioridad resultante (Rojo para Alta, Naranja para Media, Verde para Baja).
-- **`FrmTurnoEspecialidad`:** Programación de turnos correlativos con selección de especialista y fecha.
+- **`FrmTurnoEspecialidad`:** Programación y gestión integral de turnos por especialidad médica.
+  - **Matriz de Horarios y Disponibilidad Visible:** El selector desplegable de horarios exhibe la totalidad de franjas horarias de atención distinguiendo claramente las vacantes (`XX:XX (Disponible)`) de las asignadas (`XX:XX [OCUPADO - NroTurno]`) mediante `sp_ObtenerHorariosConEstado`.
+  - **Consulta de Detalle de Turno Ocupado:** Al seleccionar un horario ocupado, se despliega en tiempo real la ficha de la cita: nombre y apellido del paciente, DNI, obra social, número de orden y estado.
+  - **Cancelación con Doble Factor (2FA):**
+    - Al emitir un turno, se genera una palabra clave alfanumérica única (`CAN-XXXX`), la cual se persiste en la base de datos (`Turnos.CodigoCancelacion`) y se imprime en el comprobante descargable `.txt`.
+    - La cancelación solo se autoriza tras ingresar la clave 2FA exacta emitida en el comprobante.
+    - Al confirmarse la cancelación (`sp_CancelarTurnoEspecialidad`), el turno pasa a estado `Cancelado` (`Activo = 0`), liberando de inmediato la franja horaria para nuevas reservas.
 - **`FrmListaTurnos`:** Tablero y contadores de turnos en espera.
 - **`FrmListaTurnosAtencion`:** Monitor de consultorio para el médico (Llamar paciente, Iniciar atención, Finalizar atención y carga de Historia Clínica).
 - **`MisSalas_PM`:** Panel para que el médico autenticado gestione la apertura y cierre de sus consultorios designados.
@@ -62,6 +68,14 @@ El sistema implementa una separación rigurosa de responsabilidades:
 
 ### 5. Pantalla Pública de Sala de Espera (`FrmUsuarioVentana`)
 - Monitor visual a pantalla completa (o visor incrustable) para pacientes en sala de espera, con actualización en tiempo real de llamados activos a consultorios y estado de la guardia.
+
+### 6. Módulos de Reportería y Estadísticas
+- **`FrmReportesAdmin` (Panel Gerencial):** Estadísticas de demanda de turnos por especialidad, resolutividad y productividad por médico con filtros por período (Hoy, Semana, Mes, Histórico) y exportación nativa a `.xlsx`, `.csv` y `.txt`.
+- **`FrmReporteGuardiaAdmin` (Reporte Operativo de Guardia):** Tablero integral de triage y urgencias con tarjetas de KPIs (Total, Alta, Media, Baja, Tasa de Resolución), colorimetría dinámica por severidad de triage, ranking de síntomas predominantes, búsqueda en vivo y exportación a `.xlsx`, `.csv` y `.txt`.
+- **`FrmMisAtenciones` (Historial Clínico del Profesional):** Consulta detallada de turnos atendidos, evolución clínica y prescripción farmacológica por médico con exportación a `.xlsx`, `.csv` y `.txt`.
+
+### 7. Servicios de Exportación Corporativa (`ClosedXML`)
+- **`Servicios/ExportadorExcel.cs`:** Servicio centralizado que confecciona libros nativos de Microsoft Excel (`.xlsx`) mediante OpenXML (`ClosedXML`), aplicando paleta corporativa médica, colores semánticos Manchester (Rojo, Amarillo, Verde), bordes sutiles, auto-ajuste inteligente de columnas y formato numérico tipado sin recortes visuales.
 
 ---
 
