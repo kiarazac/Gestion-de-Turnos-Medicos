@@ -92,7 +92,11 @@ namespace Gestion_de_Turnos_Medicos
             Form? formularioDestino = null;
             string rolNombre = usuario.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
 
-            if (rolNombre.Contains("admin") || usuario.IdRol == 3)
+            if (rolNombre.Contains("geren") || usuario.IdRol == 5)
+            {
+                formularioDestino = new FrmGerente(usuario);
+            }
+            else if (rolNombre.Contains("admin") || usuario.IdRol == 3)
             {
                 formularioDestino = new FrmAdmin(usuario);
             }
@@ -123,6 +127,9 @@ namespace Gestion_de_Turnos_Medicos
                         break;
                     case 4:
                         formularioDestino = new FrmUsuarioVentana(usuario);
+                        break;
+                    case 5:
+                        formularioDestino = new FrmGerente(usuario);
                         break;
                     default:
                         MessageBox.Show($"El rol '{usuario.NombreRol}' (ID {usuario.IdRol}) no cuenta con una pantalla asignada en el sistema.",

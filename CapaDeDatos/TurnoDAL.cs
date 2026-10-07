@@ -31,15 +31,16 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="idPaciente">Identificador del paciente.</param>
         /// <param name="idPrioridad">Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja).</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del turno creado y el número de orden asignado.</returns>
-        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad)
+        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad, decimal? monto = null)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
                 var pIdPrioridad = new SqlParameter("@IdPrioridad", idPrioridad);
+                var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
 
                 var resultado = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad", pIdPaciente, pIdPrioridad)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad, @Monto", pIdPaciente, pIdPrioridad, pMonto)
                     .AsEnumerable()
                     .FirstOrDefault();
 
@@ -233,7 +234,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="estado">Estado inicial del turno.</param>
         /// <param name="codigoCancelacion">Palabra clave alfanumérica de 2FA para cancelación.</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del nuevo turno y número de orden.</returns>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null)
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -243,10 +244,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pHorario = new SqlParameter("@Horario", horario);
                 var pEstado = new SqlParameter("@Estado", estado);
                 var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
+                var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
 
                 var res = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion",
-                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion, @Monto",
+                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo, pMonto)
                     .AsEnumerable()
                     .FirstOrDefault();
 

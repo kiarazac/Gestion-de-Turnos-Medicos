@@ -125,5 +125,83 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
             }
         }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialIngresosPorMedico</c> para obtener
+        /// la facturación acumulada e ingresos monetarios producidos por cada profesional médico.
+        /// </summary>
+        public List<ReporteIngresoMedicoDTO> ObtenerIngresosPorMedico(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object?)idEspecialidad ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteIngresoMedicoDTO>(
+                        "EXEC sp_ReporteGerencialIngresosPorMedico @FechaDesde, @FechaHasta, @IdEspecialidad",
+                        pFechaDesde, pFechaHasta, pIdEspecialidad)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialObrasSocialesVsParticulares</c>
+        /// para contrastar los montos recaudados de particulares frente a obras sociales y prepagas.
+        /// </summary>
+        public List<ReporteObraSocialVsParticularDTO> ObtenerObrasSocialesVsParticulares(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteObraSocialVsParticularDTO>(
+                        "EXEC sp_ReporteGerencialObrasSocialesVsParticulares @FechaDesde, @FechaHasta",
+                        pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialDemandaMedicos</c> para obtener
+        /// el ranking clasificado de médicos con mayor y menor demanda asistencial.
+        /// </summary>
+        public List<ReporteDemandaMedicoRankingDTO> ObtenerDemandaMedicosRanking(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteDemandaMedicoRankingDTO>(
+                        "EXEC sp_ReporteGerencialDemandaMedicos @FechaDesde, @FechaHasta",
+                        pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteMedico_RankingDiagnosticosYSintomas</c>
+        /// para obtener los diagnósticos y síntomas más frecuentes atendidos por el médico en su especialidad.
+        /// </summary>
+        public List<ReporteMedicoDiagnosticoFrecuenteDTO> ObtenerRankingDiagnosticosMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteMedicoDiagnosticoFrecuenteDTO>(
+                        "EXEC sp_ReporteMedico_RankingDiagnosticosYSintomas @IdUsuario, @FechaDesde, @FechaHasta",
+                        pIdUsuario, pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
     }
 }

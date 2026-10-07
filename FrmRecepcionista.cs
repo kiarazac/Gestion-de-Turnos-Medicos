@@ -87,6 +87,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
+        /// Abre el módulo de cierre diario de caja y recaudación.
+        /// </summary>
+        private void btnCierreCaja_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmCierreCaja(_usuarioActual));
+        }
+
+        /// <summary>
         /// Cierra la sesión activa de recepción y regresa a la pantalla de Login.
         /// </summary>
         private void salir_Click(object sender, EventArgs e)

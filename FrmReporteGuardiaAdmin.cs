@@ -485,44 +485,31 @@ namespace Gestion_de_Turnos_Medicos
 
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Exportar Reporte Operativo de Guardia";
-                sfd.Filter = "Libro de Excel (*.xlsx)|*.xlsx|Archivo CSV (*.csv)|*.csv|Archivo de Texto Plano (*.txt)|*.txt";
+                sfd.Title = "Exportar Reporte Oficial de Guardia (PDF Inmutable)";
+                sfd.Filter = "Documento PDF Inmutable (*.pdf)|*.pdf";
                 sfd.FilterIndex = 1;
-                sfd.FileName = $"Reporte_Guardia_Triage_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+                sfd.FileName = $"Reporte_Oficial_Guardia_Triage_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        string extension = Path.GetExtension(sfd.FileName).ToLowerInvariant();
+                        Servicios.ExportadorPdf.ExportarReporteGuardia(
+                            sfd.FileName,
+                            _resumenActual,
+                            _rankingSintomas,
+                            _detallesFiltrados,
+                            dtpDesde.Value.Date,
+                            dtpHasta.Value.Date,
+                            cmbPrioridad.SelectedItem?.ToString() ?? "Todas las prioridades",
+                            _usuarioActual);
 
-                        if (extension == ".xlsx")
-                        {
-                            ExportadorExcel.ExportarReporteGuardia(
-                                sfd.FileName,
-                                _resumenActual,
-                                _rankingSintomas,
-                                _detallesFiltrados,
-                                dtpDesde.Value.Date,
-                                dtpHasta.Value.Date,
-                                cmbPrioridad.SelectedItem?.ToString() ?? "Todas las prioridades",
-                                _usuarioActual);
-                        }
-                        else if (extension == ".csv")
-                        {
-                            ExportarACSV(sfd.FileName);
-                        }
-                        else
-                        {
-                            ExportarATXT(sfd.FileName);
-                        }
-
-                        MessageBox.Show($"Reporte exportado exitosamente en:\n{sfd.FileName}",
+                        MessageBox.Show($"Reporte oficial emitido y exportado exitosamente en PDF:\n{sfd.FileName}",
                             "Exportación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Error al exportar el archivo:\n" + ex.Message,
+                        MessageBox.Show("Error al exportar el archivo PDF:\n" + ex.Message,
                             "Error de Exportación", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }

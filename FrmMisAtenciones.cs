@@ -18,9 +18,11 @@ namespace Gestion_de_Turnos_Medicos
     public partial class FrmMisAtenciones : Form
     {
         private readonly HistoriaClinicaBLL _historiaClinicaBLL = new HistoriaClinicaBLL();
+        private readonly ReporteBLL _reporteBLL = new ReporteBLL();
         private readonly UsuarioLoginResult? _usuarioActual;
 
         private List<AtencionMedicoDTO> _todasLasAtenciones = new List<AtencionMedicoDTO>();
+        private List<ReporteMedicoDiagnosticoFrecuenteDTO> _rankingDiagnosticos = new List<ReporteMedicoDiagnosticoFrecuenteDTO>();
 
         public FrmMisAtenciones() : this(null)
         {
@@ -42,6 +44,7 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmMisAtenciones_Load(object? sender, EventArgs e)
         {
             ConfigurarGrilla();
+            ConfigurarGrillaRanking();
 
             if (_usuarioActual != null)
             {
@@ -130,6 +133,58 @@ namespace Gestion_de_Turnos_Medicos
             });
         }
 
+        private void ConfigurarGrillaRanking()
+        {
+            dgvRanking.AutoGenerateColumns = false;
+            dgvRanking.Columns.Clear();
+            dgvRanking.RowHeadersVisible = false;
+            dgvRanking.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRanking.ReadOnly = true;
+            dgvRanking.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+
+            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colRank",
+                HeaderText = "#",
+                Width = 45,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+
+            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colConcepto",
+                HeaderText = "Diagnóstico / Síntoma Frecuente",
+                DataPropertyName = "Concepto",
+                Width = 350
+            });
+
+            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colTipo",
+                HeaderText = "Tipo",
+                DataPropertyName = "Tipo",
+                Width = 140
+            });
+
+            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colCasos",
+                HeaderText = "Casos Registrados",
+                DataPropertyName = "CantidadCasos",
+                Width = 130,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+
+            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colPorcentaje",
+                HeaderText = "% Prevalencia",
+                DataPropertyName = "Porcentaje",
+                Width = 120,
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
+            });
+        }
+
         private void CmbPeriodo_SelectedIndexChanged(object? sender, EventArgs e)
         {
             DateTime hoy = DateTime.Today;
@@ -198,6 +253,17 @@ namespace Gestion_de_Turnos_Medicos
                 _todasLasAtenciones = _historiaClinicaBLL.ObtenerAtencionesPorMedico(
                     _usuarioActual.IdUsuario, fechaDesde, fechaHasta);
 
+                _rankingDiagnosticos = _reporteBLL.ObtenerRankingDiagnosticosMedico(
+                    _usuarioActual.IdUsuario, fechaDesde, dtpHasta.Value.Date);
+
+                dgvRanking.DataSource = null;
+                dgvRanking.DataSource = _rankingDiagnosticos;
+
+                for (int i = 0; i < dgvRanking.Rows.Count; i++)
+                {
+                    dgvRanking.Rows[i].Cells["colRank"].Value = (i + 1).ToString();
+                }
+
                 AplicarFiltroEnMemoria();
             }
             catch (Exception ex)
@@ -264,7 +330,7 @@ namespace Gestion_de_Turnos_Medicos
         private void BtnExportar_Click(object? sender, EventArgs e)
         {
             var atenciones = dgvAtenciones.DataSource as List<AtencionMedicoDTO>;
-            if (atenciones == null || atenciones.Count == 0)
+            if ((atenciones == null || atenciones.Count == 0) && _rankingDiagnosticos.Count == 0)
             {
                 MessageBox.Show("No hay registros de atenciones para exportar en este momento.",
                     "Exportar Reporte", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -274,41 +340,47 @@ namespace Gestion_de_Turnos_Medicos
             using (var sfd = new SaveFileDialog())
             {
                 string fechaArchivo = DateTime.Now.ToString("yyyyMMdd_HHmm");
-                sfd.Filter = "Libro de Excel (*.xlsx)|*.xlsx|Archivo CSV (*.csv)|*.csv|Archivo de Texto (*.txt)|*.txt";
+                sfd.Filter = "Documento Oficial PDF (*.pdf)|*.pdf";
                 sfd.FilterIndex = 1;
-                sfd.FileName = $"Reporte_Atenciones_Dr_{_usuarioActual?.Apellido ?? "Medico"}_{fechaArchivo}.xlsx";
+                sfd.FileName = $"Reporte_Atenciones_Dr_{_usuarioActual?.Apellido ?? "Medico"}_{fechaArchivo}.pdf";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        string extension = Path.GetExtension(sfd.FileName).ToLowerInvariant();
+                        Cursor = Cursors.WaitCursor;
 
-                        if (extension == ".xlsx")
-                        {
-                            ExportadorExcel.ExportarAtencionesMedico(
-                                sfd.FileName,
-                                atenciones,
-                                dtpDesde.Value.Date,
-                                dtpHasta.Value.Date,
-                                _usuarioActual);
-                        }
-                        else if (extension == ".csv")
-                        {
-                            ExportarCsv(sfd.FileName, atenciones);
-                        }
-                        else
-                        {
-                            ExportarTxt(sfd.FileName, atenciones);
-                        }
+                        ExportadorPdf.ExportarReporteMedico(
+                            sfd.FileName,
+                            atenciones ?? new List<AtencionMedicoDTO>(),
+                            _rankingDiagnosticos,
+                            dtpDesde.Value.Date,
+                            dtpHasta.Value.Date,
+                            _usuarioActual);
 
-                        MessageBox.Show($"Reporte exportado exitosamente en:\n{sfd.FileName}",
-                            "Exportación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        var resp = MessageBox.Show(
+                            $"Reporte oficial en PDF generado exitosamente en:\n{sfd.FileName}\n\n¿Desea abrir el archivo ahora?",
+                            "Exportación Exitosa", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                        if (resp == DialogResult.Yes)
+                        {
+                            try
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
+                            }
+                            catch
+                            {
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Error al exportar el archivo:\n" + ex.Message,
+                        MessageBox.Show("Error al exportar el archivo PDF:\n" + ex.Message,
                             "Error de Exportación", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        Cursor = Cursors.Default;
                     }
                 }
             }

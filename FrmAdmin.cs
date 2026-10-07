@@ -70,14 +70,6 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Abre el módulo de reportes gerenciales y estadísticas en el panel contenedor central.
-        /// </summary>
-        private void btnReportes_Click(object sender, EventArgs e)
-        {
-            AbrirFormularioHijo(new FrmReportesAdmin(_usuarioActual));
-        }
-
-        /// <summary>
         /// Abre el reporte operativo de guardia y distribución de triage en el panel contenedor central.
         /// </summary>
         private void btnReporteGuardia_Click(object sender, EventArgs e)

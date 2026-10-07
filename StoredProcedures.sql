@@ -3023,12 +3023,12 @@ BEGIN
         e.IdEspecialidad,
         e.Nombre AS Especialidad,
         COUNT(t.IdTurno) AS TotalTurnos,
-        SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
-        SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END) AS TurnosEnEspera,
+        ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TurnosAtendidos,
+        ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END), 0) AS TurnosEnEspera,
         CAST(
             CASE 
                 WHEN COUNT(t.IdTurno) > 0 
-                THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
+                THEN (CAST(ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
                 ELSE 0.0 
             END AS DECIMAL(5,2)
         ) AS PorcentajeAtencion
@@ -3461,3 +3461,402 @@ END;
 
 GO
 
+
+-- =========================================================================
+-- MÓDULO 7: REPORTES GERENCIALES, CIERRE DE CAJA Y RANKINGS POR ROL
+-- =========================================================================
+
+/* =========================================================================
+** Procedimiento : sp_ReporteCierreCajaDiario
+** Sección       : 7.1
+** Propósito     : Calcula y consolida el resumen de recaudación y turnos emitidos para una fecha específica (cierre diario de caja).
+** Entidad/Tablas: `Turnos`, `Pacientes`
+** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
+** Estado        : `EN USO`
+** Retorno       : `FechaCaja`, `TotalTurnos`, `TotalRecaudado`, `TurnosParticulares`, `MontoParticulares`, `TurnosObraSocial`, `MontoObraSocial`, `TurnosEmergencia`, `MontoEmergencia`, `TurnosEspecialidad`, `MontoEspecialidad`
+** Parámetros   :
+**                `@Fecha` (`DATE`, IN, OPT) - Fecha de la jornada para el cierre de caja.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDiario
+    @Fecha DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @Fecha IS NULL SET @Fecha = CAST(GETDATE() AS DATE);
+
+        SELECT 
+            @Fecha AS FechaCaja,
+            COUNT(t.IdTurno) AS TotalTurnos,
+            ISNULL(SUM(t.Monto), 0.00) AS TotalRecaudado,
+            -- Totales por Cobertura
+            ISNULL(SUM(CASE WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 1 ELSE 0 END), 0) AS TurnosParticulares,
+            ISNULL(SUM(CASE WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN t.Monto ELSE 0 END), 0.00) AS MontoParticulares,
+            ISNULL(SUM(CASE WHEN p.ObraSocial IS NOT NULL AND p.ObraSocial NOT IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 1 ELSE 0 END), 0) AS TurnosObraSocial,
+            ISNULL(SUM(CASE WHEN p.ObraSocial IS NOT NULL AND p.ObraSocial NOT IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN t.Monto ELSE 0 END), 0.00) AS MontoObraSocial,
+            -- Totales por Modalidad
+            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEmergencia,
+            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEmergencia,
+            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEspecialidad,
+            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEspecialidad
+        FROM Turnos t
+        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        WHERE CAST(t.Fecha AS DATE) = @Fecha
+          AND t.Activo = 1
+          AND t.Estado <> 'Cancelado';
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteCierreCajaDetalle
+** Sección       : 7.2
+** Propósito     : Devuelve el listado detallado de turnos emitidos/atendidos en la fecha con paciente, DNI, cobertura, monto y profesional.
+** Entidad/Tablas: `Turnos`, `Pacientes`, `Especialidades`, `Usuarios`
+** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
+** Estado        : `EN USO`
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`
+** Parámetros   :
+**                `@Fecha` (`DATE`, IN, OPT) - Fecha consultada para el detalle de caja.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDetalle
+    @Fecha DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @Fecha IS NULL SET @Fecha = CAST(GETDATE() AS DATE);
+
+        SELECT 
+            t.IdTurno,
+            ISNULL(t.NroOrden, 'S/N') AS NroOrden,
+            CAST(t.Fecha AS DATE) AS Fecha,
+            t.Horario,
+            ISNULL(CONCAT(p.Apellido, ', ', p.Nombre), 'Sin Paciente') AS PacienteCompleto,
+            ISNULL(p.Dni, '--') AS DniPaciente,
+            CASE 
+                WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular' 
+                ELSE p.ObraSocial 
+            END AS ObraSocial,
+            CASE 
+                WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN CAST(1 AS BIT) 
+                ELSE CAST(0 AS BIT) 
+            END AS EsParticular,
+            ISNULL(t.TipoTurno, 'Consulta') AS TipoTurno,
+            ISNULL(e.Nombre, 'General') AS Especialidad,
+            ISNULL(t.Monto, 0.00) AS MontoCobrado,
+            ISNULL(t.Estado, 'En Espera') AS Estado,
+            ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado
+        FROM Turnos t
+        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+        LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
+        WHERE CAST(t.Fecha AS DATE) = @Fecha
+          AND t.Activo = 1
+          AND t.Estado <> 'Cancelado'
+        ORDER BY t.Horario ASC, t.IdTurno ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteGerencialIngresosPorMedico
+** Sección       : 7.3
+** Propósito     : Genera estadísticas de recaudación e ingresos monetarios generados por cada profesional médico en un rango temporal.
+** Entidad/Tablas: `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+** Invocado por  : `FrmReportesGerente` (Rol Gerente)
+** Estado        : `EN USO`
+** Retorno       : `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `ConsultasAtendidas`, `IngresosTotales`, `TicketPromedio`, `PorcentajeAporte`
+** Parámetros   :
+**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha mínima de atención.
+**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha máxima de atención.
+**                `@IdEspecialidad` (`INT`, IN, OPT) - Filtrar por especialidad.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialIngresosPorMedico
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @IdEspecialidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @GranTotalRecaudado DECIMAL(18,2) = 0.00;
+
+        SELECT @GranTotalRecaudado = ISNULL(SUM(t.Monto), 0.00)
+        FROM Turnos t
+        WHERE (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+          AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
+          AND t.Activo = 1
+          AND t.Estado IN ('Atendido', 'Finalizado');
+
+        SELECT 
+            u.IdUsuario,
+            ISNULL(CONCAT(u.Apellido, ', ', u.Nombre), 'Médico Desconocido') AS NombreMedico,
+            ISNULL(u.NroMatricula, '--') AS Matricula,
+            ISNULL(e.Nombre, 'General') AS Especialidad,
+            COUNT(t.IdTurno) AS ConsultasAtendidas,
+            ISNULL(SUM(t.Monto), 0.00) AS IngresosTotales,
+            CASE 
+                WHEN COUNT(t.IdTurno) > 0 THEN ISNULL(SUM(t.Monto) / COUNT(t.IdTurno), 0.00)
+                ELSE 0.00 
+            END AS TicketPromedio,
+            CASE 
+                WHEN @GranTotalRecaudado > 0 THEN CAST((ISNULL(SUM(t.Monto), 0.00) / @GranTotalRecaudado) * 100.0 AS DECIMAL(5,2))
+                ELSE 0.00 
+            END AS PorcentajeAporte
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+        LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+        LEFT JOIN Turnos t ON u.IdUsuario = t.IdUsuario 
+                           AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+                           AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+                           AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
+                           AND t.Activo = 1
+                           AND t.Estado IN ('Atendido', 'Finalizado')
+        WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+          AND u.Activo = 1
+          AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
+        GROUP BY u.IdUsuario, u.Apellido, u.Nombre, u.NroMatricula, e.Nombre
+        ORDER BY IngresosTotales DESC, ConsultasAtendidas DESC, u.Apellido ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteGerencialObrasSocialesVsParticulares
+** Sección       : 7.4
+** Propósito     : Compara la facturación y volumen de turnos de pacientes particulares frente a afiliados a obras sociales/prepagas.
+** Entidad/Tablas: `Turnos`, `Pacientes`
+** Invocado por  : `FrmReportesGerente` (Rol Gerente)
+** Estado        : `EN USO`
+** Retorno       : `IdFila`, `NombreCobertura`, `TipoCobertura`, `CantidadTurnos`, `TotalRecaudado`, `PorcentajeFacturacion`, `TicketPromedio`
+** Parámetros   :
+**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha inicial de consulta.
+**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha final de consulta.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialObrasSocialesVsParticulares
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @GranTotalRecaudado DECIMAL(18,2) = 0.00;
+
+        SELECT @GranTotalRecaudado = ISNULL(SUM(t.Monto), 0.00)
+        FROM Turnos t
+        WHERE (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+          AND t.Activo = 1
+          AND t.Estado <> 'Cancelado';
+
+        WITH BaseDatos AS (
+            SELECT 
+                t.IdTurno,
+                t.Monto,
+                CASE 
+                    WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular / Sin Obra Social'
+                    ELSE LTRIM(RTRIM(p.ObraSocial))
+                END AS NombreCobertura,
+                CASE 
+                    WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular' 
+                    ELSE 'Obra Social / Prepaga' 
+                END AS TipoCobertura
+            FROM Turnos t
+            INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+            WHERE (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+              AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+              AND t.Activo = 1
+              AND t.Estado <> 'Cancelado'
+        )
+        SELECT 
+            ROW_NUMBER() OVER(ORDER BY ISNULL(SUM(Monto), 0.00) DESC) AS IdFila,
+            NombreCobertura,
+            TipoCobertura,
+            COUNT(IdTurno) AS CantidadTurnos,
+            ISNULL(SUM(Monto), 0.00) AS TotalRecaudado,
+            CASE 
+                WHEN @GranTotalRecaudado > 0 THEN CAST((ISNULL(SUM(Monto), 0.00) / @GranTotalRecaudado) * 100.0 AS DECIMAL(5,2))
+                ELSE 0.00 
+            END AS PorcentajeFacturacion,
+            CASE 
+                WHEN COUNT(IdTurno) > 0 THEN ISNULL(SUM(Monto) / COUNT(IdTurno), 0.00)
+                ELSE 0.00 
+            END AS TicketPromedio
+        FROM BaseDatos
+        GROUP BY NombreCobertura, TipoCobertura
+        ORDER BY TotalRecaudado DESC, CantidadTurnos DESC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteGerencialDemandaMedicos
+** Sección       : 7.5
+** Propósito     : Genera el ranking de médicos con mayor y menor demanda de turnos, computando demanda total, atenciones y tasa de resolución.
+** Entidad/Tablas: `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+** Invocado por  : `FrmReportesGerente` (Rol Gerente)
+** Estado        : `EN USO`
+** Retorno       : `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `TotalTurnosAsignados`, `TurnosAtendidos`, `TurnosEnEspera`, `TasaResolucion`, `CategoriaDemanda`
+** Parámetros   :
+**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha mínima de turno.
+**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha máxima de turno.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialDemandaMedicos
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            u.IdUsuario,
+            ISNULL(CONCAT(u.Apellido, ', ', u.Nombre), 'Médico Desconocido') AS NombreMedico,
+            ISNULL(u.NroMatricula, '--') AS Matricula,
+            ISNULL(e.Nombre, 'General') AS Especialidad,
+            COUNT(t.IdTurno) AS TotalTurnosAsignados,
+            ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TurnosAtendidos,
+            ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END), 0) AS TurnosEnEspera,
+            CASE 
+                WHEN COUNT(t.IdTurno) > 0 THEN CAST((ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) * 100.0 / COUNT(t.IdTurno)) AS DECIMAL(5,2))
+                ELSE 0.00 
+            END AS TasaResolucion,
+            CASE 
+                WHEN COUNT(t.IdTurno) >= 10 THEN 'Alta Demanda'
+                WHEN COUNT(t.IdTurno) >= 4 THEN 'Demanda Media'
+                ELSE 'Baja Demanda'
+            END AS CategoriaDemanda
+        FROM Usuarios u
+        INNER JOIN Roles r ON u.IdRol = r.IdRol
+        LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
+        LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
+        LEFT JOIN Turnos t ON u.IdUsuario = t.IdUsuario 
+                           AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+                           AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+                           AND t.Activo = 1
+                           AND t.Estado <> 'Cancelado'
+        WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+          AND u.Activo = 1
+        GROUP BY u.IdUsuario, u.Apellido, u.Nombre, u.NroMatricula, e.Nombre
+        ORDER BY TotalTurnosAsignados DESC, TurnosAtendidos DESC, u.Apellido ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReporteMedico_RankingDiagnosticosYSintomas
+** Sección       : 6.17
+** Propósito     : Genera el ranking consolidado de diagnósticos clínicos emitidos y síntomas de triage atendidos por un profesional médico.
+** Entidad/Tablas: `HistoriasClinicas`, `TurnoSintomas`, `Sintomas`, `Turnos`
+** Invocado por  : `FrmMisAtenciones` (Rol Personal Médico)
+** Estado        : `EN USO`
+** Retorno       : `Concepto`, `Tipo`, `CantidadCasos`, `Porcentaje`
+** Parámetros   :
+**                `@IdUsuario` (`INT`, IN) - ID del médico logueado.
+**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha mínima.
+**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha máxima.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingDiagnosticosYSintomas
+    @IdUsuario INT,
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @TotalConsultas INT = 0;
+
+        SELECT @TotalConsultas = COUNT(DISTINCT hc.IdHistoria)
+        FROM HistoriasClinicas hc
+        WHERE hc.IdUsuario = @IdUsuario
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+          AND hc.Activo = 1;
+
+        WITH ConceptosConsolidados AS (
+            SELECT 
+                LTRIM(RTRIM(hc.DiagRapido)) AS Concepto,
+                'Diagnóstico Clínico' AS Tipo,
+                COUNT(hc.IdHistoria) AS CantidadCasos
+            FROM HistoriasClinicas hc
+            WHERE hc.IdUsuario = @IdUsuario
+              AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+              AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+              AND hc.Activo = 1
+              AND ISNULL(LTRIM(RTRIM(hc.DiagRapido)), '') NOT IN ('', '-')
+            GROUP BY LTRIM(RTRIM(hc.DiagRapido))
+
+            UNION ALL
+
+            SELECT 
+                s.Descripcion AS Concepto,
+                'Síntoma Triage' AS Tipo,
+                COUNT(ts.IdTurnoSintoma) AS CantidadCasos
+            FROM TurnoSintomas ts
+            INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+            INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+            WHERE t.IdUsuario = @IdUsuario
+              AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
+              AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
+              AND t.Activo = 1
+              AND ts.Activo = 1
+              AND s.Activo = 1
+            GROUP BY s.Descripcion
+        )
+        SELECT 
+            Concepto,
+            Tipo,
+            CantidadCasos,
+            CASE 
+                WHEN @TotalConsultas > 0 THEN CAST((CantidadCasos * 100.0 / @TotalConsultas) AS DECIMAL(5,2))
+                ELSE 0.00 
+            END AS Porcentaje
+        FROM ConceptosConsolidados
+        ORDER BY CantidadCasos DESC, Concepto ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO

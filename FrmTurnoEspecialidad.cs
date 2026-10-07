@@ -369,8 +369,11 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = idPaciente;
                 }
 
-                // Registro del turno con generación automática de palabra clave 2FA
-                var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera");
+                // Cálculo del arancel según reglas de negocio (fijo $15.000, 30% $4.500 con Obra Social)
+                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Especialidad", obraSocial);
+
+                // Registro del turno con generación automática de palabra clave 2FA y arancel
+                var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera", null, montoArancel);
                 string nroOrden = resultadoTurno.NroOrden ?? $"T-{resultadoTurno.IdNuevoTurno:D3}";
                 string codigoCancelacion = resultadoTurno.CodigoCancelacion ?? string.Empty;
 
@@ -400,7 +403,8 @@ namespace Gestion_de_Turnos_Medicos
                     $"Paciente: {apellido}, {nombre}\n" +
                     $"Especialidad: {especialidad}\n" +
                     $"Fecha: {fecha:dd/MM/yyyy} a las {horario} hs\n" +
-                    $"N° Turno: {nroOrden}\n\n" +
+                    $"N° Turno: {nroOrden}\n" +
+                    $"Arancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})\n\n" +
                     $"CLAVE DE CANCELACIÓN (2FA): {codigoCancelacion}\n" +
                     $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)",
                     "Turno Generado",

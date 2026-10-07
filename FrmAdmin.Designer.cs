@@ -33,8 +33,6 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir = new Button();
             LReporteGuardia = new Label();
             btnReporteGuardia = new Button();
-            LReportes = new Label();
-            btnReportes = new Button();
             LEspecialidades = new Label();
             btnEspecialidades = new Button();
             label3 = new Label();
@@ -51,8 +49,6 @@ namespace Gestion_de_Turnos_Medicos
             panel1.BackColor = SystemColors.ActiveCaption;
             panel1.Controls.Add(LReporteGuardia);
             panel1.Controls.Add(btnReporteGuardia);
-            panel1.Controls.Add(LReportes);
-            panel1.Controls.Add(btnReportes);
             panel1.Controls.Add(Lsalir);
             panel1.Controls.Add(btnSalir);
             panel1.Controls.Add(LEspecialidades);
@@ -67,33 +63,11 @@ namespace Gestion_de_Turnos_Medicos
             panel1.Size = new Size(200, 425);
             panel1.TabIndex = 0;
             // 
-            // LReportes
-            // 
-            LReportes.AutoSize = true;
-            LReportes.Font = new Font("Arial Black", 11.25F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LReportes.Location = new Point(48, 345);
-            LReportes.Name = "LReportes";
-            LReportes.Size = new Size(84, 22);
-            LReportes.TabIndex = 8;
-            LReportes.Text = "Reportes";
-            // 
-            // btnReportes
-            // 
-            btnReportes.BackgroundImage = Properties.Resources.lista_turnos;
-            btnReportes.BackgroundImageLayout = ImageLayout.Zoom;
-            btnReportes.Cursor = Cursors.Hand;
-            btnReportes.Location = new Point(46, 370);
-            btnReportes.Name = "btnReportes";
-            btnReportes.Size = new Size(92, 73);
-            btnReportes.TabIndex = 9;
-            btnReportes.UseVisualStyleBackColor = true;
-            btnReportes.Click += btnReportes_Click;
-            // 
             // LReporteGuardia
             // 
             LReporteGuardia.AutoSize = true;
             LReporteGuardia.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LReporteGuardia.Location = new Point(32, 455);
+            LReporteGuardia.Location = new Point(32, 345);
             LReporteGuardia.Name = "LReporteGuardia";
             LReporteGuardia.Size = new Size(122, 20);
             LReporteGuardia.TabIndex = 10;
@@ -104,7 +78,7 @@ namespace Gestion_de_Turnos_Medicos
             btnReporteGuardia.BackgroundImage = Properties.Resources.turnos_emergencia;
             btnReporteGuardia.BackgroundImageLayout = ImageLayout.Zoom;
             btnReporteGuardia.Cursor = Cursors.Hand;
-            btnReporteGuardia.Location = new Point(46, 480);
+            btnReporteGuardia.Location = new Point(46, 370);
             btnReporteGuardia.Name = "btnReporteGuardia";
             btnReporteGuardia.Size = new Size(92, 73);
             btnReporteGuardia.TabIndex = 11;
@@ -116,7 +90,7 @@ namespace Gestion_de_Turnos_Medicos
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 565);
+            Lsalir.Location = new Point(65, 455);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
             Lsalir.TabIndex = 6;
@@ -127,7 +101,7 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
             btnSalir.Cursor = Cursors.Hand;
-            btnSalir.Location = new Point(46, 590);
+            btnSalir.Location = new Point(46, 480);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
             btnSalir.TabIndex = 7;
@@ -232,8 +206,6 @@ namespace Gestion_de_Turnos_Medicos
         private Label label3;
         private Label Lsalir;
         private Button btnSalir;
-        private Label LReportes;
-        private Button btnReportes;
         private Label LReporteGuardia;
         private Button btnReporteGuardia;
     }

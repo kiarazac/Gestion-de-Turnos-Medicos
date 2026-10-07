@@ -30,6 +30,7 @@ namespace Gestion_de_Turnos_Medicos
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmRecepcionista));
             panel1 = new Panel();
+            btnCierreCaja = new Button();
             btnUsuarioVentana = new Button();
             asign_turnosEspecialidad = new Button();
             salir = new Button();
@@ -41,7 +42,9 @@ namespace Gestion_de_Turnos_Medicos
             // 
             // panel1
             // 
+            panel1.AutoScroll = true;
             panel1.BackColor = Color.SteelBlue;
+            panel1.Controls.Add(btnCierreCaja);
             panel1.Controls.Add(btnUsuarioVentana);
             panel1.Controls.Add(asign_turnosEspecialidad);
             panel1.Controls.Add(salir);
@@ -78,11 +81,24 @@ namespace Gestion_de_Turnos_Medicos
             asign_turnosEspecialidad.UseVisualStyleBackColor = false;
             asign_turnosEspecialidad.Click += asign_turnosEspecialidad_Click_1;
             // 
+            // btnCierreCaja
+            // 
+            btnCierreCaja.BackColor = Color.White;
+            btnCierreCaja.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnCierreCaja.ForeColor = Color.FromArgb(15, 118, 110);
+            btnCierreCaja.Location = new Point(25, 400);
+            btnCierreCaja.Name = "btnCierreCaja";
+            btnCierreCaja.Size = new Size(102, 85);
+            btnCierreCaja.TabIndex = 5;
+            btnCierreCaja.Text = "Cierre de\r\nCaja";
+            btnCierreCaja.UseVisualStyleBackColor = false;
+            btnCierreCaja.Click += btnCierreCaja_Click;
+            // 
             // salir
             // 
             salir.BackgroundImage = Properties.Resources.salir;
             salir.BackgroundImageLayout = ImageLayout.Stretch;
-            salir.Location = new Point(25, 415);
+            salir.Location = new Point(25, 495);
             salir.Name = "salir";
             salir.Size = new Size(102, 85);
             salir.TabIndex = 2;
@@ -147,5 +163,6 @@ namespace Gestion_de_Turnos_Medicos
         private Panel panelContenedor;
         private Button asign_turnosEspecialidad;
         private Button btnUsuarioVentana;
+        private Button btnCierreCaja;
     }
 }

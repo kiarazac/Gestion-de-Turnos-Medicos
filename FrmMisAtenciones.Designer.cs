@@ -48,8 +48,16 @@ namespace Gestion_de_Turnos_Medicos
             lblDesde = new Label();
             cmbPeriodo = new ComboBox();
             lblPeriodo = new Label();
+            tabMisAtenciones = new TabControl();
+            tabConsultas = new TabPage();
+            tabRanking = new TabPage();
+            dgvRanking = new DataGridView();
             pnlHeader.SuspendLayout();
             pnlContenedorPrincipal.SuspendLayout();
+            tabMisAtenciones.SuspendLayout();
+            tabConsultas.SuspendLayout();
+            tabRanking.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRanking).BeginInit();
             pnlCardDetalle.SuspendLayout();
             pnlCardGrilla.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvAtenciones).BeginInit();
@@ -92,8 +100,7 @@ namespace Gestion_de_Turnos_Medicos
             // pnlContenedorPrincipal
             // 
             pnlContenedorPrincipal.BackColor = Color.FromArgb(241, 245, 249);
-            pnlContenedorPrincipal.Controls.Add(pnlCardGrilla);
-            pnlContenedorPrincipal.Controls.Add(pnlCardDetalle);
+            pnlContenedorPrincipal.Controls.Add(tabMisAtenciones);
             pnlContenedorPrincipal.Controls.Add(pnlFiltros);
             pnlContenedorPrincipal.Dock = DockStyle.Fill;
             pnlContenedorPrincipal.Location = new Point(0, 60);
@@ -101,6 +108,52 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenedorPrincipal.Padding = new Padding(12);
             pnlContenedorPrincipal.Size = new Size(1100, 540);
             pnlContenedorPrincipal.TabIndex = 1;
+            // 
+            // tabMisAtenciones
+            // 
+            tabMisAtenciones.Controls.Add(tabConsultas);
+            tabMisAtenciones.Controls.Add(tabRanking);
+            tabMisAtenciones.Dock = DockStyle.Fill;
+            tabMisAtenciones.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            tabMisAtenciones.Location = new Point(12, 68);
+            tabMisAtenciones.Name = "tabMisAtenciones";
+            tabMisAtenciones.SelectedIndex = 0;
+            tabMisAtenciones.Size = new Size(1076, 460);
+            tabMisAtenciones.TabIndex = 1;
+            // 
+            // tabConsultas
+            // 
+            tabConsultas.Controls.Add(pnlCardGrilla);
+            tabConsultas.Controls.Add(pnlCardDetalle);
+            tabConsultas.Location = new Point(4, 25);
+            tabConsultas.Name = "tabConsultas";
+            tabConsultas.Padding = new Padding(5);
+            tabConsultas.Size = new Size(1068, 431);
+            tabConsultas.TabIndex = 0;
+            tabConsultas.Text = "  📋 Consultas y Pacientes Atendidos  ";
+            tabConsultas.UseVisualStyleBackColor = true;
+            // 
+            // tabRanking
+            // 
+            tabRanking.Controls.Add(dgvRanking);
+            tabRanking.Location = new Point(4, 25);
+            tabRanking.Name = "tabRanking";
+            tabRanking.Padding = new Padding(10);
+            tabRanking.Size = new Size(1068, 431);
+            tabRanking.TabIndex = 1;
+            tabRanking.Text = "  📊 Ranking de Diagnósticos y Síntomas  ";
+            tabRanking.UseVisualStyleBackColor = true;
+            // 
+            // dgvRanking
+            // 
+            dgvRanking.BackgroundColor = Color.White;
+            dgvRanking.BorderStyle = BorderStyle.None;
+            dgvRanking.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvRanking.Dock = DockStyle.Fill;
+            dgvRanking.Location = new Point(10, 10);
+            dgvRanking.Name = "dgvRanking";
+            dgvRanking.Size = new Size(1048, 411);
+            dgvRanking.TabIndex = 0;
             // 
             // pnlFiltros
             // 
@@ -389,5 +442,9 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtDetalleEvolucion;
         private Label lblTituloReceta;
         private TextBox txtDetalleReceta;
+        private TabControl tabMisAtenciones;
+        private TabPage tabConsultas;
+        private TabPage tabRanking;
+        private DataGridView dgvRanking;
     }
 }

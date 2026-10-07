@@ -36,6 +36,36 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
+        /// Determina si una denominación de cobertura médica califica como obra social activa o particular.
+        /// </summary>
+        public static bool TieneObraSocial(string? obraSocial)
+        {
+            if (string.IsNullOrWhiteSpace(obraSocial)) return false;
+            var normalizada = obraSocial.Trim().ToLowerInvariant();
+            return !(normalizada == "-" || normalizada == "particular" || normalizada == "sin obra social" || normalizada == "ninguna");
+        }
+
+        /// <summary>
+        /// Calcula el arancel que debe abonar el paciente en caja según las reglas de negocio:
+        /// - Fijo para especialidad: $15.000 (Particular) o $4.500 (30% si tiene Obra Social).
+        /// - Emergencia / Guardia: $25.000 (Particular) o $7.500 (30% si tiene Obra Social).
+        /// </summary>
+        /// <param name="tipoTurno">Tipo de turno ('Especialidad' o 'Emergencia').</param>
+        /// <param name="obraSocial">Nombre de la obra social o '-' / Particular.</param>
+        /// <returns>Monto a abonar por el paciente.</returns>
+        public static decimal CalcularArancelSugerido(string tipoTurno, string? obraSocial)
+        {
+            bool esEmergencia = tipoTurno != null && (tipoTurno.Contains("emergencia", StringComparison.OrdinalIgnoreCase) ||
+                                tipoTurno.Contains("guardia", StringComparison.OrdinalIgnoreCase));
+
+            decimal baseParticular = esEmergencia ? 25000.00m : 15000.00m;
+            bool conObraSocial = TieneObraSocial(obraSocial);
+
+            // Paciente abona solo el 30% si cuenta con obra social
+            return conObraSocial ? Math.Round(baseParticular * 0.30m, 2) : baseParticular;
+        }
+
+        /// <summary>
         /// Determina la prioridad de triage según los síntomas seleccionados, crea el turno de emergencia
         /// y persiste las relaciones intermedias con cada síntoma manifestado.
         /// Si se seleccionan varios síntomas con diferentes niveles de gravedad, la prioridad asignada
@@ -44,13 +74,14 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="idPaciente">Identificador único del paciente admitido.</param>
         /// <param name="idsSintomas">Lista de identificadores de síntomas tildados.</param>
         /// <param name="esOtroSeleccionado">Indica si el paciente seleccionó la opción de síntoma no catalogado ("Otro").</param>
+        /// <param name="monto">Monto arancelario recaudado o pactado para el turno.</param>
         /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
         /// <exception cref="ArgumentException">Se lanza si el ID del paciente es inválido o no se especificó ningún síntoma ni la opción 'Otro'.</exception>
         /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
-        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado)
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, decimal? monto = null)
         {
             // Invoca la sobrecarga principal descartando la salida de texto de la prioridad
-            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out _);
+            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out _, monto);
         }
 
         /// <summary>
@@ -62,10 +93,11 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="idsSintomas">Lista de identificadores de síntomas tildados.</param>
         /// <param name="esOtroSeleccionado">Indica si el paciente seleccionó la opción de síntoma no catalogado ("Otro").</param>
         /// <param name="prioridadTexto">Parámetro de salida que entrega el nivel de urgencia asignado ('ALTA', 'MEDIA', 'BAJA').</param>
+        /// <param name="monto">Monto arancelario recaudado o pactado para el turno.</param>
         /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
         /// <exception cref="ArgumentException">Se lanza si los datos son inválidos o no hay ningún síntoma seleccionado.</exception>
         /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
-        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto)
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto, decimal? monto = null)
         {
             if (idPaciente <= 0)
                 throw new ArgumentException("El ID del paciente es inválido o no ha sido registrado/cargado.");
@@ -109,8 +141,8 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 _ => "BAJA"
             };
 
-            // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad calculada
-            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada);
+            // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad calculada y el monto
+            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada, monto);
 
             if (resultadoTurno.IdNuevoTurno <= 0)
                 throw new Exception("Error al generar el turno en la base de datos.");
@@ -232,7 +264,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID de turno, código de orden generado y clave 2FA.</returns>
         /// <exception cref="ArgumentException">Se lanza si faltan datos o la fecha es anterior al día actual.</exception>
         /// <exception cref="InvalidOperationException">Se lanza si ya existe un turno asignado para la misma fecha, horario y especialidad.</exception>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null)
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null)
         {
             if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
                 throw new ArgumentException("Todos los datos del turno programado son obligatorios.");
@@ -251,7 +283,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 codigoCancelacion = GenerarCodigoCancelacion();
             }
 
-            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion);
+            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion, monto);
         }
 
         /// <summary>

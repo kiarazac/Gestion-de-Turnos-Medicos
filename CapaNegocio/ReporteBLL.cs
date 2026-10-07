@@ -69,5 +69,67 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         {
             return _especialidadDAL.ListarEspecialidades(incluirInactivas: false);
         }
+
+        /// <summary>
+        /// Obtiene y valida las estadísticas de ingresos y facturación acumulada por profesional médico.
+        /// </summary>
+        public List<ReporteIngresoMedicoDTO> ObtenerIngresosPorMedico(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            if (idEspecialidad.HasValue && idEspecialidad.Value <= 0)
+            {
+                idEspecialidad = null;
+            }
+
+            return _reporteDAL.ObtenerIngresosPorMedico(fechaDesde, fechaHasta, idEspecialidad);
+        }
+
+        /// <summary>
+        /// Obtiene la comparativa económica de facturación de particulares frente a obras sociales y prepagas.
+        /// </summary>
+        public List<ReporteObraSocialVsParticularDTO> ObtenerObrasSocialesVsParticulares(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerObrasSocialesVsParticulares(fechaDesde, fechaHasta);
+        }
+
+        /// <summary>
+        /// Obtiene el ranking analítico de médicos ordenados por demanda asistencial.
+        /// </summary>
+        public List<ReporteDemandaMedicoRankingDTO> ObtenerDemandaMedicosRanking(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerDemandaMedicosRanking(fechaDesde, fechaHasta);
+        }
+
+        /// <summary>
+        /// Obtiene el ranking consolidado de diagnósticos clínicos y síntomas atendidos por el médico en su especialidad.
+        /// </summary>
+        public List<ReporteMedicoDiagnosticoFrecuenteDTO> ObtenerRankingDiagnosticosMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (idUsuario <= 0)
+            {
+                throw new ArgumentException("Debe indicar un identificador de usuario médico válido.");
+            }
+
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerRankingDiagnosticosMedico(idUsuario, fechaDesde, fechaHasta);
+        }
     }
 }

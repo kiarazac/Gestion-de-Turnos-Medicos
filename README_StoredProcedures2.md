@@ -4053,3 +4053,98 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
 *(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra plenamente integrado en el formulario de atención médica `FrmListaTurnosAtencion`, consumido por el botón "Iniciar Atención" para la consulta de antecedentes del paciente).*
 
 
+
+
+---
+
+## Módulo 7: Cierre de Caja y Facturación Gerencial (Rol Recepcionista y Gerente)
+
+### 7.1 `sp_ReporteCierreCajaDiario`
+- **Descripción:** Calcula y consolida el resumen cuantitativo y monetario de la jornada de atención para el cierre de caja diario (total turnos, total recaudado, particular vs. obra social y especialidad vs. emergencia).
+- **Entidad:** `Turnos` / `Caja`
+- **Operación:** Consulta / Reporte Financiero
+- **Tablas:** `Turnos`, `Pacientes`
+- **Forms que lo utilizan:** `FrmCierreCaja` (Rol Recepcionista)
+- **Acción:** Carga inicial del formulario y cambio de fecha de caja (`dtpFechaCaja_ValueChanged`)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Fecha` | `DATE` | IN (OPT) | Fecha consultada para el cierre de caja (por defecto fecha actual). |
+- **Devuelve:** `FechaCaja`, `TotalTurnos`, `TotalRecaudado`, `TurnosParticulares`, `MontoParticulares`, `TurnosObraSocial`, `MontoObraSocial`, `TurnosEmergencia`, `MontoEmergencia`, `TurnosEspecialidad`, `MontoEspecialidad`.
+
+### 7.2 `sp_ReporteCierreCajaDetalle`
+- **Descripción:** Devuelve la nómina completa y detallada de turnos emitidos/atendidos durante el día con identificación de paciente, cobertura, arancel cobrado en caja y profesional asignado.
+- **Entidad:** `Turnos` / `Caja`
+- **Operación:** Consulta / Reporte Detallado
+- **Tablas:** `Turnos`, `Pacientes`, `Especialidades`, `Usuarios`
+- **Forms que lo utilizan:** `FrmCierreCaja` (Rol Recepcionista)
+- **Acción:** Población de la grilla de turnos y generación del Acta Oficial de Cierre en PDF
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Fecha` | `DATE` | IN (OPT) | Fecha de la jornada analizada. |
+- **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`.
+
+### 7.3 `sp_ReporteGerencialIngresosPorMedico`
+- **Descripción:** Totaliza la facturación médica acumulada por cada facultativo según las consultas efectivas atendidas, calculando ticket promedio y el porcentaje de contribución a los ingresos del centro médico.
+- **Entidad:** `Usuarios` / `Turnos` / `Finanzas`
+- **Operación:** Consulta / Reporte Gerencial
+- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Ingresos por Médico"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha inicial de análisis. |
+  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha final de análisis. |
+  | `@IdEspecialidad` | `INT` | IN (OPT) | Identificador de especialidad médica para filtro individual. |
+- **Devuelve:** `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `ConsultasAtendidas`, `IngresosTotales`, `TicketPromedio`, `PorcentajeAporte`.
+
+### 7.4 `sp_ReporteGerencialObrasSocialesVsParticulares`
+- **Descripción:** Consolida la facturación global discriminando entre pacientes particulares y las distintas obras sociales o prepagas, informando montos, volumen de consultas y ticket promedio.
+- **Entidad:** `Turnos` / `Pacientes` / `Finanzas`
+- **Operación:** Consulta / Balance Comercial
+- **Tablas:** `Turnos`, `Pacientes`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Obras Sociales vs. Particulares"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima de consulta. |
+  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima de consulta. |
+- **Devuelve:** `IdFila`, `NombreCobertura`, `TipoCobertura`, `CantidadTurnos`, `TotalRecaudado`, `PorcentajeFacturacion`, `TicketPromedio`.
+
+### 7.5 `sp_ReporteGerencialDemandaMedicos`
+- **Descripción:** Construye el ranking analítico de profesionales clasificados por nivel de demanda de turnos (alta, media o baja demanda), midiendo volumen asignado y tasa de resolución efectiva.
+- **Entidad:** `Usuarios` / `Turnos`
+- **Operación:** Consulta / Analítica de Demanda
+- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Demanda de Médicos"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima. |
+  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima. |
+- **Devuelve:** `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `TotalTurnosAsignados`, `TurnosAtendidos`, `TurnosEnEspera`, `TasaResolucion`, `CategoriaDemanda`.
+
+### 7.6 `sp_ReporteMedico_RankingDiagnosticosYSintomas`
+- **Descripción:** Determina los diagnósticos clínicos más recurrentes y los síntomas de triage atendidos por el profesional de la salud autenticado dentro de su especialidad, con cantidades y porcentajes relativos.
+- **Entidad:** `HistoriasClinicas` / `TurnoSintomas` / `Sintomas`
+- **Operación:** Consulta / Analítica Clínica
+- **Tablas:** `HistoriasClinicas`, `TurnoSintomas`, `Sintomas`, `Turnos`
+- **Forms que lo utilizan:** `FrmMisAtenciones` (Rol Personal Médico)
+- **Acción:** Pestaña "Ranking de Diagnósticos y Síntomas"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | Identificador único del médico en sesión. |
+  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima. |
+  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima. |
+- **Devuelve:** `Concepto`, `Tipo`, `CantidadCasos`, `Porcentaje`.

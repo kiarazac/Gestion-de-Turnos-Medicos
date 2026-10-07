@@ -272,6 +272,10 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>Palabra clave o código alfanumérico de verificación de doble factor (2FA) para cancelación del turno.</summary>
         public string? CodigoCancelacion { get; set; }
+
+        /// <summary>Arancel o importe cobrado en caja / facturado por el turno.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal Monto { get; set; } = 0.00m;
     }
 
     /// <summary>

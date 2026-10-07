@@ -234,9 +234,12 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
-                // 3. Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados y el estado de "Otro".
+                // 3. Cálculo de arancel según reglas de negocio (fijo $25.000 emergencia, 30% $7.500 con Obra Social)
+                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", obraSocial);
+
+                // Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados, el estado de "Otro" y el arancel.
                 // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja).
-                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto);
+                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto, montoArancel);
 
                 // 4. Mostramos el resultado visual en pantalla con el número de turno y la prioridad asignada
                 Lid_turno.Text = $"# {nroOrden}";
@@ -274,7 +277,7 @@ namespace Gestion_de_Turnos_Medicos
                 // Habilitamos el botón de descarga ubicado debajo del número de orden
                 btnDescargarTxt.Enabled = true;
 
-                MessageBox.Show($"¡Turno de emergencia generado correctamente!\n\nNúmero de Orden: {nroOrden}\nPrioridad Triage: {prioridadTexto}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"¡Turno de emergencia generado correctamente!\n\nNúmero de Orden: {nroOrden}\nPrioridad Triage: {prioridadTexto}\nArancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 LimpiarFormulario();
             }
