@@ -4147,10 +4147,19 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 53 | `sp_ReporteGuardiaTriage_Resumen` | Turno / Prioridad | Reporte / Triage KPIs | `FrmReporteGuardiaAdmin` | Carga de KPIs y resumen operativo de guardia | `EN USO` |
 | 54 | `sp_ReporteGuardiaTriage_RankingSintomas` | TurnoSintoma / Sintoma | Reporte / Epidemiología | `FrmReporteGuardiaAdmin` | Ranking de síntomas predominantes en triage | `EN USO` |
 | 55 | `sp_ReporteGuardiaTriage_Detalle` | Turno / Paciente / Triage | Reporte / Detalle Guardia | `FrmReporteGuardiaAdmin` | Grilla interactiva de turnos de guardia | `EN USO` |
+| 56 | `sp_RealizarBackupBaseDatos` | dbGestionTurnos | Backup | `FrmBackupRestore` | Botón btnGenerarBackup | `EN USO` |
+| 57 | `sp_ListarGerentes` | Usuario / Rol | Seguridad | `FrmBackupRestore` | Carga desplegable de autorización de Gerente | `EN USO` |
+| 58 | `sp_RestaurarBaseDatos` | dbGestionTurnos | Restore | `FrmBackupRestore` | Botón btnRestaurarBackup (Doble autorización) | `EN USO` |
 
 ---
 
 ## 9. Resumen por Formulario
+
+### `FrmBackupRestore` (Copia de Seguridad y Restauración con Doble Autorización)
+- **Estado en el Sistema:** Formulario administrativo ejecutado desde el menú principal de administración (`FrmAdmin`).
+- `sp_RealizarBackupBaseDatos` → Botón "Generar Copia de Seguridad" (`btnGenerarBackup_Click`). Ejecuta la copia completa a demanda en la ruta seleccionada con nomenclatura fechada.
+- `sp_ListarGerentes` → Carga inicial del desplegable de doble autorización (`cmbGerente`). Lista gerentes habilitados para autorizar la restauración.
+- `sp_RestaurarBaseDatos` → Botón "Iniciar Restauración" (`btnRestaurarBackup_Click`). Ejecuta la restauración de la base de datos tras verificar exitosamente las contraseñas de Administrador y Gerente.
 
 ### `FrmLogin`
 - `sp_ValidarLogin` → Botón "Iniciar Sesión" (`button1_Click`). Valida credenciales activas y obtiene rol del usuario. Incluye ruteo dinámico para el rol `Usuario Ventana` (`IdRol = 4`), abriendo `FrmUsuarioVentana`.
@@ -4412,3 +4421,140 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
   | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima. |
   | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima. |
 - **Devuelve:** `Concepto`, `Tipo`, `CantidadCasos`, `Porcentaje`.
+
+
+---
+
+## Módulo 8: Copias de Seguridad y Restauración de Base de Datos
+
+### 8.1 `sp_RealizarBackupBaseDatos`
+- **Descripción:** Genera una copia de seguridad física completa (Full Backup) a demanda de la base de datos `dbGestionTurnos` en el archivo y ruta física indicada por parámetro.
+- **Entidad:** Base de Datos (`dbGestionTurnos`)
+- **Operación:** Mantenimiento / Backup
+- **Tablas:** Todas las tablas de la base de datos
+- **Forms que lo utilizan:** `FrmBackupRestore` (Rol Administrador)
+- **Acción:** Pestaña "Copia de Seguridad", Botón "Generar Copia de Seguridad"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@RutaArchivo` | `NVARCHAR(500)` | IN | Ruta física absoluta donde se escribirá el archivo `.bak`. |
+- **Devuelve:** Ningún conjunto de filas. Ejecuta la sentencia T-SQL `BACKUP DATABASE`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50090` | *La ruta de destino del archivo de backup no puede estar vacía.* | `@RutaArchivo` nulo o vacío. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_RealizarBackupBaseDatos
+    @RutaArchivo NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        IF LTRIM(RTRIM(ISNULL(@RutaArchivo, ''))) = ''
+        BEGIN
+            THROW 50090, 'La ruta de destino del archivo de backup no puede estar vacía.', 1;
+        END
+
+        BACKUP DATABASE [dbGestionTurnos]
+        TO DISK = @RutaArchivo
+        WITH FORMAT,
+             INIT,
+             NAME = N'dbGestionTurnos-Copia de Seguridad Completa',
+             SKIP,
+             NOREWIND,
+             NOUNLOAD,
+             STATS = 10;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+### 8.2 `sp_ListarGerentes`
+- **Descripción:** Obtiene la nómina de usuarios activos con rol de Gerente (`IdRol = 5` o `IdRol = 21` / descripción correspondiente) para nutrir el selector de doble autorización requerida en la restauración de copias de seguridad.
+- **Entidad:** `Usuarios` / `Roles`
+- **Operación:** Consulta / Seguridad
+- **Tablas:** `Usuarios`, `Roles`
+- **Forms que lo utilizan:** `FrmBackupRestore` (Rol Administrador / Doble Autorización)
+- **Acción:** Pestaña "Restauración", Carga del combo de selección de Gerente autorizante
+- **Estado:** `EN USO`
+- **Parámetros:** Ninguno
+- **Devuelve:** `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `IdRol`, `NombreRol`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ListarGerentes
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        u.IdUsuario,
+        u.Nombre,
+        u.Apellido,
+        u.Correo,
+        u.IdRol,
+        r.Descripcion AS NombreRol
+    FROM Usuarios u
+    INNER JOIN Roles r ON u.IdRol = r.IdRol
+    WHERE u.Activo = 1
+      AND (LOWER(r.Descripcion) LIKE '%geren%' OR u.IdRol = 5 OR u.IdRol = 21)
+    ORDER BY u.Apellido, u.Nombre;
+END;
+GO
+```
+
+### 8.3 `sp_RestaurarBaseDatos`
+- **Descripción:** Procedimiento administrativo para la restauración forzada de la base de datos `dbGestionTurnos` a partir de un archivo de copia `.bak`. Por diseño del motor SQL Server, este script se documenta y ejecuta bajo el catálogo maestro (`master`), aislando la base mediante `SINGLE_USER WITH ROLLBACK IMMEDIATE` y restableciendo `MULTI_USER` al finalizar.
+- **Entidad:** Base de Datos (`dbGestionTurnos`)
+- **Operación:** Mantenimiento / Restore
+- **Tablas:** Todas las tablas de la base de datos
+- **Forms que lo utilizan:** `FrmBackupRestore` (Rol Administrador con Doble Autorización)
+- **Acción:** Pestaña "Restauración", Botón "Iniciar Restauración"
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@RutaArchivo` | `NVARCHAR(500)` | IN | Ruta física absoluta del archivo `.bak` a restaurar. |
+- **Devuelve:** Ningún conjunto de filas. Ejecuta la sentencia T-SQL `RESTORE DATABASE`.
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50091` | *La ruta del archivo de backup a restaurar no puede estar vacía.* | `@RutaArchivo` nulo o vacío. |
+
+```sql
+USE master;
+GO
+CREATE OR ALTER PROCEDURE sp_RestaurarBaseDatos
+    @RutaArchivo NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        IF LTRIM(RTRIM(ISNULL(@RutaArchivo, ''))) = ''
+        BEGIN
+            THROW 50091, 'La ruta del archivo de backup a restaurar no puede estar vacía.', 1;
+        END
+
+        ALTER DATABASE [dbGestionTurnos] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+
+        RESTORE DATABASE [dbGestionTurnos]
+        FROM DISK = @RutaArchivo
+        WITH REPLACE, STATS = 10;
+
+        ALTER DATABASE [dbGestionTurnos] SET MULTI_USER;
+    END TRY
+    BEGIN CATCH
+        IF DB_ID('dbGestionTurnos') IS NOT NULL
+        BEGIN
+            ALTER DATABASE [dbGestionTurnos] SET MULTI_USER;
+        END
+        THROW;
+    END CATCH;
+END;
+GO
+```

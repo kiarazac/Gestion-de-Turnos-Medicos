@@ -4089,3 +4089,75 @@ BEGIN
     END CATCH;
 END;
 GO
+
+
+/* =========================================================================
+** Módulo 8: Copias de Seguridad y Restauración de Base de Datos
+** ========================================================================= */
+
+/* =========================================================================
+** Procedimiento : sp_RealizarBackupBaseDatos
+** Sección       : 8.1
+** Propósito     : Genera una copia de seguridad física completa (Full Backup) de la base de datos dbGestionTurnos.
+** Entidad/Tablas: dbGestionTurnos
+** Invocado por  : `FrmBackupRestore` (Rol Administrador)
+** Estado        : `EN USO`
+** Parámetros   :
+**                `@RutaArchivo` (`NVARCHAR(500)`, IN) - Ruta física absoluta donde se generará el archivo .bak.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_RealizarBackupBaseDatos
+    @RutaArchivo NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        IF LTRIM(RTRIM(ISNULL(@RutaArchivo, ''))) = ''
+        BEGIN
+            THROW 50090, 'La ruta de destino del archivo de backup no puede estar vacía.', 1;
+        END
+
+        BACKUP DATABASE [dbGestionTurnos]
+        TO DISK = @RutaArchivo
+        WITH FORMAT,
+             INIT,
+             NAME = N'dbGestionTurnos-Copia de Seguridad Completa',
+             SKIP,
+             NOREWIND,
+             NOUNLOAD,
+             STATS = 10;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ListarGerentes
+** Sección       : 8.2
+** Propósito     : Lista los usuarios activos con rol Gerente para la doble autorización de restauración.
+** Entidad/Tablas: `Usuarios`, `Roles`
+** Invocado por  : `FrmBackupRestore` (Rol Administrador / Doble Autorización)
+** Estado        : `EN USO`
+** Retorno       : `IdUsuario`, `Nombre`, `Apellido`, `Correo`, `IdRol`, `NombreRol`
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ListarGerentes
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        u.IdUsuario,
+        u.Nombre,
+        u.Apellido,
+        u.Correo,
+        u.IdRol,
+        r.Descripcion AS NombreRol
+    FROM Usuarios u
+    INNER JOIN Roles r ON u.IdRol = r.IdRol
+    WHERE u.Activo = 1
+      AND (LOWER(r.Descripcion) LIKE '%geren%' OR u.IdRol = 5 OR u.IdRol = 21)
+    ORDER BY u.Apellido, u.Nombre;
+END;
+GO
