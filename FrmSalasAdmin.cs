@@ -235,6 +235,12 @@ namespace Gestion_de_Turnos_Medicos
                 .Select(s => s.IdUsuario!.Value)
                 .ToHashSet();
 
+            // Si por algún motivo la lista de médicos no se cargó previamente, la recuperamos
+            if (clbPersonal.Items.Count == 0)
+            {
+                CargarPersonalMedicoDesdeBD();
+            }
+
             // 4. Marcamos en el CheckedListBox los profesionales que atienden en esta sala
             for (int i = 0; i < clbPersonal.Items.Count; i++)
             {
@@ -518,9 +524,16 @@ namespace Gestion_de_Turnos_Medicos
             txtNombreSala.Clear();
             cmbEstadoSala.SelectedIndex = 0;
 
-            for (int i = 0; i < clbPersonal.Items.Count; i++)
+            if (clbPersonal.Items.Count == 0)
             {
-                clbPersonal.SetItemChecked(i, false);
+                CargarPersonalMedicoDesdeBD();
+            }
+            else
+            {
+                for (int i = 0; i < clbPersonal.Items.Count; i++)
+                {
+                    clbPersonal.SetItemChecked(i, false);
+                }
             }
 
             btnReactivar.Enabled = false;

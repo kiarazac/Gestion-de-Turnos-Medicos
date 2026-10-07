@@ -542,9 +542,9 @@ GO
 ** Sección       : 1.9
 ** Propósito     : Obtiene los usuarios activos con rol de "Personal médico" para la asignación de profesionales a consultorios y salas.
 ** Entidad/Tablas: `Usuarios`, `Roles`
-** Invocado por  : `FrmSalasAdmin` (Evento `Load` / `CargarPersonalMedicoDesdeBD`)
-** Estado        : `PENDIENTE DE IMPLEMENTACIÓN`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Invocado por  : `FrmSalasAdmin` (Evento `Load` / `CargarPersonalMedicoDesdeBD`), `FrmListaTurnosAtencion`
+** Estado        : `EN USO`
+** Retorno       : `IdUsuario` (INT), `NombreCompleto` (NVARCHAR)
 ** Parámetros   : Ninguno.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_ListarPersonalMedico
@@ -560,7 +560,7 @@ BEGIN
     FROM Usuarios u
     INNER JOIN Roles r ON u.IdRol = r.IdRol
     WHERE u.Activo = 1 
-      AND (r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+      AND (u.IdRol = 1 OR r.Descripcion COLLATE Modern_Spanish_CI_AI LIKE '%Medic%' OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
     ORDER BY u.Apellido, u.Nombre;
     END TRY
     BEGIN CATCH
@@ -569,7 +569,6 @@ BEGIN
         THROW;
     END CATCH;
 END;
-
 GO
 
 /* =========================================================================

@@ -617,9 +617,9 @@ GO
 - **Entidad:** Usuario / Rol
 - **Operación:** Listado / Selector
 - **Tablas:** `Usuarios`, `Roles`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmListaTurnosAtencion`
 - **Acción:** Evento `Load` / `CargarPersonalMedicoDesdeBD`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:** Ninguno.
 - **Devuelve:** `IdUsuario`, `NombreCompleto`.
 
@@ -637,7 +637,7 @@ BEGIN
     FROM Usuarios u
     INNER JOIN Roles r ON u.IdRol = r.IdRol
     WHERE u.Activo = 1 
-      AND (r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+      AND (u.IdRol = 1 OR r.Descripcion COLLATE Modern_Spanish_CI_AI LIKE '%Medic%' OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
     ORDER BY u.Apellido, u.Nombre;
     END TRY
     BEGIN CATCH
