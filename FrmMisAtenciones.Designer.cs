@@ -50,14 +50,27 @@ namespace Gestion_de_Turnos_Medicos
             lblPeriodo = new Label();
             tabMisAtenciones = new TabControl();
             tabConsultas = new TabPage();
-            tabRanking = new TabPage();
-            dgvRanking = new DataGridView();
+            tabTriageClinico = new TabPage();
+            splitTriage = new SplitContainer();
+            pnlGravedad = new Panel();
+            dgvRankingGravedad = new DataGridView();
+            lblTituloGravedad = new Label();
+            pnlSintomas = new Panel();
+            dgvRankingSintomas = new DataGridView();
+            lblTituloSintomas = new Label();
             pnlHeader.SuspendLayout();
             pnlContenedorPrincipal.SuspendLayout();
             tabMisAtenciones.SuspendLayout();
             tabConsultas.SuspendLayout();
-            tabRanking.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dgvRanking).BeginInit();
+            tabTriageClinico.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)splitTriage).BeginInit();
+            splitTriage.Panel1.SuspendLayout();
+            splitTriage.Panel2.SuspendLayout();
+            splitTriage.SuspendLayout();
+            pnlGravedad.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRankingGravedad).BeginInit();
+            pnlSintomas.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRankingSintomas).BeginInit();
             pnlCardDetalle.SuspendLayout();
             pnlCardGrilla.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvAtenciones).BeginInit();
@@ -112,7 +125,7 @@ namespace Gestion_de_Turnos_Medicos
             // tabMisAtenciones
             // 
             tabMisAtenciones.Controls.Add(tabConsultas);
-            tabMisAtenciones.Controls.Add(tabRanking);
+            tabMisAtenciones.Controls.Add(tabTriageClinico);
             tabMisAtenciones.Dock = DockStyle.Fill;
             tabMisAtenciones.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             tabMisAtenciones.Location = new Point(12, 68);
@@ -130,30 +143,118 @@ namespace Gestion_de_Turnos_Medicos
             tabConsultas.Padding = new Padding(5);
             tabConsultas.Size = new Size(1068, 431);
             tabConsultas.TabIndex = 0;
-            tabConsultas.Text = "  📋 Consultas y Pacientes Atendidos  ";
+            tabConsultas.Text = "  📋 Mis Consultas y Pacientes Atendidos  ";
             tabConsultas.UseVisualStyleBackColor = true;
             // 
-            // tabRanking
+            // tabTriageClinico
             // 
-            tabRanking.Controls.Add(dgvRanking);
-            tabRanking.Location = new Point(4, 25);
-            tabRanking.Name = "tabRanking";
-            tabRanking.Padding = new Padding(10);
-            tabRanking.Size = new Size(1068, 431);
-            tabRanking.TabIndex = 1;
-            tabRanking.Text = "  📊 Ranking de Diagnósticos y Síntomas  ";
-            tabRanking.UseVisualStyleBackColor = true;
+            tabTriageClinico.Controls.Add(splitTriage);
+            tabTriageClinico.Location = new Point(4, 25);
+            tabTriageClinico.Name = "tabTriageClinico";
+            tabTriageClinico.Padding = new Padding(8);
+            tabTriageClinico.Size = new Size(1068, 431);
+            tabTriageClinico.TabIndex = 1;
+            tabTriageClinico.Text = "  🚨 Urgencias y Triage Clínico  ";
+            tabTriageClinico.UseVisualStyleBackColor = true;
             // 
-            // dgvRanking
+            // splitTriage
             // 
-            dgvRanking.BackgroundColor = Color.White;
-            dgvRanking.BorderStyle = BorderStyle.None;
-            dgvRanking.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvRanking.Dock = DockStyle.Fill;
-            dgvRanking.Location = new Point(10, 10);
-            dgvRanking.Name = "dgvRanking";
-            dgvRanking.Size = new Size(1048, 411);
-            dgvRanking.TabIndex = 0;
+            splitTriage.Dock = DockStyle.Fill;
+            splitTriage.Location = new Point(8, 8);
+            splitTriage.Name = "splitTriage";
+            // 
+            // splitTriage.Panel1
+            // 
+            splitTriage.Panel1.Controls.Add(pnlGravedad);
+            // 
+            // splitTriage.Panel2
+            // 
+            splitTriage.Panel2.Controls.Add(pnlSintomas);
+            splitTriage.Size = new Size(1052, 415);
+            splitTriage.SplitterDistance = 450;
+            splitTriage.TabIndex = 0;
+            // 
+            // pnlGravedad
+            // 
+            pnlGravedad.BackColor = Color.White;
+            pnlGravedad.BorderStyle = BorderStyle.FixedSingle;
+            pnlGravedad.Controls.Add(dgvRankingGravedad);
+            pnlGravedad.Controls.Add(lblTituloGravedad);
+            pnlGravedad.Dock = DockStyle.Fill;
+            pnlGravedad.Location = new Point(0, 0);
+            pnlGravedad.Name = "pnlGravedad";
+            pnlGravedad.Padding = new Padding(8);
+            pnlGravedad.Size = new Size(450, 415);
+            pnlGravedad.TabIndex = 0;
+            // 
+            // lblTituloGravedad
+            // 
+            lblTituloGravedad.Dock = DockStyle.Top;
+            lblTituloGravedad.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            lblTituloGravedad.ForeColor = Color.FromArgb(15, 118, 110);
+            lblTituloGravedad.Location = new Point(8, 8);
+            lblTituloGravedad.Name = "lblTituloGravedad";
+            lblTituloGravedad.Size = new Size(432, 28);
+            lblTituloGravedad.TabIndex = 0;
+            lblTituloGravedad.Text = "Distribución y Ranking por Gravedad de Triage";
+            // 
+            // dgvRankingGravedad
+            // 
+            dgvRankingGravedad.AllowUserToAddRows = false;
+            dgvRankingGravedad.AllowUserToDeleteRows = false;
+            dgvRankingGravedad.BackgroundColor = Color.FromArgb(248, 250, 252);
+            dgvRankingGravedad.BorderStyle = BorderStyle.None;
+            dgvRankingGravedad.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvRankingGravedad.Dock = DockStyle.Fill;
+            dgvRankingGravedad.Location = new Point(8, 36);
+            dgvRankingGravedad.MultiSelect = false;
+            dgvRankingGravedad.Name = "dgvRankingGravedad";
+            dgvRankingGravedad.ReadOnly = true;
+            dgvRankingGravedad.RowHeadersVisible = false;
+            dgvRankingGravedad.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRankingGravedad.Size = new Size(432, 369);
+            dgvRankingGravedad.TabIndex = 1;
+            // 
+            // pnlSintomas
+            // 
+            pnlSintomas.BackColor = Color.White;
+            pnlSintomas.BorderStyle = BorderStyle.FixedSingle;
+            pnlSintomas.Controls.Add(dgvRankingSintomas);
+            pnlSintomas.Controls.Add(lblTituloSintomas);
+            pnlSintomas.Dock = DockStyle.Fill;
+            pnlSintomas.Location = new Point(0, 0);
+            pnlSintomas.Name = "pnlSintomas";
+            pnlSintomas.Padding = new Padding(8);
+            pnlSintomas.Size = new Size(598, 415);
+            pnlSintomas.TabIndex = 0;
+            // 
+            // lblTituloSintomas
+            // 
+            lblTituloSintomas.Dock = DockStyle.Top;
+            lblTituloSintomas.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            lblTituloSintomas.ForeColor = Color.FromArgb(15, 118, 110);
+            lblTituloSintomas.Location = new Point(8, 8);
+            lblTituloSintomas.Name = "lblTituloSintomas";
+            lblTituloSintomas.Size = new Size(580, 28);
+            lblTituloSintomas.TabIndex = 0;
+            lblTituloSintomas.Text = "Prevalencia de Síntomas de Pacientes Atendidos";
+            // 
+            // dgvRankingSintomas
+            // 
+            dgvRankingSintomas.AllowUserToAddRows = false;
+            dgvRankingSintomas.AllowUserToDeleteRows = false;
+            dgvRankingSintomas.BackgroundColor = Color.FromArgb(248, 250, 252);
+            dgvRankingSintomas.BorderStyle = BorderStyle.None;
+            dgvRankingSintomas.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvRankingSintomas.Dock = DockStyle.Fill;
+            dgvRankingSintomas.Location = new Point(8, 36);
+            dgvRankingSintomas.MultiSelect = false;
+            dgvRankingSintomas.Name = "dgvRankingSintomas";
+            dgvRankingSintomas.ReadOnly = true;
+            dgvRankingSintomas.RowHeadersVisible = false;
+            dgvRankingSintomas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRankingSintomas.Size = new Size(580, 369);
+            dgvRankingSintomas.TabIndex = 1;
             // 
             // pnlFiltros
             // 
@@ -444,7 +545,13 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtDetalleReceta;
         private TabControl tabMisAtenciones;
         private TabPage tabConsultas;
-        private TabPage tabRanking;
-        private DataGridView dgvRanking;
+        private TabPage tabTriageClinico;
+        private SplitContainer splitTriage;
+        private Panel pnlGravedad;
+        private Label lblTituloGravedad;
+        private DataGridView dgvRankingGravedad;
+        private Panel pnlSintomas;
+        private Label lblTituloSintomas;
+        private DataGridView dgvRankingSintomas;
     }
 }

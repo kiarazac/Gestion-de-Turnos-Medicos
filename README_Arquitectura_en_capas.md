@@ -35,7 +35,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │            FrmSalasAdmin, FrmGestionEspecialidades,                    │
 │            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
 │            FrmListaTurnosAtencion, MisSalas_PM, FrmMisAtenciones,      │
-│            FrmAdmin, FrmReportesAdmin, FrmReporteGuardiaAdmin, etc.    │
+│            FrmAdmin, FrmBackupRestore, FrmReporteGuardiaAdmin, etc.    │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Captura de eventos visuales (Click, Load, SelectedIndexChanged).   │
@@ -307,31 +307,30 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string NroOrden { get; set; }
   public string NombreSala { get; set; }
   public string Especialidad { get; set; }
+  public int? IdPrioridad { get; set; }
+  public string GravedadTriage { get; set; }
+  public string SintomasTriage { get; set; }
   ```
 
-### 3.18 `ReporteDemandaEspecialidadDTO`
-- **Uso**: Retorno de `sp_ReporteDemandaEspecialidades` para estadísticas gerenciales de turnos y demanda en `FrmReportesAdmin`.
+### 3.18 `ReporteMedicoGravedadDTO`
+- **Uso**: Retorno de `sp_ReporteMedico_RankingGravedadTriage` para estadísticas de atenciones por nivel de severidad de triage atendidas por médicos clínicos en `FrmMisAtenciones`.
 - **Propiedades**:
   ```csharp
-  public int IdEspecialidad { get; set; }
-  public string Especialidad { get; set; }
-  public int TotalTurnos { get; set; }
-  public int TurnosAtendidos { get; set; }
-  public int TurnosEnEspera { get; set; }
-  public decimal PorcentajeAtencion { get; set; }
+  public int IdPrioridad { get; set; }
+  public string Gravedad { get; set; }
+  public int CantidadTurnos { get; set; }
+  public decimal Porcentaje { get; set; }
   ```
 
-### 3.19 `ReporteProductividadMedicoDTO`
-- **Uso**: Retorno de `sp_ReporteProductividadMedicos` para métricas de productividad clínica y pacientes únicos por profesional en `FrmReportesAdmin`.
+### 3.19 `ReporteMedicoSintomaDTO`
+- **Uso**: Retorno de `sp_ReporteMedico_RankingSintomasAtendidos` para el ranking de sintomatología clínica prevalente en consultas de emergencia atendidas por el médico en `FrmMisAtenciones`.
 - **Propiedades**:
   ```csharp
-  public int IdUsuario { get; set; }
-  public string NombreMedico { get; set; }
-  public string ApellidoMedico { get; set; }
-  public string Matricula { get; set; }
-  public string Especialidad { get; set; }
-  public int ConsultasAtendidas { get; set; }
-  public int PacientesUnicos { get; set; }
+  public int IdSintoma { get; set; }
+  public string Sintoma { get; set; }
+  public string Gravedad { get; set; }
+  public int CantidadCasos { get; set; }
+  public decimal Porcentaje { get; set; }
   ```
 
 ### 3.20 `ReporteGuardiaResumenDTO`

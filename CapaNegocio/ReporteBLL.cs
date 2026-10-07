@@ -15,50 +15,47 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         private readonly EspecialidadDAL _especialidadDAL = new EspecialidadDAL();
 
         /// <summary>
-        /// Obtiene y valida las estadísticas consolidadas de demanda por especialidad médica
-        /// en un rango temporal determinado.
+        /// Obtiene y valida la distribución y porcentaje de turnos de emergencia atendidos por un médico clínico según nivel de gravedad (Alta, Media, Baja).
         /// </summary>
-        /// <param name="fechaDesde">Fecha inicial de filtrado opcional.</param>
-        /// <param name="fechaHasta">Fecha final de filtrado opcional.</param>
-        /// <param name="idEspecialidad">Identificador de especialidad médica específica o null para todas.</param>
-        /// <returns>Lista de <see cref="ReporteDemandaEspecialidadDTO"/> con las métricas computadas.</returns>
-        /// <exception cref="ArgumentException">Se lanza si la fecha 'Desde' es posterior a la fecha 'Hasta'.</exception>
-        public List<ReporteDemandaEspecialidadDTO> ObtenerDemandaEspecialidades(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
+        /// <param name="idUsuario">Identificador del usuario profesional médico clínico.</param>
+        /// <param name="fechaDesde">Fecha inicial de filtrado (opcional).</param>
+        /// <param name="fechaHasta">Fecha final de filtrado (opcional).</param>
+        /// <returns>Lista de <see cref="ReporteMedicoGravedadDTO"/> con los registros consolidados.</returns>
+        public List<ReporteMedicoGravedadDTO> ObtenerRankingGravedadMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
         {
+            if (idUsuario <= 0)
+            {
+                throw new ArgumentException("Debe indicar un identificador de usuario médico válido.");
+            }
+
             if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
             {
                 throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
             }
 
-            if (idEspecialidad.HasValue && idEspecialidad.Value <= 0)
-            {
-                idEspecialidad = null;
-            }
-
-            return _reporteDAL.ObtenerDemandaEspecialidades(fechaDesde, fechaHasta, idEspecialidad);
+            return _reporteDAL.ObtenerRankingGravedadMedico(idUsuario, fechaDesde, fechaHasta);
         }
 
         /// <summary>
-        /// Obtiene y valida las métricas de productividad y volumen de atención de los profesionales médicos.
+        /// Obtiene y valida el ranking epidemiológico de síntomas manifestados por pacientes de guardia atendidos por el médico tratante.
         /// </summary>
-        /// <param name="fechaDesde">Fecha inicial de filtrado opcional.</param>
-        /// <param name="fechaHasta">Fecha final de filtrado opcional.</param>
-        /// <param name="idEspecialidad">Identificador de especialidad médica para filtrar o null para todas.</param>
-        /// <returns>Lista de <see cref="ReporteProductividadMedicoDTO"/> con los registros de consultas y pacientes atendidos.</returns>
-        /// <exception cref="ArgumentException">Se lanza si la fecha 'Desde' es posterior a la fecha 'Hasta'.</exception>
-        public List<ReporteProductividadMedicoDTO> ObtenerProductividadMedicos(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
+        /// <param name="idUsuario">Identificador del usuario profesional médico clínico.</param>
+        /// <param name="fechaDesde">Fecha inicial de filtrado (opcional).</param>
+        /// <param name="fechaHasta">Fecha final de filtrado (opcional).</param>
+        /// <returns>Lista de <see cref="ReporteMedicoSintomaDTO"/> con los síntomas clasificados.</returns>
+        public List<ReporteMedicoSintomaDTO> ObtenerRankingSintomasMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
         {
+            if (idUsuario <= 0)
+            {
+                throw new ArgumentException("Debe indicar un identificador de usuario médico válido.");
+            }
+
             if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
             {
                 throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
             }
 
-            if (idEspecialidad.HasValue && idEspecialidad.Value <= 0)
-            {
-                idEspecialidad = null;
-            }
-
-            return _reporteDAL.ObtenerProductividadMedicos(fechaDesde, fechaHasta, idEspecialidad);
+            return _reporteDAL.ObtenerRankingSintomasMedico(idUsuario, fechaDesde, fechaHasta);
         }
 
         /// <summary>

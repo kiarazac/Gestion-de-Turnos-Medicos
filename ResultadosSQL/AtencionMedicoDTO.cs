@@ -50,6 +50,15 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Especialidad médica bajo la que se realizó la atención.</summary>
         public string Especialidad { get; set; } = string.Empty;
 
+        /// <summary>Identificador del nivel de prioridad asignado en triage (1: Alta, 2: Media, 3: Baja, o null si fue consulta ambulatoria).</summary>
+        public int? IdPrioridad { get; set; }
+
+        /// <summary>Nivel descriptivo de severidad en triage ('Alta', 'Media', 'Baja', o 'N/A').</summary>
+        public string GravedadTriage { get; set; } = "N/A";
+
+        /// <summary>Lista concatenada de síntomas reportados en la admisión de emergencia.</summary>
+        public string SintomasTriage { get; set; } = "--";
+
         /// <summary>Nombre completo del paciente para visualización en grillas y reportes.</summary>
         public string PacienteCompleto => $"{ApellidoPaciente}, {NombrePaciente}".Trim(' ', ',');
     }

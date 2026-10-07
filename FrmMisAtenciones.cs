@@ -19,10 +19,13 @@ namespace Gestion_de_Turnos_Medicos
     {
         private readonly HistoriaClinicaBLL _historiaClinicaBLL = new HistoriaClinicaBLL();
         private readonly ReporteBLL _reporteBLL = new ReporteBLL();
+        private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly UsuarioLoginResult? _usuarioActual;
 
         private List<AtencionMedicoDTO> _todasLasAtenciones = new List<AtencionMedicoDTO>();
-        private List<ReporteMedicoDiagnosticoFrecuenteDTO> _rankingDiagnosticos = new List<ReporteMedicoDiagnosticoFrecuenteDTO>();
+        private List<ReporteMedicoGravedadDTO> _rankingGravedad = new List<ReporteMedicoGravedadDTO>();
+        private List<ReporteMedicoSintomaDTO> _rankingSintomas = new List<ReporteMedicoSintomaDTO>();
+        private bool _esMedicoClinico = false;
 
         public FrmMisAtenciones() : this(null)
         {
@@ -39,17 +42,33 @@ namespace Gestion_de_Turnos_Medicos
             this.btnExportar.Click += BtnExportar_Click;
             this.txtBuscar.TextChanged += TxtBuscar_TextChanged;
             this.dgvAtenciones.SelectionChanged += DgvAtenciones_SelectionChanged;
+            this.dgvAtenciones.CellFormatting += DgvAtenciones_CellFormatting;
+            this.dgvRankingGravedad.CellFormatting += DgvRankingGravedad_CellFormatting;
+            this.dgvRankingSintomas.CellFormatting += DgvRankingSintomas_CellFormatting;
         }
 
         private void FrmMisAtenciones_Load(object? sender, EventArgs e)
         {
-            ConfigurarGrilla();
-            ConfigurarGrillaRanking();
+            ConfigurarGrillaAtenciones();
+            ConfigurarGrillasTriage();
 
             if (_usuarioActual != null)
             {
                 lblTituloHeader.Text = $"Mis Atenciones Realizadas — Dr. {_usuarioActual.Nombre} {_usuarioActual.Apellido}";
-                lblSubtituloHeader.Text = "Consultas médicas, diagnósticos y recetas prescriptas en consultorio";
+                
+                // Determinar si el médico tratante está habilitado para atender emergencias (Especialidad Clínico)
+                _esMedicoClinico = _turnoBLL.PuedeAtenderEmergencias(_usuarioActual.IdUsuario);
+
+                if (_esMedicoClinico)
+                {
+                    lblSubtituloHeader.Text = "Consultas ambulatorias, diagnósticos, recetas prescriptas y reportería de urgencias en guardia";
+                }
+                else
+                {
+                    lblSubtituloHeader.Text = "Consultas de especialidad, diagnósticos clínicos y recetas prescriptas en consultorio";
+                    // Si NO es médico clínico, se retira la pestaña de guardia/triage adaptando la vista exclusivamente a su rol
+                    tabMisAtenciones.TabPages.Remove(tabTriageClinico);
+                }
             }
 
             // Inicializar fechas predeterminadas (Últimos 7 días)
@@ -57,7 +76,7 @@ namespace Gestion_de_Turnos_Medicos
             CargarAtencionesDesdeBD();
         }
 
-        private void ConfigurarGrilla()
+        private void ConfigurarGrillaAtenciones()
         {
             dgvAtenciones.AutoGenerateColumns = false;
             dgvAtenciones.Columns.Clear();
@@ -73,7 +92,7 @@ namespace Gestion_de_Turnos_Medicos
                 HeaderText = "Fecha / Hora",
                 DataPropertyName = "Fecha",
                 DefaultCellStyle = new DataGridViewCellStyle { Format = "dd/MM/yyyy HH:mm" },
-                Width = 125
+                Width = 120
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
@@ -81,7 +100,7 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colTurno",
                 HeaderText = "N° Turno",
                 DataPropertyName = "NroOrden",
-                Width = 85
+                Width = 75
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
@@ -89,7 +108,7 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colPaciente",
                 HeaderText = "Paciente",
                 DataPropertyName = "PacienteCompleto",
-                Width = 180
+                Width = 160
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
@@ -97,7 +116,7 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colDni",
                 HeaderText = "DNI",
                 DataPropertyName = "DniPaciente",
-                Width = 90
+                Width = 85
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
@@ -105,7 +124,7 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colObraSocial",
                 HeaderText = "Cobertura",
                 DataPropertyName = "ObraSocial",
-                Width = 120
+                Width = 110
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
@@ -113,76 +132,200 @@ namespace Gestion_de_Turnos_Medicos
                 Name = "colTipo",
                 HeaderText = "Modalidad",
                 DataPropertyName = "TipoTurno",
-                Width = 95
+                Width = 90
+            });
+
+            dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colGravedad",
+                HeaderText = "Triage / Severidad",
+                DataPropertyName = "GravedadTriage",
+                Width = 110,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colDiagnostico",
-                HeaderText = "Diagnóstico",
+                HeaderText = "Diagnóstico Emitido",
                 DataPropertyName = "DiagRapido",
-                Width = 200
+                Width = 240
             });
 
             dgvAtenciones.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colSala",
-                HeaderText = "Consultorio",
+                HeaderText = "Consultorio / Sala",
                 DataPropertyName = "NombreSala",
                 Width = 110
             });
         }
 
-        private void ConfigurarGrillaRanking()
+        private void ConfigurarGrillasTriage()
         {
-            dgvRanking.AutoGenerateColumns = false;
-            dgvRanking.Columns.Clear();
-            dgvRanking.RowHeadersVisible = false;
-            dgvRanking.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvRanking.ReadOnly = true;
-            dgvRanking.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+            // Grilla de Ranking de Gravedad
+            dgvRankingGravedad.AutoGenerateColumns = false;
+            dgvRankingGravedad.Columns.Clear();
+            dgvRankingGravedad.RowHeadersVisible = false;
+            dgvRankingGravedad.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRankingGravedad.ReadOnly = true;
+            dgvRankingGravedad.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
 
-            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRankingGravedad.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colRank",
-                HeaderText = "#",
-                Width = 45,
+                Name = "colGravNombre",
+                HeaderText = "Nivel de Prioridad",
+                DataPropertyName = "Gravedad",
+                Width = 150
+            });
+
+            dgvRankingGravedad.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colGravTurnos",
+                HeaderText = "Turnos Atendidos",
+                DataPropertyName = "CantidadTurnos",
+                Width = 120,
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
 
-            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRankingGravedad.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colConcepto",
-                HeaderText = "Diagnóstico / Síntoma Frecuente",
-                DataPropertyName = "Concepto",
-                Width = 350
-            });
-
-            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colTipo",
-                HeaderText = "Tipo",
-                DataPropertyName = "Tipo",
-                Width = 140
-            });
-
-            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colCasos",
-                HeaderText = "Casos Registrados",
-                DataPropertyName = "CantidadCasos",
-                Width = 130,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-
-            dgvRanking.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colPorcentaje",
+                Name = "colGravPorcentaje",
                 HeaderText = "% Prevalencia",
                 DataPropertyName = "Porcentaje",
-                Width = 120,
+                Width = 110,
                 DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
             });
+
+            // Grilla de Ranking de Síntomas
+            dgvRankingSintomas.AutoGenerateColumns = false;
+            dgvRankingSintomas.Columns.Clear();
+            dgvRankingSintomas.RowHeadersVisible = false;
+            dgvRankingSintomas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRankingSintomas.ReadOnly = true;
+            dgvRankingSintomas.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+
+            dgvRankingSintomas.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colSintRank",
+                HeaderText = "#",
+                Width = 35,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+
+            dgvRankingSintomas.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colSintDescrip",
+                HeaderText = "Síntoma Clínico Manifestado",
+                DataPropertyName = "Sintoma",
+                Width = 230
+            });
+
+            dgvRankingSintomas.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colSintGravedad",
+                HeaderText = "Severidad",
+                DataPropertyName = "Gravedad",
+                Width = 90,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+
+            dgvRankingSintomas.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colSintCasos",
+                HeaderText = "Pacientes",
+                DataPropertyName = "CantidadCasos",
+                Width = 80,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+
+            dgvRankingSintomas.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colSintPorcentaje",
+                HeaderText = "% Frecuencia",
+                DataPropertyName = "Porcentaje",
+                Width = 90,
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
+            });
+        }
+
+        private void DgvAtenciones_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (dgvAtenciones.Columns[e.ColumnIndex].Name == "colGravedad" && e.Value != null)
+            {
+                string val = e.Value.ToString() ?? "";
+                if (val.Equals("Alta", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(254, 226, 226); // Rojo pastel
+                    e.CellStyle.ForeColor = Color.FromArgb(153, 27, 27);
+                    e.CellStyle.Font = new Font(dgvAtenciones.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Media", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(254, 240, 138); // Amarillo pastel
+                    e.CellStyle.ForeColor = Color.FromArgb(133, 77, 14);
+                    e.CellStyle.Font = new Font(dgvAtenciones.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Baja", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(220, 252, 231); // Verde pastel
+                    e.CellStyle.ForeColor = Color.FromArgb(22, 101, 52);
+                    e.CellStyle.Font = new Font(dgvAtenciones.Font, FontStyle.Bold);
+                }
+                else
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(148, 163, 184); // Gris
+                }
+            }
+        }
+
+        private void DgvRankingGravedad_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (dgvRankingGravedad.Columns[e.ColumnIndex].Name == "colGravNombre" && e.Value != null)
+            {
+                string val = e.Value.ToString() ?? "";
+                if (val.Equals("Alta", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(220, 38, 38);
+                    e.CellStyle.Font = new Font(dgvRankingGravedad.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Media", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(202, 138, 4);
+                    e.CellStyle.Font = new Font(dgvRankingGravedad.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Baja", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(22, 101, 52);
+                    e.CellStyle.Font = new Font(dgvRankingGravedad.Font, FontStyle.Bold);
+                }
+            }
+        }
+
+        private void DgvRankingSintomas_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (dgvRankingSintomas.Columns[e.ColumnIndex].Name == "colSintGravedad" && e.Value != null)
+            {
+                string val = e.Value.ToString() ?? "";
+                if (val.Equals("Alta", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(254, 226, 226);
+                    e.CellStyle.ForeColor = Color.FromArgb(153, 27, 27);
+                    e.CellStyle.Font = new Font(dgvRankingSintomas.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Media", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(254, 240, 138);
+                    e.CellStyle.ForeColor = Color.FromArgb(133, 77, 14);
+                    e.CellStyle.Font = new Font(dgvRankingSintomas.Font, FontStyle.Bold);
+                }
+                else if (val.Equals("Baja", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(220, 252, 231);
+                    e.CellStyle.ForeColor = Color.FromArgb(22, 101, 52);
+                    e.CellStyle.Font = new Font(dgvRankingSintomas.Font, FontStyle.Bold);
+                }
+            }
         }
 
         private void CmbPeriodo_SelectedIndexChanged(object? sender, EventArgs e)
@@ -253,15 +396,24 @@ namespace Gestion_de_Turnos_Medicos
                 _todasLasAtenciones = _historiaClinicaBLL.ObtenerAtencionesPorMedico(
                     _usuarioActual.IdUsuario, fechaDesde, fechaHasta);
 
-                _rankingDiagnosticos = _reporteBLL.ObtenerRankingDiagnosticosMedico(
-                    _usuarioActual.IdUsuario, fechaDesde, dtpHasta.Value.Date);
-
-                dgvRanking.DataSource = null;
-                dgvRanking.DataSource = _rankingDiagnosticos;
-
-                for (int i = 0; i < dgvRanking.Rows.Count; i++)
+                if (_esMedicoClinico)
                 {
-                    dgvRanking.Rows[i].Cells["colRank"].Value = (i + 1).ToString();
+                    _rankingGravedad = _reporteBLL.ObtenerRankingGravedadMedico(
+                        _usuarioActual.IdUsuario, fechaDesde, dtpHasta.Value.Date);
+
+                    _rankingSintomas = _reporteBLL.ObtenerRankingSintomasMedico(
+                        _usuarioActual.IdUsuario, fechaDesde, dtpHasta.Value.Date);
+
+                    dgvRankingGravedad.DataSource = null;
+                    dgvRankingGravedad.DataSource = _rankingGravedad;
+
+                    dgvRankingSintomas.DataSource = null;
+                    dgvRankingSintomas.DataSource = _rankingSintomas;
+
+                    for (int i = 0; i < dgvRankingSintomas.Rows.Count; i++)
+                    {
+                        dgvRankingSintomas.Rows[i].Cells["colSintRank"].Value = (i + 1).ToString();
+                    }
                 }
 
                 AplicarFiltroEnMemoria();
@@ -330,7 +482,7 @@ namespace Gestion_de_Turnos_Medicos
         private void BtnExportar_Click(object? sender, EventArgs e)
         {
             var atenciones = dgvAtenciones.DataSource as List<AtencionMedicoDTO>;
-            if ((atenciones == null || atenciones.Count == 0) && _rankingDiagnosticos.Count == 0)
+            if (atenciones == null || atenciones.Count == 0)
             {
                 MessageBox.Show("No hay registros de atenciones para exportar en este momento.",
                     "Exportar Reporte", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -352,8 +504,9 @@ namespace Gestion_de_Turnos_Medicos
 
                         ExportadorPdf.ExportarReporteMedico(
                             sfd.FileName,
-                            atenciones ?? new List<AtencionMedicoDTO>(),
-                            _rankingDiagnosticos,
+                            atenciones,
+                            _esMedicoClinico ? _rankingGravedad : null,
+                            _esMedicoClinico ? _rankingSintomas : null,
                             dtpDesde.Value.Date,
                             dtpHasta.Value.Date,
                             _usuarioActual);

@@ -441,13 +441,14 @@ namespace Gestion_de_Turnos_Medicos.Servicios
         #region 3. Reporte Clínico de Atenciones y Diagnósticos Frecuentes (Médico)
 
         /// <summary>
-        /// Genera el reporte clínico oficial del médico con el historial de pacientes atendidos
-        /// y el ranking de diagnósticos/síntomas frecuentes en PDF inmutable.
+        /// Genera el reporte clínico oficial del médico con el historial de pacientes atendidos,
+        /// detalle de diagnóstico por turno, y opcionalmente el anexo de gravedad y síntomas de triage si es clínico.
         /// </summary>
         public static void ExportarReporteMedico(
             string rutaArchivo,
             List<AtencionMedicoDTO> atenciones,
-            List<ReporteMedicoDiagnosticoFrecuenteDTO> rankingDiagnosticos,
+            List<ReporteMedicoGravedadDTO>? rankingGravedad,
+            List<ReporteMedicoSintomaDTO>? rankingSintomas,
             DateTime fechaDesde,
             DateTime fechaHasta,
             UsuarioLoginResult? usuarioActual)
@@ -470,7 +471,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             {
                                 c.Item().Text("CENTRO MÉDICO DE ESPECIALIDADES")
                                     .FontSize(14).Bold().FontColor(ColorPrimario);
-                                c.Item().Text("INFORME CLÍNICO DE ATENCIONES Y PREVALENCIA DE DIAGNÓSTICOS")
+                                c.Item().Text("INFORME CLÍNICO OFICIAL DE ATENCIONES MÉDICAS")
                                     .FontSize(11).Bold().FontColor(ColorSecundario);
                                 c.Item().Text($"Profesional: Dr./Dra. {usuarioActual?.Nombre} {usuarioActual?.Apellido}")
                                     .FontSize(9).SemiBold();
@@ -497,66 +498,106 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                         {
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("TOTAL CONSULTAS ATENDIDAS").FontSize(8).Bold().FontColor(ColorGrisTexto);
+                                c.Item().Text("TOTAL ATENCIONES REALIZADAS").FontSize(8).Bold().FontColor(ColorGrisTexto);
                                 c.Item().Text($"{atenciones.Count}").FontSize(14).Bold().FontColor(ColorPrimario);
                             });
 
+                            int emergenciasCount = atenciones.Count(a => a.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase));
+                            int consultasCount = atenciones.Count(a => a.TipoTurno.Equals("Consulta", StringComparison.OrdinalIgnoreCase));
+
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("DIAGNÓSTICOS / SÍNTOMAS DIFERENTES").FontSize(8).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"{rankingDiagnosticos.Count}").FontSize(14).Bold().FontColor(ColorAcento);
+                                c.Item().Text("CONSULTAS PROGRAMADAS").FontSize(8).Bold().FontColor(ColorGrisTexto);
+                                c.Item().Text($"{consultasCount}").FontSize(14).Bold().FontColor(ColorAcento);
                             });
 
                             row.RelativeItem().Column(c =>
                             {
-                                string topDiag = rankingDiagnosticos.FirstOrDefault()?.Concepto ?? "Sin registros";
-                                c.Item().Text("PATOLOGÍA / MOTIVO PRINCIPAL").FontSize(8).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text(topDiag).FontSize(10).Bold().FontColor(ColorSecundario);
+                                c.Item().Text("URGENCIAS DE GUARDIA").FontSize(8).Bold().FontColor(ColorGrisTexto);
+                                c.Item().Text($"{emergenciasCount}").FontSize(14).Bold().FontColor(ColorAlerta);
                             });
                         });
 
-                        // SECCIÓN 1: Ranking de diagnósticos y síntomas frecuentes
-                        if (rankingDiagnosticos.Count > 0)
+                        // SECCIÓN 1: Anexo de Triage y Urgencias de Guardia (si aplica a médico clínico)
+                        if (rankingGravedad != null && rankingGravedad.Count > 0 && rankingGravedad.Any(g => g.CantidadTurnos > 0))
                         {
-                            col.Item().PaddingTop(12).Text("1. RANKING DE DIAGNÓSTICOS Y SÍNTOMAS FRECUENTES DE LA ESPECIALIDAD")
+                            col.Item().PaddingTop(12).Text("1. ANEXO CLÍNICO DE GUARDIA: DISTRIBUCIÓN POR GRAVEDAD Y SÍNTOMAS")
                                 .FontSize(10).Bold().FontColor(ColorPrimario);
 
-                            col.Item().PaddingTop(4).Table(t =>
+                            col.Item().PaddingTop(4).Row(rowTriage =>
                             {
-                                t.ColumnsDefinition(c =>
+                                rowTriage.RelativeItem(1f).Column(colG =>
                                 {
-                                    c.ConstantColumn(30);   // Puesto
-                                    c.RelativeColumn(4f);   // Diagnóstico
-                                    c.ConstantColumn(80);   // Tipo
-                                    c.ConstantColumn(60);   // Casos
-                                    c.ConstantColumn(60);   // Prevalencia
+                                    colG.Item().Text("Distribución por Gravedad de Triage").FontSize(8.5f).Bold().FontColor(ColorSecundario);
+                                    colG.Item().PaddingTop(2).Table(t =>
+                                    {
+                                        t.ColumnsDefinition(c =>
+                                        {
+                                            c.RelativeColumn(2f);
+                                            c.ConstantColumn(50);
+                                            c.ConstantColumn(50);
+                                        });
+
+                                        t.Header(h =>
+                                        {
+                                            h.Cell().Background(ColorPrimario).Padding(3).Text("Gravedad").FontSize(8).Bold().FontColor(ColorBlanco);
+                                            h.Cell().Background(ColorPrimario).Padding(3).AlignCenter().Text("Turnos").FontSize(8).Bold().FontColor(ColorBlanco);
+                                            h.Cell().Background(ColorPrimario).Padding(3).AlignRight().Text("%").FontSize(8).Bold().FontColor(ColorBlanco);
+                                        });
+
+                                        foreach (var g in rankingGravedad)
+                                        {
+                                            t.Cell().Padding(3).Text(g.Gravedad).FontSize(8).SemiBold();
+                                            t.Cell().Padding(3).AlignCenter().Text($"{g.CantidadTurnos}").FontSize(8);
+                                            t.Cell().Padding(3).AlignRight().Text($"{g.Porcentaje:N1}%").FontSize(8).Bold();
+                                        }
+                                    });
                                 });
 
-                                t.Header(h =>
-                                {
-                                    h.Cell().Background(ColorPrimario).Padding(3).AlignCenter().Text("#").FontSize(8).Bold().FontColor(ColorBlanco);
-                                    h.Cell().Background(ColorPrimario).Padding(3).Text("Diagnóstico / Síntoma").FontSize(8).Bold().FontColor(ColorBlanco);
-                                    h.Cell().Background(ColorPrimario).Padding(3).Text("Tipo").FontSize(8).Bold().FontColor(ColorBlanco);
-                                    h.Cell().Background(ColorPrimario).Padding(3).AlignCenter().Text("Casos").FontSize(8).Bold().FontColor(ColorBlanco);
-                                    h.Cell().Background(ColorPrimario).Padding(3).AlignRight().Text("Frecuencia").FontSize(8).Bold().FontColor(ColorBlanco);
-                                });
+                                rowTriage.ConstantItem(15);
 
-                                for (int i = 0; i < rankingDiagnosticos.Count; i++)
+                                if (rankingSintomas != null && rankingSintomas.Count > 0)
                                 {
-                                    var r = rankingDiagnosticos[i];
-                                    var fondo = (i % 2 == 1) ? ColorFondoTabla : ColorBlanco;
+                                    rowTriage.RelativeItem(1.3f).Column(colS =>
+                                    {
+                                        colS.Item().Text("Prevalencia de Síntomas Atendidos").FontSize(8.5f).Bold().FontColor(ColorSecundario);
+                                        colS.Item().PaddingTop(2).Table(t =>
+                                        {
+                                            t.ColumnsDefinition(c =>
+                                            {
+                                                c.RelativeColumn(2.5f);
+                                                c.ConstantColumn(55);
+                                                c.ConstantColumn(40);
+                                                c.ConstantColumn(45);
+                                            });
 
-                                    t.Cell().Background(fondo).Padding(3).AlignCenter().Text($"{i + 1}").FontSize(8).Bold();
-                                    t.Cell().Background(fondo).Padding(3).Text(r.Concepto).FontSize(8).SemiBold();
-                                    t.Cell().Background(fondo).Padding(3).Text(r.Tipo).FontSize(8);
-                                    t.Cell().Background(fondo).Padding(3).AlignCenter().Text($"{r.CantidadCasos}").FontSize(8);
-                                    t.Cell().Background(fondo).Padding(3).AlignRight().Text($"{r.Porcentaje:N1}%").FontSize(8).Bold();
+                                            t.Header(h =>
+                                            {
+                                                h.Cell().Background(ColorSecundario).Padding(3).Text("Síntoma").FontSize(8).Bold().FontColor(ColorBlanco);
+                                                h.Cell().Background(ColorSecundario).Padding(3).Text("Severidad").FontSize(8).Bold().FontColor(ColorBlanco);
+                                                h.Cell().Background(ColorSecundario).Padding(3).AlignCenter().Text("Casos").FontSize(8).Bold().FontColor(ColorBlanco);
+                                                h.Cell().Background(ColorSecundario).Padding(3).AlignRight().Text("%").FontSize(8).Bold().FontColor(ColorBlanco);
+                                            });
+
+                                            foreach (var s in rankingSintomas)
+                                            {
+                                                t.Cell().Padding(3).Text(s.Sintoma).FontSize(7.5f);
+                                                t.Cell().Padding(3).Text(s.Gravedad).FontSize(7.5f);
+                                                t.Cell().Padding(3).AlignCenter().Text($"{s.CantidadCasos}").FontSize(7.5f);
+                                                t.Cell().Padding(3).AlignRight().Text($"{s.Porcentaje:N1}%").FontSize(7.5f).Bold();
+                                            }
+                                        });
+                                    });
                                 }
                             });
                         }
 
-                        // SECCIÓN 2: Historial de pacientes y consultas atendidas
-                        col.Item().PaddingTop(14).Text("2. HISTORIAL DE CONSULTAS Y PACIENTES ATENDIDOS")
+                        // SECCIÓN 2: Historial de consultas y pacientes atendidos (con detalle de diagnósticos)
+                        string tituloHistorial = (rankingGravedad != null && rankingGravedad.Any(g => g.CantidadTurnos > 0))
+                            ? "2. DETALLE DE CONSULTAS Y PACIENTES ATENDIDOS"
+                            : "1. HISTORIAL DE CONSULTAS Y PACIENTES ATENDIDOS";
+
+                        col.Item().PaddingTop(14).Text(tituloHistorial)
                             .FontSize(10).Bold().FontColor(ColorPrimario);
 
                         col.Item().PaddingTop(4).Table(t =>

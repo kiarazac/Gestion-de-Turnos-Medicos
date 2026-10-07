@@ -76,10 +76,12 @@ El sistema implementa una separación rigurosa de responsabilidades:
 ### 5. Pantalla Pública de Sala de Espera (`FrmUsuarioVentana`)
 - Monitor visual a pantalla completa (o visor incrustable) para pacientes en sala de espera, con actualización en tiempo real de llamados activos a consultorios y estado de la guardia.
 
-### 6. Módulos de Reportería y Estadísticas
-- **`FrmReportesAdmin` (Panel Gerencial):** Estadísticas de demanda de turnos por especialidad, resolutividad y productividad por médico con filtros por período (Hoy, Semana, Mes, Histórico) y exportación nativa a `.xlsx`, `.csv` y `.txt`.
+### 6. Módulos de Reportería Especializada por Perfil
 - **`FrmReporteGuardiaAdmin` (Reporte Operativo de Guardia):** Tablero integral de triage y urgencias con tarjetas de KPIs (Total, Alta, Media, Baja, Tasa de Resolución), colorimetría dinámica por severidad de triage, ranking de síntomas predominantes, búsqueda en vivo y exportación a `.xlsx`, `.csv` y `.txt`.
-- **`FrmMisAtenciones` (Historial Clínico del Profesional):** Consulta detallada de turnos atendidos, evolución clínica y prescripción farmacológica por médico con exportación a `.xlsx`, `.csv` y `.txt`.
+- **`FrmMisAtenciones` (Historial y Reportería Especializada del Personal Médico):** Módulo individualizado según el perfil médico:
+  - **Médicos Especialistas:** Auditoría de atenciones, detalle individualizado de diagnósticos, evoluciones y prescripciones farmacológicas con exportación oficial a PDF.
+  - **Médicos Clínicos (Urgencias):** Incluye pestaña interactiva de **Triage Clínico** con ranking y distribución de pacientes atendidos por severidad (`Alta`, `Media`, `Baja`) y ranking epidemiológico de sintomatología clínica atendida, integrando apéndice estadístico en la exportación a PDF.
+- **Administrador Técnico:** Sin facultades de reportería médica ni gerencial, enfocado en administración de usuarios, salas, especialidades y copias de seguridad.
 
 ### 7. Servicios de Exportación Corporativa (`ClosedXML`)
 - **`Servicios/ExportadorExcel.cs`:** Servicio centralizado que confecciona libros nativos de Microsoft Excel (`.xlsx`) mediante OpenXML (`ClosedXML`), aplicando paleta corporativa médica, colores semánticos Manchester (Rojo, Amarillo, Verde), bordes sutiles, auto-ajuste inteligente de columnas y formato numérico tipado sin recortes visuales.

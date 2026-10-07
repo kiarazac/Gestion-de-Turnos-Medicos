@@ -3761,12 +3761,12 @@ GO
 ---
 
 ### 6.11 `sp_ObtenerAtencionesPorMedico`
-- **Descripción:** Consulta el historial consolidado de atenciones, diagnósticos y recetas médicas emitidas por un profesional de la salud específico, con capacidad opcional de filtrado por rango de fechas (`@FechaDesde` y `@FechaHasta`).
-- **Entidad:** HistoriaClinica / Paciente / Turno / Sala
-- **Operación:** Consulta Histórica / Reporte Profesional
-- **Tablas:** `HistoriasClinicas`, `Pacientes`, `Turnos`, `Salas`, `Especialidades`
+- **Descripción:** Consulta el historial consolidado de atenciones, diagnósticos, recetas médicas y detalles de triage/síntomas para turnos de emergencia atendidos por un profesional de la salud específico, con soporte opcional de filtrado por rango de fechas (`@FechaDesde` y `@FechaHasta`).
+- **Entidad:** HistoriaClinica / Paciente / Turno / Sala / Prioridades / TurnoSintomas
+- **Operación:** Consulta Histórica / Reporte Profesional Personalizado
+- **Tablas:** `HistoriasClinicas`, `Pacientes`, `Turnos`, `Salas`, `Especialidades`, `Prioridades`, `TurnoSintomas`, `Sintomas`, `ObrasSociales`
 - **Forms que lo utilizan:** `FrmMisAtenciones` (Menú Lateral de `Pantalla_Principal_PERSONAL_MEDICO`)
-- **Acción:** Carga inicial, búsqueda y filtrado de consultas realizadas por el médico autenticado.
+- **Acción:** Carga inicial, búsqueda y filtrado de consultas realizadas por el médico autenticado. Proyecta detalle de diagnósticos por turno y datos clínicos de urgencias.
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
@@ -3774,7 +3774,7 @@ GO
   | `@IdUsuario` | `INT` | IN | Identificador único del médico consultado. |
   | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha y hora límite inferior para la búsqueda. |
   | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha y hora límite superior para la búsqueda. |
-- **Devuelve:** `IdHistoria`, `Fecha`, `TipoTurno`, `DiagRapido`, `DescripHistoriaClinica`, `RecetaMedicamentos`, `IdPaciente`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `NroOrden`, `NombreSala`, `Especialidad`.
+- **Devuelve:** `IdHistoria`, `Fecha`, `TipoTurno`, `DiagRapido`, `DescripHistoriaClinica`, `RecetaMedicamentos`, `IdPaciente`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `NroOrden`, `NombreSala`, `Especialidad`, `IdPrioridad`, `GravedadTriage`, `SintomasTriage`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ObtenerAtencionesPorMedico
@@ -3804,13 +3804,24 @@ BEGIN
         p.Nombre AS NombrePaciente,
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
-        ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         ISNULL(t.NroOrden, '--') AS NroOrden,
         ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
-        ISNULL(e.Nombre, 'General') AS Especialidad
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        t.IdPrioridad,
+        ISNULL(pr.Descripcion, 'N/A') AS GravedadTriage,
+        ISNULL(
+            (SELECT STRING_AGG(s2.Descripcion, ', ')
+             FROM TurnoSintomas ts2
+             INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+             WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1),
+            '--'
+        ) AS SintomasTriage
     FROM HistoriasClinicas hc
     INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
+    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
     LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+    LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     WHERE hc.IdUsuario = @IdUsuario
@@ -3830,55 +3841,72 @@ GO
 
 ---
 
-### 6.12 `sp_ReporteDemandaEspecialidades`
-- **Descripción:** Genera estadísticas consolidadas de demanda, turnos emitidos, atenciones concluidas y turnos en espera por especialidad médica dentro de un rango de fechas opcional.
-- **Entidad:** Especialidad / Turno
-- **Operación:** Reportería Gerencial / Métricas de Demanda
-- **Tablas:** `Especialidades`, `Turnos`
-- **Forms que lo utilizan:** `FrmReportesAdmin` (Panel de Reportes Gerenciales)
-- **Acción:** Carga de tabla comparativa de demanda por especialidad y cálculo de KPIs.
+### 6.12 `sp_ReporteMedico_RankingGravedadTriage`
+- **Descripción:** Genera la distribución y métricas de atenciones de emergencia brindadas por un profesional médico clínico, clasificadas por nivel de severidad de triage (`Alta`, `Media`, `Baja`) junto a su porcentaje relativo respecto a las urgencias atendidas.
+- **Entidad:** HistoriasClinicas / Turnos / Prioridades
+- **Operación:** Reportería Médica Individual / Triage Clínico
+- **Tablas:** `HistoriasClinicas`, `Turnos`, `Prioridades`, `Usuarios`
+- **Forms que lo utilizan:** `FrmMisAtenciones` (Pestaña "🚨 Urgencias y Triage Clínico" exclusiva para médicos con habilitación clínica)
+- **Acción:** Carga de grilla de severidad de triage y cálculo de porcentajes para el reporte del médico clínico.
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de emisión/atención. |
-  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de emisión/atención. |
-  | `@IdEspecialidad` | `INT` | IN (Opcional) | Filtrar por una especialidad puntual. |
-- **Devuelve:** `IdEspecialidad`, `Especialidad`, `TotalTurnos`, `TurnosAtendidos`, `TurnosEnEspera`, `PorcentajeAtencion`.
+  | `@IdUsuario` | `INT` | IN | Identificador único del médico clínico consultado. |
+  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de consulta/atención. |
+  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de consulta/atención. |
+- **Devuelve:** `IdPrioridad`, `Gravedad`, `CantidadTurnos`, `Porcentaje`.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_ReporteDemandaEspecialidades
+CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingGravedadTriage
+    @IdUsuario INT,
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL,
-    @IdEspecialidad INT = NULL
+    @FechaHasta DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+        END
 
-    SELECT 
-        e.IdEspecialidad,
-        e.Nombre AS Especialidad,
-        COUNT(t.IdTurno) AS TotalTurnos,
-        SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS TurnosAtendidos,
-        SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END) AS TurnosEnEspera,
-        CAST(
-            CASE 
-                WHEN COUNT(t.IdTurno) > 0 
-                THEN (CAST(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
-                ELSE 0.0 
-            END AS DECIMAL(5,2)
-        ) AS PorcentajeAtencion
-    FROM Especialidades e
-    LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
-                       AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
-                       AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
-                       AND t.Activo = 1
-    WHERE (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
-      AND e.Activo = 1
-    GROUP BY e.IdEspecialidad, e.Nombre
-    ORDER BY TotalTurnos DESC, e.Nombre ASC;
+        DECLARE @TotalEmergencias INT;
+
+        SELECT @TotalEmergencias = COUNT(DISTINCT t.IdTurno)
+        FROM HistoriasClinicas hc
+        INNER JOIN Turnos t ON hc.IdTurno = t.IdTurno
+        WHERE hc.IdUsuario = @IdUsuario
+          AND hc.Activo = 1
+          AND t.TipoTurno = 'Emergencia'
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta);
+
+        SELECT 
+            p.IdPrioridad,
+            p.Descripcion AS Gravedad,
+            COUNT(DISTINCT t.IdTurno) AS CantidadTurnos,
+            CAST(
+                CASE WHEN @TotalEmergencias > 0 
+                     THEN (COUNT(DISTINCT t.IdTurno) * 100.0) / @TotalEmergencias 
+                     ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM Prioridades p
+        LEFT JOIN Turnos t ON p.IdPrioridad = t.IdPrioridad 
+                           AND t.TipoTurno = 'Emergencia'
+                           AND EXISTS (
+                               SELECT 1 FROM HistoriasClinicas hc 
+                               WHERE hc.IdTurno = t.IdTurno 
+                                 AND hc.IdUsuario = @IdUsuario 
+                                 AND hc.Activo = 1
+                                 AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+                                 AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+                           )
+        WHERE p.Activo = 1
+        GROUP BY p.IdPrioridad, p.Descripcion
+        ORDER BY p.IdPrioridad ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -3891,54 +3919,70 @@ GO
 
 ---
 
-### 6.13 `sp_ReporteProductividadMedicos`
-- **Descripción:** Genera estadísticas consolidadas de productividad profesional, calculando consultas realizadas y pacientes únicos por profesional en un rango de fechas y especialidad opcionales.
-- **Entidad:** Usuario / Especialidad / HistoriaClinica
-- **Operación:** Reportería Gerencial / Productividad Médica
-- **Tablas:** `Usuarios`, `Roles`, `HistoriasClinicas`, `MedicosEspecialidades`, `Especialidades`
-- **Forms que lo utilizan:** `FrmReportesAdmin` (Panel de Reportes Gerenciales)
-- **Acción:** Carga de tabla de productividad médica y profesional más activo.
+### 6.13 `sp_ReporteMedico_RankingSintomasAtendidos`
+- **Descripción:** Genera el ranking de sintomatología clínica manifestada por los pacientes de emergencia atendidos individualmente por el profesional médico, ordenados de forma descendente por frecuencia de casos y con porcentaje relativo.
+- **Entidad:** Sintomas / TurnoSintomas / Turnos / HistoriasClinicas
+- **Operación:** Reportería Médica Individual / Epidemiología Clínica
+- **Tablas:** `Sintomas`, `TurnoSintomas`, `Turnos`, `HistoriasClinicas`, `Usuarios`
+- **Forms que lo utilizan:** `FrmMisAtenciones` (Pestaña "🚨 Urgencias y Triage Clínico" exclusiva para médicos clínicos)
+- **Acción:** Carga de grilla de síntomas prevalentes atendidos por el médico tratante.
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de consulta. |
-  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de consulta. |
-  | `@IdEspecialidad` | `INT` | IN (Opcional) | Filtrar por especialidad asignada. |
-- **Devuelve:** `IdUsuario`, `NombreMedico`, `ApellidoMedico`, `Matricula`, `Especialidad`, `ConsultasAtendidas`, `PacientesUnicos`.
+  | `@IdUsuario` | `INT` | IN | Identificador único del médico clínico consultado. |
+  | `@FechaDesde` | `DATE` | IN (Opcional) | Fecha mínima de consulta/atención. |
+  | `@FechaHasta` | `DATE` | IN (Opcional) | Fecha máxima de consulta/atención. |
+- **Devuelve:** `IdSintoma`, `Sintoma`, `Gravedad`, `CantidadCasos`, `Porcentaje`.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_ReporteProductividadMedicos
+CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingSintomasAtendidos
+    @IdUsuario INT,
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL,
-    @IdEspecialidad INT = NULL
+    @FechaHasta DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+        END
 
-    SELECT 
-        u.IdUsuario,
-        u.Nombre AS NombreMedico,
-        u.Apellido AS ApellidoMedico,
-        ISNULL(u.NroMatricula, '--') AS Matricula,
-        ISNULL(e.Nombre, 'General') AS Especialidad,
-        COUNT(hc.IdHistoria) AS ConsultasAtendidas,
-        COUNT(DISTINCT hc.IdPaciente) AS PacientesUnicos
-    FROM Usuarios u
-    INNER JOIN Roles r ON u.IdRol = r.IdRol
-    LEFT JOIN HistoriasClinicas hc ON u.IdUsuario = hc.IdUsuario 
-                                   AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
-                                   AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
-                                   AND hc.Activo = 1
-    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
-    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
-    WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
-      AND u.Activo = 1
-      AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
-    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
-    ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+        DECLARE @TotalCasosSintomas INT;
+
+        SELECT @TotalCasosSintomas = COUNT(ts.IdTurnoSintoma)
+        FROM TurnoSintomas ts
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno
+        WHERE hc.IdUsuario = @IdUsuario
+          AND hc.Activo = 1
+          AND t.TipoTurno = 'Emergencia'
+          AND ts.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta);
+
+        SELECT 
+            s.IdSintoma,
+            s.Descripcion AS Sintoma,
+            s.Gravedad,
+            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
+            CAST(
+                CASE WHEN @TotalCasosSintomas > 0 
+                     THEN (COUNT(ts.IdTurnoSintoma) * 100.0) / @TotalCasosSintomas 
+                     ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM Sintomas s
+        INNER JOIN TurnoSintomas ts ON s.IdSintoma = ts.IdSintoma AND ts.Activo = 1
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno AND t.TipoTurno = 'Emergencia'
+        INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno AND hc.Activo = 1
+        WHERE hc.IdUsuario = @IdUsuario
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
+        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -4298,9 +4342,9 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 47 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
 | 48 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
 | 49 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
-| 50 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico | `EN USO` |
-| 51 | `sp_ReporteDemandaEspecialidades` | Especialidad / Turno | Reporte / Demanda | `FrmReportesAdmin` | Carga de demanda y métricas por especialidad | `EN USO` |
-| 52 | `sp_ReporteProductividadMedicos` | Usuario / HistoriaClinica | Reporte / Productividad | `FrmReportesAdmin` | Carga de consultas y pacientes por médico | `EN USO` |
+| 50 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico (incluye triage y síntomas para emergencias) | `EN USO` |
+| 51 | `sp_ReporteMedico_RankingGravedadTriage` | HistoriasClinicas / Turnos | Reporte / Triage Clínico | `FrmMisAtenciones` | Distribución de turnos de emergencia atendidos por severidad para médicos clínicos | `EN USO` |
+| 52 | `sp_ReporteMedico_RankingSintomasAtendidos` | Sintomas / TurnoSintomas | Reporte / Epidemiología | `FrmMisAtenciones` | Ranking de síntomas de pacientes de emergencia atendidos por el médico clínico | `EN USO` |
 | 53 | `sp_ReporteGuardiaTriage_Resumen` | Turno / Prioridad | Reporte / Triage KPIs | `FrmReporteGuardiaAdmin` | Carga de KPIs y resumen operativo de guardia | `EN USO` |
 | 54 | `sp_ReporteGuardiaTriage_RankingSintomas` | TurnoSintoma / Sintoma | Reporte / Epidemiología | `FrmReporteGuardiaAdmin` | Ranking de síntomas predominantes en triage | `EN USO` |
 | 55 | `sp_ReporteGuardiaTriage_Detalle` | Turno / Paciente / Triage | Reporte / Detalle Guardia | `FrmReporteGuardiaAdmin` | Grilla interactiva de turnos de guardia | `EN USO` |
@@ -4397,22 +4441,15 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
-- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmGestionObrasSociales`, `FrmReportesAdmin` y `FrmReporteGuardiaAdmin`.
-
-### `FrmReportesAdmin` (Panel de Reportes Gerenciales y Estadísticas)
-- `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, en espera y cálculo de porcentajes relativos por especialidad médica.
-- `sp_ReporteProductividadMedicos` → Carga de tabla de productividad médica, total de consultas atendidas y pacientes únicos por profesional con filtros de fechas.
-
-### `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
-- `sp_ReporteGuardiaTriage_Resumen` → Carga de tarjetas KPI superiores con volumen total de ingresos, desglose por nivel de triage (Alta, Media, Baja), turnos atendidos, en espera, cancelados y tasa de resolución.
-- `sp_ReporteGuardiaTriage_RankingSintomas` → Carga de la grilla de patologías y síntomas predominantes manifestados en guardia con cantidad y porcentaje sobre el total de síntomas.
-- `sp_ReporteGuardiaTriage_Detalle` → Carga de la grilla detallada de pacientes atendidos en guardia, con codificación de colores de triage en la columna de prioridad, síntomas asociados concatenados, estado de atención y consultorio. Soporta exportación completa en formato CSV y TXT.
+- Contenedor MDI administrativo técnico y operativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmGestionObrasSociales` y `FrmBackupRestore`. No posee funciones ni formularios de reportería clínica ni gerencial.
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)
 - Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM`, `FrmListaTurnosAtencion` y `FrmMisAtenciones`.
 
 ### `FrmMisAtenciones` (Historial y Reporte de Atenciones del Médico)
-- `sp_ObtenerAtencionesPorMedico` → Carga inicial, filtrado por fechas y búsqueda dinámica de pacientes atendidos por el profesional médico autenticado. Permite auditar, consultar antecedentes y exportar el informe de consultas realizadas.
+- `sp_ObtenerAtencionesPorMedico` → Carga inicial, filtrado por fechas y búsqueda dinámica de pacientes atendidos por el profesional médico autenticado. Proyecta diagnósticos individualizados, recetas y datos de triage/urgencia. Permite exportar informe en formato PDF oficial.
+- `sp_ReporteMedico_RankingGravedadTriage` → Carga de distribución porcentual y cantidad de turnos atendidos clasificados por gravedad de triage (`Alta`, `Media`, `Baja`) en la pestaña "🚨 Urgencias y Triage Clínico" (disponible exclusivamente para médicos habilitados en emergencias).
+- `sp_ReporteMedico_RankingSintomasAtendidos` → Carga del ranking de sintomatología clínica manifestada por los pacientes de emergencia atendidos por el médico clínico en la pestaña "🚨 Urgencias y Triage Clínico".
 
 ### `FrmRecepcionista`
 - Contenedor MDI de recepción. Gestiona acceso a `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmListaTurnos` y apertura del visor `FrmUsuarioVentana`.

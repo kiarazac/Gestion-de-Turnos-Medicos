@@ -33,8 +33,6 @@ namespace Gestion_de_Turnos_Medicos
             btnBackup = new Button();
             LObrasSociales = new Label();
             btnObrasSociales = new Button();
-            LReporteGuardia = new Label();
-            btnReporteGuardia = new Button();
             Lsalir = new Label();
             btnSalir = new Button();
             LEspecialidades = new Label();
@@ -55,8 +53,6 @@ namespace Gestion_de_Turnos_Medicos
             panel1.Controls.Add(btnBackup);
             panel1.Controls.Add(LObrasSociales);
             panel1.Controls.Add(btnObrasSociales);
-            panel1.Controls.Add(LReporteGuardia);
-            panel1.Controls.Add(btnReporteGuardia);
             panel1.Controls.Add(Lsalir);
             panel1.Controls.Add(btnSalir);
             panel1.Controls.Add(LEspecialidades);
@@ -75,10 +71,10 @@ namespace Gestion_de_Turnos_Medicos
             // 
             LObrasSociales.AutoSize = true;
             LObrasSociales.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LObrasSociales.Location = new Point(32, 455);
+            LObrasSociales.Location = new Point(32, 345);
             LObrasSociales.Name = "LObrasSociales";
             LObrasSociales.Size = new Size(124, 19);
-            LObrasSociales.TabIndex = 12;
+            LObrasSociales.TabIndex = 6;
             LObrasSociales.Text = "Obras Sociales";
             // 
             // btnObrasSociales
@@ -86,43 +82,21 @@ namespace Gestion_de_Turnos_Medicos
             btnObrasSociales.BackgroundImage = Properties.Resources.Administrador;
             btnObrasSociales.BackgroundImageLayout = ImageLayout.Zoom;
             btnObrasSociales.Cursor = Cursors.Hand;
-            btnObrasSociales.Location = new Point(46, 480);
+            btnObrasSociales.Location = new Point(46, 370);
             btnObrasSociales.Name = "btnObrasSociales";
             btnObrasSociales.Size = new Size(92, 73);
-            btnObrasSociales.TabIndex = 13;
+            btnObrasSociales.TabIndex = 7;
             btnObrasSociales.UseVisualStyleBackColor = true;
             btnObrasSociales.Click += btnObrasSociales_Click;
-            // 
-            // LReporteGuardia
-            // 
-            LReporteGuardia.AutoSize = true;
-            LReporteGuardia.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LReporteGuardia.Location = new Point(32, 345);
-            LReporteGuardia.Name = "LReporteGuardia";
-            LReporteGuardia.Size = new Size(120, 19);
-            LReporteGuardia.TabIndex = 10;
-            LReporteGuardia.Text = "Triage Guardia";
-            // 
-            // btnReporteGuardia
-            // 
-            btnReporteGuardia.BackgroundImage = Properties.Resources.turnos_emergencia;
-            btnReporteGuardia.BackgroundImageLayout = ImageLayout.Zoom;
-            btnReporteGuardia.Cursor = Cursors.Hand;
-            btnReporteGuardia.Location = new Point(46, 370);
-            btnReporteGuardia.Name = "btnReporteGuardia";
-            btnReporteGuardia.Size = new Size(92, 73);
-            btnReporteGuardia.TabIndex = 11;
-            btnReporteGuardia.UseVisualStyleBackColor = true;
-            btnReporteGuardia.Click += btnReporteGuardia_Click;
             // 
             // LBackup
             // 
             LBackup.AutoSize = true;
             LBackup.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
-            LBackup.Location = new Point(28, 565);
+            LBackup.Location = new Point(28, 455);
             LBackup.Name = "LBackup";
             LBackup.Size = new Size(130, 19);
-            LBackup.TabIndex = 14;
+            LBackup.TabIndex = 8;
             LBackup.Text = "Copia de Seg.";
             // 
             // btnBackup
@@ -130,10 +104,10 @@ namespace Gestion_de_Turnos_Medicos
             btnBackup.BackgroundImage = Properties.Resources.Administrador;
             btnBackup.BackgroundImageLayout = ImageLayout.Zoom;
             btnBackup.Cursor = Cursors.Hand;
-            btnBackup.Location = new Point(46, 590);
+            btnBackup.Location = new Point(46, 480);
             btnBackup.Name = "btnBackup";
             btnBackup.Size = new Size(92, 73);
-            btnBackup.TabIndex = 15;
+            btnBackup.TabIndex = 9;
             btnBackup.UseVisualStyleBackColor = true;
             btnBackup.Click += btnBackup_Click;
             // 
@@ -142,10 +116,10 @@ namespace Gestion_de_Turnos_Medicos
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 675);
+            Lsalir.Location = new Point(65, 565);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
-            Lsalir.TabIndex = 6;
+            Lsalir.TabIndex = 10;
             Lsalir.Text = "Salir";
             // 
             // btnSalir
@@ -153,10 +127,10 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
             btnSalir.Cursor = Cursors.Hand;
-            btnSalir.Location = new Point(46, 700);
+            btnSalir.Location = new Point(46, 590);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
-            btnSalir.TabIndex = 7;
+            btnSalir.TabIndex = 11;
             btnSalir.UseVisualStyleBackColor = true;
             btnSalir.Click += btnSalir_Click;
             // 
@@ -258,8 +232,6 @@ namespace Gestion_de_Turnos_Medicos
         private Label label3;
         private Label Lsalir;
         private Button btnSalir;
-        private Label LReporteGuardia;
-        private Button btnReporteGuardia;
         private Label LObrasSociales;
         private Button btnObrasSociales;
         private Label LBackup;

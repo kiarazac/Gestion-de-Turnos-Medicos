@@ -3367,11 +3367,21 @@ BEGIN
         ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         ISNULL(t.NroOrden, '--') AS NroOrden,
         ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
-        ISNULL(e.Nombre, 'General') AS Especialidad
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        t.IdPrioridad,
+        ISNULL(pr.Descripcion, 'N/A') AS GravedadTriage,
+        ISNULL(
+            (SELECT STRING_AGG(s2.Descripcion, ', ')
+             FROM TurnoSintomas ts2
+             INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+             WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1),
+            '--'
+        ) AS SintomasTriage
     FROM HistoriasClinicas hc
     INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
     LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
     LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+    LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     WHERE hc.IdUsuario = @IdUsuario
@@ -3390,53 +3400,70 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_ReporteDemandaEspecialidades
+** Procedimiento : sp_ReporteMedico_RankingGravedadTriage
 ** Sección       : 6.12
-** Propósito     : Genera estadísticas consolidadas de demanda, turnos emitidos,
-**                 atenciones efectivas y turnos en espera por especialidad
-**                 médica dentro de un rango de fechas opcional.
-** Entidad/Tablas: Especialidades, Turnos
-** Invocado por  : FrmReportesAdmin (Panel de Reportes Gerenciales)
-** Acción        : Carga de métricas y comparativa de demanda por especialidad
+** Propósito     : Obtiene la distribución y ranking de atenciones de emergencia
+**                 efectuadas por un profesional médico clínico, clasificadas por
+**                 severidad de triage (Alta, Media, Baja) con sus porcentajes.
+** Entidad/Tablas: HistoriasClinicas, Turnos, Prioridades
+** Invocado por  : FrmMisAtenciones (Pestaña Triage Clínico para Médicos Clínicos)
+** Acción        : Carga de métricas de gravedad de triage atendidas por el profesional
 ** Estado        : EN USO
-** Retorno       : Total de turnos, atendidos, en espera y porcentaje de atención por especialidad
+** Retorno       : IdPrioridad, Gravedad, CantidadTurnos, Porcentaje
 ** Parámetros   :
-**                @FechaDesde     (DATE, IN, OPT) - Fecha mínima de emisión/atención.
-**                @FechaHasta     (DATE, IN, OPT) - Fecha máxima de emisión/atención.
-**                @IdEspecialidad (INT, IN, OPT)  - Identificador de especialidad a filtrar.
+**                @IdUsuario  (INT, IN)          - ID del usuario médico clínico.
+**                @FechaDesde (DATE, IN, OPT)    - Fecha mínima de atención.
+**                @FechaHasta (DATE, IN, OPT)    - Fecha máxima de atención.
 ** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteDemandaEspecialidades
+CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingGravedadTriage
+    @IdUsuario INT,
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL,
-    @IdEspecialidad INT = NULL
+    @FechaHasta DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+        END
 
-    SELECT 
-        e.IdEspecialidad,
-        e.Nombre AS Especialidad,
-        COUNT(t.IdTurno) AS TotalTurnos,
-        ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TurnosAtendidos,
-        ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado', 'En Consulta') THEN 1 ELSE 0 END), 0) AS TurnosEnEspera,
-        CAST(
-            CASE 
-                WHEN COUNT(t.IdTurno) > 0 
-                THEN (CAST(ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
-                ELSE 0.0 
-            END AS DECIMAL(5,2)
-        ) AS PorcentajeAtencion
-    FROM Especialidades e
-    LEFT JOIN Turnos t ON e.IdEspecialidad = t.IdEspecialidad 
-                       AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
-                       AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
-                       AND t.Activo = 1
-    WHERE (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
-      AND e.Activo = 1
-    GROUP BY e.IdEspecialidad, e.Nombre
-    ORDER BY TotalTurnos DESC, e.Nombre ASC;
+        DECLARE @TotalEmergencias INT;
+
+        SELECT @TotalEmergencias = COUNT(DISTINCT t.IdTurno)
+        FROM HistoriasClinicas hc
+        INNER JOIN Turnos t ON hc.IdTurno = t.IdTurno
+        WHERE hc.IdUsuario = @IdUsuario
+          AND hc.Activo = 1
+          AND t.TipoTurno = 'Emergencia'
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta);
+
+        SELECT 
+            p.IdPrioridad,
+            p.Descripcion AS Gravedad,
+            COUNT(DISTINCT t.IdTurno) AS CantidadTurnos,
+            CAST(
+                CASE WHEN @TotalEmergencias > 0 
+                     THEN (COUNT(DISTINCT t.IdTurno) * 100.0) / @TotalEmergencias 
+                     ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM Prioridades p
+        LEFT JOIN Turnos t ON p.IdPrioridad = t.IdPrioridad 
+                           AND t.TipoTurno = 'Emergencia'
+                           AND EXISTS (
+                               SELECT 1 FROM HistoriasClinicas hc 
+                               WHERE hc.IdTurno = t.IdTurno 
+                                 AND hc.IdUsuario = @IdUsuario 
+                                 AND hc.Activo = 1
+                                 AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+                                 AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+                           )
+        WHERE p.Activo = 1
+        GROUP BY p.IdPrioridad, p.Descripcion
+        ORDER BY p.IdPrioridad ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -3448,52 +3475,67 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_ReporteProductividadMedicos
+** Procedimiento : sp_ReporteMedico_RankingSintomasAtendidos
 ** Sección       : 6.13
-** Propósito     : Genera estadísticas consolidadas de productividad médica,
-**                 totalizando consultas atendidas y pacientes únicos por profesional
-**                 en un rango de fechas opcional.
-** Entidad/Tablas: Usuarios, Roles, HistoriasClinicas, MedicoEspecialidades, Especialidades
-** Invocado por  : FrmReportesAdmin (Panel de Reportes Gerenciales)
-** Acción        : Carga de métricas de productividad profesional
+** Propósito     : Obtiene el ranking epidemiológico de síntomas clínicos que
+**                 presentaron los pacientes atendidos en guardia por el médico tratante.
+** Entidad/Tablas: Sintomas, TurnoSintomas, Turnos, HistoriasClinicas
+** Invocado por  : FrmMisAtenciones (Pestaña Triage Clínico para Médicos Clínicos)
+** Acción        : Carga de prevalencia de síntomas en pacientes de urgencia atendidos
 ** Estado        : EN USO
-** Retorno       : Consultas realizadas y pacientes atendidos por médico
+** Retorno       : IdSintoma, Sintoma, Gravedad, CantidadCasos, Porcentaje
 ** Parámetros   :
-**                @FechaDesde     (DATE, IN, OPT) - Fecha mínima de consulta.
-**                @FechaHasta     (DATE, IN, OPT) - Fecha máxima de consulta.
-**                @IdEspecialidad (INT, IN, OPT)  - Filtrar por especialidad asignada.
+**                @IdUsuario  (INT, IN)          - ID del usuario médico clínico.
+**                @FechaDesde (DATE, IN, OPT)    - Fecha mínima de atención.
+**                @FechaHasta (DATE, IN, OPT)    - Fecha máxima de atención.
 ** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteProductividadMedicos
+CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingSintomasAtendidos
+    @IdUsuario INT,
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL,
-    @IdEspecialidad INT = NULL
+    @FechaHasta DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE IdUsuario = @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50030, 'El usuario médico consultado no existe o se encuentra inactivo.', 1;
+        END
 
-    SELECT 
-        u.IdUsuario,
-        u.Nombre AS NombreMedico,
-        u.Apellido AS ApellidoMedico,
-        ISNULL(u.NroMatricula, '--') AS Matricula,
-        ISNULL(e.Nombre, 'General') AS Especialidad,
-        COUNT(hc.IdHistoria) AS ConsultasAtendidas,
-        COUNT(DISTINCT hc.IdPaciente) AS PacientesUnicos
-    FROM Usuarios u
-    INNER JOIN Roles r ON u.IdRol = r.IdRol
-    LEFT JOIN HistoriasClinicas hc ON u.IdUsuario = hc.IdUsuario 
-                                   AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
-                                   AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
-                                   AND hc.Activo = 1
-    LEFT JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario AND me.Activo = 1
-    LEFT JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
-    WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
-      AND u.Activo = 1
-      AND (@IdEspecialidad IS NULL OR e.IdEspecialidad = @IdEspecialidad)
-    GROUP BY u.IdUsuario, u.Nombre, u.Apellido, u.NroMatricula, e.Nombre
-    ORDER BY ConsultasAtendidas DESC, u.Apellido ASC;
+        DECLARE @TotalCasosSintomas INT;
+
+        SELECT @TotalCasosSintomas = COUNT(ts.IdTurnoSintoma)
+        FROM TurnoSintomas ts
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
+        INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno
+        WHERE hc.IdUsuario = @IdUsuario
+          AND hc.Activo = 1
+          AND t.TipoTurno = 'Emergencia'
+          AND ts.Activo = 1
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta);
+
+        SELECT 
+            s.IdSintoma,
+            s.Descripcion AS Sintoma,
+            s.Gravedad,
+            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
+            CAST(
+                CASE WHEN @TotalCasosSintomas > 0 
+                     THEN (COUNT(ts.IdTurnoSintoma) * 100.0) / @TotalCasosSintomas 
+                     ELSE 0.0 
+                END AS DECIMAL(5,2)
+            ) AS Porcentaje
+        FROM Sintomas s
+        INNER JOIN TurnoSintomas ts ON s.IdSintoma = ts.IdSintoma AND ts.Activo = 1
+        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno AND t.TipoTurno = 'Emergencia'
+        INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno AND hc.Activo = 1
+        WHERE hc.IdUsuario = @IdUsuario
+          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
+          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
+        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
+        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

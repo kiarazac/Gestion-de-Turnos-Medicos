@@ -69,13 +69,7 @@ namespace Gestion_de_Turnos_Medicos
             AbrirFormularioHijo(new FrmGestionEspecialidades());
         }
 
-        /// <summary>
-        /// Abre el reporte operativo de guardia y distribución de triage en el panel contenedor central.
-        /// </summary>
-        private void btnReporteGuardia_Click(object sender, EventArgs e)
-        {
-            AbrirFormularioHijo(new FrmReporteGuardiaAdmin(_usuarioActual));
-        }
+
 
         /// <summary>
         /// Abre el módulo de administración de obras sociales y medicinas prepagas.

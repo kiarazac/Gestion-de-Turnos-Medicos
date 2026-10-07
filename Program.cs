@@ -37,7 +37,7 @@ namespace Gestion_de_Turnos_Medicos
 
                 // 1. Verificar Login de Gerente
                 var usuarioBLL = new Negocio.UsuarioBLL();
-                var gerente = usuarioBLL.Login("gerente@gmail.com", "123456");
+                var gerente = usuarioBLL.Login("gerente@consultorio.com", "123456");
                 Console.WriteLine($"[OK] Login Gerente exitoso: {gerente?.Nombre} {gerente?.Apellido} - Rol: {gerente?.NombreRol} (IdRol: {gerente?.IdRol})");
 
                 string testDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestPdfOutput");
@@ -66,16 +66,19 @@ namespace Gestion_de_Turnos_Medicos
                 Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialPdf, ingresos, coberturas, demanda, desde, hasta, gerente);
                 Console.WriteLine($"[OK] PDF Gerencial generado exitosamente ({new FileInfo(pathGerencialPdf).Length} bytes): {pathGerencialPdf}");
 
-                // 4. Verificar Reporte Médico y Diagnósticos Frecuentes
+                // 4. Verificar Reporte Médico y Triage de Atenciones
                 var historiaBLL = new Negocio.HistoriaClinicaBLL();
-                var medico = usuarioBLL.Login("martin@gmail.com", "123456");
-                int idMedico = medico?.IdUsuario ?? 2;
+                var turnoBLL = new Negocio.TurnoBLL();
+                var medico = usuarioBLL.Login("jorgeMa@hotmail.com", "123456");
+                int idMedico = medico?.IdUsuario ?? 21;
                 var atenciones = historiaBLL.ObtenerAtencionesPorMedico(idMedico, desde, hasta);
-                var rankingDiag = reporteBLL.ObtenerRankingDiagnosticosMedico(idMedico, desde, hasta);
-                Console.WriteLine($"[OK] SPs Médicos ejecutados para Dr. {medico?.Nombre} {medico?.Apellido} (ID: {idMedico}): {atenciones.Count} atenciones históricas, {rankingDiag.Count} diagnósticos/síntomas frecuentes.");
+                bool esClinico = turnoBLL.PuedeAtenderEmergencias(idMedico);
+                var rankingGrav = esClinico ? reporteBLL.ObtenerRankingGravedadMedico(idMedico, desde, hasta) : null;
+                var rankingSint = esClinico ? reporteBLL.ObtenerRankingSintomasMedico(idMedico, desde, hasta) : null;
+                Console.WriteLine($"[OK] SPs Médicos ejecutados para Dr. {medico?.Nombre} {medico?.Apellido} (ID: {idMedico}): {atenciones.Count} atenciones históricas, EsClínico: {esClinico}.");
 
                 string pathMedicoPdf = Path.Combine(testDir, "Test_ReporteMedico.pdf");
-                Servicios.ExportadorPdf.ExportarReporteMedico(pathMedicoPdf, atenciones, rankingDiag, desde, hasta, medico);
+                Servicios.ExportadorPdf.ExportarReporteMedico(pathMedicoPdf, atenciones, rankingGrav, rankingSint, desde, hasta, medico);
                 // 5. Verificar Reporte de Guardia y Triage (Auditoría Triage)
                 var guardiaDAL = new CapaDeDatos.ReporteGuardiaDAL();
                 var resumenGuardia = guardiaDAL.ObtenerResumenGuardia(new DateTime(2026, 9, 30), new DateTime(2026, 10, 7), null);
