@@ -78,6 +78,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
+        /// Abre el módulo de administración de obras sociales y medicinas prepagas.
+        /// </summary>
+        private void btnObrasSociales_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmGestionObrasSociales());
+        }
+
+        /// <summary>
         /// Cierra la sesión activa del administrador y reabre el formulario de login.
         /// </summary>
         private void btnSalir_Click(object sender, EventArgs e)

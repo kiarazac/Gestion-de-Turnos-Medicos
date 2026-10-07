@@ -1797,6 +1797,259 @@ END;
 GO
 ```
 
+### 4.0.1 `sp_InsertarObraSocial`
+- **Descripción:** Registra una nueva obra social o empresa de medicina prepaga en el catálogo del sistema. Valida nombre obligatorio y evita duplicados activos (por nombre o sigla). Si la cobertura ya existía previamente dada de baja lógica, la reactiva automáticamente.
+- **Entidad:** ObraSocial
+- **Operación:** Catálogo / Alta / Reactivación
+- **Tablas:** `ObrasSociales`
+- **Forms que lo utilizan:** `FrmGestionObrasSociales`
+- **Acción:** Botón `btnGuardar` ("➕ Guardar Nueva")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Nombre` | `NVARCHAR(100)` | IN | Nombre descriptivo o denominación oficial de la obra social. |
+  | `@Sigla` | `NVARCHAR(20)` | IN (OPT) | Acrónimo o sigla identificatoria (ej. IOSCOR, OSDE). Default NULL. |
+- **Devuelve:** No retorna conjunto de datos (DML/Update).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50060` | *El nombre de la obra social es obligatorio y no puede quedar vacío.* | `@Nombre` nulo o espacios en blanco. |
+  | `50061` | *Ya existe una obra social activa registrada con este mismo nombre.* | Nombre duplicado con otra cobertura activa. |
+  | `50062` | *Ya existe una obra social activa registrada con esta misma sigla.* | Sigla duplicada con otra cobertura activa. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_InsertarObraSocial
+    @Nombre NVARCHAR(100),
+    @Sigla NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50060, 'El nombre de la obra social es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        SET @Nombre = LTRIM(RTRIM(@Nombre));
+        SET @Sigla = NULLIF(LTRIM(RTRIM(@Sigla)), '');
+
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND Activo = 1)
+        BEGIN
+            THROW 50061, 'Ya existe una obra social activa registrada con este mismo nombre.', 1;
+        END
+
+        IF @Sigla IS NOT NULL AND EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Sigla))) = UPPER(@Sigla) AND Activo = 1)
+        BEGIN
+            THROW 50062, 'Ya existe una obra social activa registrada con esta misma sigla.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND Activo = 0)
+        BEGIN
+            UPDATE ObrasSociales
+            SET Activo = 1,
+                FechaBaja = NULL,
+                FechaModificacion = GETDATE(),
+                Sigla = COALESCE(@Sigla, Sigla)
+            WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre);
+        END
+        ELSE
+        BEGIN
+            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion)
+            VALUES (@Nombre, @Sigla, 1, GETDATE());
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+### 4.0.2 `sp_ModificarObraSocial`
+- **Descripción:** Modifica la denominación y/o sigla de una obra social existente. Valida existencia, unicidad respecto a otras coberturas activas y protege el registro base Particular.
+- **Entidad:** ObraSocial
+- **Operación:** Catálogo / Modificación
+- **Tablas:** `ObrasSociales`
+- **Forms que lo utilizan:** `FrmGestionObrasSociales`
+- **Acción:** Botón `btnModificar` ("💾 Modificar")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdObraSocial` | `INT` | IN | Identificador único de la cobertura a actualizar. |
+  | `@Nombre` | `NVARCHAR(100)` | IN | Nueva denominación oficial. |
+  | `@Sigla` | `NVARCHAR(20)` | IN (OPT) | Nueva sigla opcional. Default NULL. |
+- **Devuelve:** No retorna conjunto de datos (DML/Update).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50063` | *La obra social a modificar no existe en el sistema.* | `@IdObraSocial` no encontrado. |
+  | `50060` | *El nombre de la obra social es obligatorio y no puede quedar vacío.* | `@Nombre` nulo o en blanco. |
+  | `50064` | *No se puede modificar la denominación base de la cobertura Particular requerida por el sistema.* | Intento de suprimir 'Particular' de ID 1. |
+  | `50061` | *Ya existe otra obra social activa registrada con este mismo nombre.* | Colisión con otra cobertura activa. |
+  | `50062` | *Ya existe otra obra social activa registrada con esta misma sigla.* | Colisión de sigla con otra cobertura activa. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ModificarObraSocial
+    @IdObraSocial INT,
+    @Nombre NVARCHAR(100),
+    @Sigla NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            THROW 50063, 'La obra social a modificar no existe en el sistema.', 1;
+        END
+
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50060, 'El nombre de la obra social es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        SET @Nombre = LTRIM(RTRIM(@Nombre));
+        SET @Sigla = NULLIF(LTRIM(RTRIM(@Sigla)), '');
+
+        IF @IdObraSocial = 1 AND UPPER(@Nombre) NOT LIKE '%PARTICULAR%'
+        BEGIN
+            THROW 50064, 'No se puede modificar la denominación base de la cobertura Particular requerida por el sistema.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND IdObraSocial <> @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50061, 'Ya existe otra obra social activa registrada con este mismo nombre.', 1;
+        END
+
+        IF @Sigla IS NOT NULL AND EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Sigla))) = UPPER(@Sigla) AND IdObraSocial <> @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50062, 'Ya existe otra obra social activa registrada con esta misma sigla.', 1;
+        END
+
+        UPDATE ObrasSociales
+        SET Nombre = @Nombre,
+            Sigla = @Sigla,
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+### 4.0.3 `sp_EliminarObraSocial`
+- **Descripción:** Ejecuta la baja lógica de una obra social (`Activo = 0`, `FechaBaja = GETDATE()`), impidiendo su selección en nuevos turnos mientras preserva la integridad del historial clínico y pacientes afiliados. Protege la cobertura Particular.
+- **Entidad:** ObraSocial
+- **Operación:** Catálogo / Baja Lógica
+- **Tablas:** `ObrasSociales`
+- **Forms que lo utilizan:** `FrmGestionObrasSociales`
+- **Acción:** Botón `btnDesactivar` ("🗑️ Desactivar")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdObraSocial` | `INT` | IN | Identificador de la cobertura a dar de baja. |
+- **Devuelve:** No retorna conjunto de datos (DML/Update).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50065` | *La obra social a desactivar no existe o ya se encuentra inactiva.* | Registro no hallado o ya inactivo. |
+  | `50066` | *No es posible dar de baja la cobertura Particular / Sin Obra Social requerida por el sistema.* | `@IdObraSocial = 1`. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_EliminarObraSocial
+    @IdObraSocial INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50065, 'La obra social a desactivar no existe o ya se encuentra inactiva.', 1;
+        END
+
+        IF @IdObraSocial = 1
+        BEGIN
+            THROW 50066, 'No es posible dar de baja la cobertura Particular / Sin Obra Social requerida por el sistema.', 1;
+        END
+
+        UPDATE ObrasSociales
+        SET Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+### 4.0.4 `sp_ReactivarObraSocial`
+- **Descripción:** Reactiva lógicamente una obra social previamente desactivada (`Activo = 1`, `FechaBaja = NULL`, `FechaModificacion = GETDATE()`).
+- **Entidad:** ObraSocial
+- **Operación:** Catálogo / Reactivación
+- **Tablas:** `ObrasSociales`
+- **Forms que lo utilizan:** `FrmGestionObrasSociales`
+- **Acción:** Botón `btnReactivar` ("♻ Re-dar de Alta")
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdObraSocial` | `INT` | IN | Identificador de la obra social inactiva a reactivar. |
+- **Devuelve:** No retorna conjunto de datos (DML/Update).
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50067` | *La obra social a reactivar no existe en el sistema.* | `@IdObraSocial` inexistente. |
+  | `50068` | *La obra social ya se encuentra activa en el sistema.* | `@IdObraSocial` ya posee `Activo = 1`. |
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ReactivarObraSocial
+    @IdObraSocial INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            THROW 50067, 'La obra social a reactivar no existe en el sistema.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50068, 'La obra social ya se encuentra activa en el sistema.', 1;
+        END
+
+        UPDATE ObrasSociales
+        SET Activo = 1,
+            FechaBaja = NULL,
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
 ---
 
 ### 4.1 `sp_BuscarPacientePorDNI`
@@ -3858,7 +4111,11 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 23 | `sp_ReactivarEspecialidad`| Especialidad | Reactivación / Alta | `FrmGestionEspecialidades` | Botón `btnReactivar` (Re-dar de Alta Especialidad) | `EN USO` |
 | 24 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 25 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
-| 25b | `sp_ListarObrasSociales`| ObraSocial | Catálogo | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Carga de desplegable de obras sociales activas | `EN USO` |
+| 25b | `sp_ListarObrasSociales`| ObraSocial | Catálogo | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmGestionObrasSociales` | Carga de desplegable y grilla de obras sociales activas e inactivas | `EN USO` |
+| 25c | `sp_InsertarObraSocial` | ObraSocial | Alta / Reactivación | `FrmGestionObrasSociales` | Botón `btnGuardar` | `EN USO` |
+| 25d | `sp_ModificarObraSocial` | ObraSocial | Modificación | `FrmGestionObrasSociales` | Botón `btnModificar` | `EN USO` |
+| 25e | `sp_EliminarObraSocial` | ObraSocial | Baja lógica | `FrmGestionObrasSociales` | Botón `btnDesactivar` | `EN USO` |
+| 25f | `sp_ReactivarObraSocial` | ObraSocial | Reactivación | `FrmGestionObrasSociales` | Botón `btnReactivar` | `EN USO` |
 | 26 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
 | 27 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
 | 28 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
@@ -3930,6 +4187,13 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_EliminarEspecialidad` → Botón "Desactivar Especialidad" (`btnDesactivar_Click`). Ejecuta la baja lógica validando que no posea turnos activos y desactivando asignaciones médicas en cascada.
 - `sp_ReactivarEspecialidad` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Restituye lógicamente una especialidad inactiva y reactiva en cascada sus asignaciones profesionales.
 
+### `FrmGestionObrasSociales`
+- `sp_ListarObrasSociales` → Carga y refresco de la grilla de coberturas médicas (`CargarObrasSocialesDesdeBD`). Admite parámetro `@IncluirInactivas` mediante el selector `chkMostrarInactivas`.
+- `sp_InsertarObraSocial` → Botón "Guardar Nueva" (`btnGuardar_Click`). Registra una nueva obra social o medicina prepaga en el catálogo con validación de nombre y sigla.
+- `sp_ModificarObraSocial` → Botón "Modificar" (`btnModificar_Click`). Permite actualizar denominación y sigla con control de unicidad y protección del registro Particular.
+- `sp_EliminarObraSocial` → Botón "Desactivar" (`btnDesactivar_Click`). Ejecuta la baja lógica protegiendo la cobertura base Particular requerida por el sistema.
+- `sp_ReactivarObraSocial` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Restituye lógicamente una obra social inactiva para su uso en turnos.
+
 ### `FrmTurnoEmergencia`
 - `sp_ObtenerSintomas` → Carga del catálogo para categorización de triage (`CargarCatalogoSintomas`).
 - `sp_ObtenerGravedadSintoma` → Consulta la gravedad del síntoma seleccionado para calcular la prioridad en pantalla.
@@ -3967,7 +4231,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
 
 ### `FrmAdmin`
-- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmReportesAdmin` y `FrmReporteGuardiaAdmin`.
+- Contenedor MDI administrativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmGestionObrasSociales`, `FrmReportesAdmin` y `FrmReporteGuardiaAdmin`.
 
 ### `FrmReportesAdmin` (Panel de Reportes Gerenciales y Estadísticas)
 - `sp_ReporteDemandaEspecialidades` → Carga de tabla de demanda, turnos emitidos, atendidos, en espera y cálculo de porcentajes relativos por especialidad médica.

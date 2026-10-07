@@ -1546,6 +1546,235 @@ END;
 GO
 
 /* =========================================================================
+** Procedimiento : sp_InsertarObraSocial
+** Sección       : 4.0.1
+** Propósito     : Registra una nueva obra social o empresa de medicina prepaga en el catálogo, validando nombre obligatorio y evitando duplicados activos. Si existía previamente inactiva, la reactiva.
+** Entidad/Tablas: `ObrasSociales`
+** Invocado por  : `FrmGestionObrasSociales` (Botón `btnGuardar`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@Nombre` (`NVARCHAR(100)`, IN) - Nombre oficial de la obra social.
+**                `@Sigla`  (`NVARCHAR(20)`, IN, DEFAULT NULL) - Sigla identificatoria opcional.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_InsertarObraSocial
+    @Nombre NVARCHAR(100),
+    @Sigla NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar que el nombre no esté en blanco
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50060, 'El nombre de la obra social es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        SET @Nombre = LTRIM(RTRIM(@Nombre));
+        SET @Sigla = NULLIF(LTRIM(RTRIM(@Sigla)), '');
+
+        -- 2. Validar que no exista ya activa con el mismo nombre
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND Activo = 1)
+        BEGIN
+            THROW 50061, 'Ya existe una obra social activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 3. Validar que no exista ya activa con la misma sigla (si fue provista)
+        IF @Sigla IS NOT NULL AND EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Sigla))) = UPPER(@Sigla) AND Activo = 1)
+        BEGIN
+            THROW 50062, 'Ya existe una obra social activa registrada con esta misma sigla.', 1;
+        END
+
+        -- 4. Si existía previamente inactiva con el mismo nombre, reactivarla
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND Activo = 0)
+        BEGIN
+            UPDATE ObrasSociales
+            SET Activo = 1,
+                FechaBaja = NULL,
+                FechaModificacion = GETDATE(),
+                Sigla = COALESCE(@Sigla, Sigla)
+            WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre);
+        END
+        ELSE
+        BEGIN
+            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion)
+            VALUES (@Nombre, @Sigla, 1, GETDATE());
+        END
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ModificarObraSocial
+** Sección       : 4.0.2
+** Propósito     : Modifica la denominación y/o sigla de una obra social existente, validando unicidad y protegiendo el registro base Particular.
+** Entidad/Tablas: `ObrasSociales`
+** Invocado por  : `FrmGestionObrasSociales` (Botón `btnModificar`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@IdObraSocial` (`INT`, IN) - Identificador único de la obra social.
+**                `@Nombre`       (`NVARCHAR(100)`, IN) - Nuevo nombre de la obra social.
+**                `@Sigla`        (`NVARCHAR(20)`, IN, DEFAULT NULL) - Nueva sigla opcional.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ModificarObraSocial
+    @IdObraSocial INT,
+    @Nombre NVARCHAR(100),
+    @Sigla NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar existencia
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            THROW 50063, 'La obra social a modificar no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que el nombre no esté en blanco
+        IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
+        BEGIN
+            THROW 50060, 'El nombre de la obra social es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        SET @Nombre = LTRIM(RTRIM(@Nombre));
+        SET @Sigla = NULLIF(LTRIM(RTRIM(@Sigla)), '');
+
+        -- 3. Proteger la denominación base de Particular / Sin Obra Social
+        IF @IdObraSocial = 1 AND UPPER(@Nombre) NOT LIKE '%PARTICULAR%'
+        BEGIN
+            THROW 50064, 'No se puede modificar la denominación base de la cobertura Particular requerida por el sistema.', 1;
+        END
+
+        -- 4. Validar unicidad de nombre respecto a otras activas
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND IdObraSocial <> @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50061, 'Ya existe otra obra social activa registrada con este mismo nombre.', 1;
+        END
+
+        -- 5. Validar unicidad de sigla respecto a otras activas
+        IF @Sigla IS NOT NULL AND EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Sigla))) = UPPER(@Sigla) AND IdObraSocial <> @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50062, 'Ya existe otra obra social activa registrada con esta misma sigla.', 1;
+        END
+
+        -- 6. Actualización
+        UPDATE ObrasSociales
+        SET Nombre = @Nombre,
+            Sigla = @Sigla,
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_EliminarObraSocial
+** Sección       : 4.0.3
+** Propósito     : Realiza el borrado lógico de una obra social (Activo = 0, FechaBaja = GETDATE()). Protege el registro Particular contra baja.
+** Entidad/Tablas: `ObrasSociales`
+** Invocado por  : `FrmGestionObrasSociales` (Botón `btnDesactivar`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@IdObraSocial` (`INT`, IN) - Identificador único de la obra social a desactivar.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_EliminarObraSocial
+    @IdObraSocial INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar que exista y esté activa
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50065, 'La obra social a desactivar no existe o ya se encuentra inactiva.', 1;
+        END
+
+        -- 2. Proteger la cobertura Particular obligatoria
+        IF @IdObraSocial = 1
+        BEGIN
+            THROW 50066, 'No es posible dar de baja la cobertura Particular / Sin Obra Social requerida por el sistema.', 1;
+        END
+
+        -- 3. Aplicar baja lógica
+        UPDATE ObrasSociales
+        SET Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ReactivarObraSocial
+** Sección       : 4.0.4
+** Propósito     : Reactiva lógicamente una obra social previamente desactivada (Activo = 1, FechaBaja = NULL).
+** Entidad/Tablas: `ObrasSociales`
+** Invocado por  : `FrmGestionObrasSociales` (Botón `btnReactivar`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@IdObraSocial` (`INT`, IN) - Identificador único de la obra social a reactivar.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ReactivarObraSocial
+    @IdObraSocial INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar existencia
+        IF NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            THROW 50067, 'La obra social a reactivar no existe en el sistema.', 1;
+        END
+
+        -- 2. Validar que no se encuentre activa ya
+        IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial AND Activo = 1)
+        BEGIN
+            THROW 50068, 'La obra social ya se encuentra activa en el sistema.', 1;
+        END
+
+        -- 3. Reactivar
+        UPDATE ObrasSociales
+        SET Activo = 1,
+            FechaBaja = NULL,
+            FechaModificacion = GETDATE()
+        WHERE IdObraSocial = @IdObraSocial;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
 ** Procedimiento : sp_BuscarPacientePorDNI
 ** Sección       : 4.1
 ** Propósito     : Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI), incluyendo su obra social vinculada.

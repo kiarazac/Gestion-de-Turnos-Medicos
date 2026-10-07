@@ -29,10 +29,12 @@ namespace Gestion_de_Turnos_Medicos
         private void InitializeComponent()
         {
             panel1 = new Panel();
-            Lsalir = new Label();
-            btnSalir = new Button();
+            LObrasSociales = new Label();
+            btnObrasSociales = new Button();
             LReporteGuardia = new Label();
             btnReporteGuardia = new Button();
+            Lsalir = new Label();
+            btnSalir = new Button();
             LEspecialidades = new Label();
             btnEspecialidades = new Button();
             label3 = new Label();
@@ -47,6 +49,8 @@ namespace Gestion_de_Turnos_Medicos
             // 
             panel1.AutoScroll = true;
             panel1.BackColor = SystemColors.ActiveCaption;
+            panel1.Controls.Add(LObrasSociales);
+            panel1.Controls.Add(btnObrasSociales);
             panel1.Controls.Add(LReporteGuardia);
             panel1.Controls.Add(btnReporteGuardia);
             panel1.Controls.Add(Lsalir);
@@ -60,8 +64,30 @@ namespace Gestion_de_Turnos_Medicos
             panel1.Dock = DockStyle.Left;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(200, 425);
+            panel1.Size = new Size(200, 524);
             panel1.TabIndex = 0;
+            // 
+            // LObrasSociales
+            // 
+            LObrasSociales.AutoSize = true;
+            LObrasSociales.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
+            LObrasSociales.Location = new Point(32, 455);
+            LObrasSociales.Name = "LObrasSociales";
+            LObrasSociales.Size = new Size(124, 19);
+            LObrasSociales.TabIndex = 12;
+            LObrasSociales.Text = "Obras Sociales";
+            // 
+            // btnObrasSociales
+            // 
+            btnObrasSociales.BackgroundImage = Properties.Resources.Administrador;
+            btnObrasSociales.BackgroundImageLayout = ImageLayout.Zoom;
+            btnObrasSociales.Cursor = Cursors.Hand;
+            btnObrasSociales.Location = new Point(46, 480);
+            btnObrasSociales.Name = "btnObrasSociales";
+            btnObrasSociales.Size = new Size(92, 73);
+            btnObrasSociales.TabIndex = 13;
+            btnObrasSociales.UseVisualStyleBackColor = true;
+            btnObrasSociales.Click += btnObrasSociales_Click;
             // 
             // LReporteGuardia
             // 
@@ -69,7 +95,7 @@ namespace Gestion_de_Turnos_Medicos
             LReporteGuardia.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             LReporteGuardia.Location = new Point(32, 345);
             LReporteGuardia.Name = "LReporteGuardia";
-            LReporteGuardia.Size = new Size(122, 20);
+            LReporteGuardia.Size = new Size(120, 19);
             LReporteGuardia.TabIndex = 10;
             LReporteGuardia.Text = "Triage Guardia";
             // 
@@ -90,7 +116,7 @@ namespace Gestion_de_Turnos_Medicos
             Lsalir.AutoSize = true;
             Lsalir.Font = new Font("Arial Black", 12F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             Lsalir.ImageAlign = ContentAlignment.BottomCenter;
-            Lsalir.Location = new Point(65, 455);
+            Lsalir.Location = new Point(65, 565);
             Lsalir.Name = "Lsalir";
             Lsalir.Size = new Size(50, 23);
             Lsalir.TabIndex = 6;
@@ -101,7 +127,7 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir.BackgroundImage = Properties.Resources.salir;
             btnSalir.BackgroundImageLayout = ImageLayout.Stretch;
             btnSalir.Cursor = Cursors.Hand;
-            btnSalir.Location = new Point(46, 480);
+            btnSalir.Location = new Point(46, 590);
             btnSalir.Name = "btnSalir";
             btnSalir.Size = new Size(92, 73);
             btnSalir.TabIndex = 7;
@@ -114,7 +140,7 @@ namespace Gestion_de_Turnos_Medicos
             LEspecialidades.Font = new Font("Arial Black", 10.5F, FontStyle.Bold | FontStyle.Underline, GraphicsUnit.Point, 0);
             LEspecialidades.Location = new Point(30, 235);
             LEspecialidades.Name = "LEspecialidades";
-            LEspecialidades.Size = new Size(125, 21);
+            LEspecialidades.Size = new Size(124, 19);
             LEspecialidades.TabIndex = 5;
             LEspecialidades.Text = "Especialidades";
             // 
@@ -175,7 +201,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenedor.Dock = DockStyle.Fill;
             pnlContenedor.Location = new Point(200, 0);
             pnlContenedor.Name = "pnlContenedor";
-            pnlContenedor.Size = new Size(693, 425);
+            pnlContenedor.Size = new Size(965, 524);
             pnlContenedor.TabIndex = 1;
             // 
             // FrmAdmin
@@ -183,7 +209,7 @@ namespace Gestion_de_Turnos_Medicos
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.fondo_admin;
-            ClientSize = new Size(893, 425);
+            ClientSize = new Size(1165, 524);
             Controls.Add(pnlContenedor);
             Controls.Add(panel1);
             Name = "FrmAdmin";
@@ -208,5 +234,7 @@ namespace Gestion_de_Turnos_Medicos
         private Button btnSalir;
         private Label LReporteGuardia;
         private Button btnReporteGuardia;
+        private Label LObrasSociales;
+        private Button btnObrasSociales;
     }
 }
