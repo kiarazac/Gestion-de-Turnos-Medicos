@@ -561,8 +561,10 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`FrmTurnoEmergencia`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
 | | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` (con `@IdObraSocial`) |
-| | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_CrearTurnoEmergencia` |
+| | `TurnoBLL.CrearTurnoEmergenciaConSintomas` | `TurnoDAL.CrearTurnoEmergenciaCompleto` | `sp_CrearTurnoEmergencia` (con generación 2FA) |
 | | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
+| | `TurnoBLL.BuscarTurnoActivoEmergencia` | `TurnoDAL.BuscarTurnoActivoEmergencia` | `sp_BuscarTurnoActivoEmergencia` (por NroOrden o DNI) |
+| | `TurnoBLL.CancelarTurnoEmergencia` | `TurnoDAL.CancelarTurnoEmergencia` | `sp_CancelarTurnoEmergencia` (con validación 2FA) |
 | **`FrmTurnoEspecialidad`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
 | | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosConEstado` |

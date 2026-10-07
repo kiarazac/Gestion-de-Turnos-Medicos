@@ -19,6 +19,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly ObraSocialBLL _obraSocialBLL = new ObraSocialBLL();
         private int? idPacienteActual = null; // Almacena el ID si el paciente ya existe en la BD
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
+        private TurnoEmergenciaCancelacionDTO? _turnoACancelar = null; // Almacena el turno localizado para cancelar con 2FA
 
         public FrmTurnoEmergencia()
         {
@@ -44,24 +45,38 @@ namespace Gestion_de_Turnos_Medicos
 
             // Suscribimos el evento de descarga de comprobante .txt
             btnDescargarTxt.Click += BtnDescargarTxt_Click;
+
+            // Suscribimos los eventos del panel de Cancelación Ágil 2FA
+            btnBuscarTurnoCancelacion.Click += BtnBuscarTurnoCancelacion_Click;
+            txtBuscarTurnoCancelacion.KeyDown += TxtBuscarTurnoCancelacion_KeyDown;
+            btnConfirmarCancelacionEmergencia.Click += BtnConfirmarCancelacionEmergencia_Click;
         }
 
         /// <summary>
-        /// Obtiene el catálogo de síntomas activos desde la base de datos a través de TurnoBLL
-        /// y los distribuye dinámicamente en los CheckedListBox según su nivel de gravedad (Alta o Media).
+        /// Obtiene el catálogo de síntomas activos desde la base de datos a través de TurnoBLL,
+        /// deduplica defensivamente por descripción clínica y los distribuye dinámicamente
+        /// en los CheckedListBox según su nivel de gravedad (Alta o Media).
         /// </summary>
         private void CargarCatalogoSintomas()
         {
             try
             {
+                // Limpiar siempre las listas antes de cargar para evitar acumulación de elementos
+                checkedListAlta.Items.Clear();
+                checkedListMedia.Items.Clear();
+
                 var sintomas = _turnoBLL.ObtenerSintomas();
                 if (sintomas != null && sintomas.Count > 0)
                 {
-                    checkedListAlta.Items.Clear();
-                    checkedListMedia.Items.Clear();
+                    // Deduplicación defensiva por descripción clínica (insensible a mayúsculas/minúsculas y espacios)
+                    var sintomasUnicos = sintomas
+                        .GroupBy(s => (s.Descripcion ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .ToList();
 
-                    foreach (var s in sintomas)
+                    foreach (var s in sintomasUnicos)
                     {
+                        // Categorización según gravedad clínica
                         if (s.Gravedad.Equals("Alta", StringComparison.OrdinalIgnoreCase))
                         {
                             checkedListAlta.Items.Add(s);
@@ -238,8 +253,8 @@ namespace Gestion_de_Turnos_Medicos
                 decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", obraSocial);
 
                 // Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados, el estado de "Otro" y el arancel.
-                // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja).
-                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto, montoArancel);
+                // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja) y autogenera la clave 2FA (CAN-XXXX).
+                string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto, out string codigoCancelacion, montoArancel);
 
                 // 4. Mostramos el resultado visual en pantalla con el número de turno y la prioridad asignada
                 Lid_turno.Text = $"# {nroOrden}";
@@ -262,7 +277,7 @@ namespace Gestion_de_Turnos_Medicos
                         break;
                 }
 
-                // Guardamos los datos completos del turno emitido para la descarga del comprobante .txt
+                // Guardamos los datos completos del turno emitido para la descarga del comprobante .txt, incluyendo la clave 2FA
                 _ultimoTurnoEmitido = new DatosComprobanteTurno
                 {
                     NroOrden = nroOrden,
@@ -271,13 +286,40 @@ namespace Gestion_de_Turnos_Medicos
                     FechaEmision = DateTime.Now,
                     NombrePaciente = $"{apellido}, {nombre}",
                     DniPaciente = dni,
-                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial
+                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial,
+                    CodigoCancelacion = codigoCancelacion
                 };
 
                 // Habilitamos el botón de descarga ubicado debajo del número de orden
                 btnDescargarTxt.Enabled = true;
 
-                MessageBox.Show($"¡Turno de emergencia generado correctamente!\n\nNúmero de Orden: {nroOrden}\nPrioridad Triage: {prioridadTexto}\nArancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Precargamos los datos del turno en el panel de cancelación directa por si se emitió por error
+                _turnoACancelar = new TurnoEmergenciaCancelacionDTO
+                {
+                    NroOrden = nroOrden,
+                    Apellido = apellido,
+                    Nombre = nombre,
+                    Dni = dni,
+                    Prioridad = prioridadTexto,
+                    Estado = "En Espera",
+                    CodigoCancelacion = codigoCancelacion
+                };
+                txtBuscarTurnoCancelacion.Text = nroOrden;
+                lblTurnoInfoPaciente.Text = $"Paciente: {apellido}, {nombre} (DNI: {dni})";
+                lblTurnoInfoTriage.Text = $"Triage: {prioridadTexto} | Estado: En Espera";
+                txtClaveCancelacionEmergencia.Text = codigoCancelacion;
+
+                MessageBox.Show(
+                    $"¡Turno de emergencia generado correctamente!\n\n" +
+                    $"Número de Orden: {nroOrden}\n" +
+                    $"Prioridad Triage: {prioridadTexto}\n" +
+                    $"Arancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})\n\n" +
+                    $"CLAVE DE CANCELACIÓN (2FA): {codigoCancelacion}\n" +
+                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)",
+                    "Éxito",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
 
                 LimpiarFormulario();
             }
@@ -285,6 +327,147 @@ namespace Gestion_de_Turnos_Medicos
             {
                 // Atrapa los mensajes limpios lanzados desde la Base de Datos (SQL THROW/RAISERROR) o de las validaciones de BLL
                 MessageBox.Show($"No se pudo completar la operación:\n\n{ex.Message}", "Error de Sistema", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Manejador de pulsación de teclas en el campo de búsqueda de cancelación. Al pulsar Enter, ejecuta la búsqueda.
+        /// </summary>
+        private void TxtBuscarTurnoCancelacion_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true; // Evitar sonido beep de Windows
+                BuscarTurnoParaCancelacion();
+            }
+        }
+
+        /// <summary>
+        /// Manejador del botón BUSCAR del panel de cancelación rápida de guardia.
+        /// </summary>
+        private void BtnBuscarTurnoCancelacion_Click(object? sender, EventArgs e)
+        {
+            BuscarTurnoParaCancelacion();
+        }
+
+        /// <summary>
+        /// Localiza un turno de guardia activo mediante Nro de Orden (ej. E-001) o DNI del paciente.
+        /// Despliega la ficha en pantalla en 1 solo paso y prepara el campo de clave 2FA.
+        /// </summary>
+        private void BuscarTurnoParaCancelacion()
+        {
+            string termino = txtBuscarTurnoCancelacion.Text.Trim();
+            if (string.IsNullOrWhiteSpace(termino))
+            {
+                MessageBox.Show("Por favor, ingrese un Número de Orden (ej. E-001) o el DNI del paciente para buscar.", "Búsqueda Requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtBuscarTurnoCancelacion.Focus();
+                return;
+            }
+
+            try
+            {
+                // Invocamos a la capa de negocio BLL
+                var turno = _turnoBLL.BuscarTurnoActivoEmergencia(termino);
+                if (turno != null)
+                {
+                    _turnoACancelar = turno;
+                    lblTurnoInfoPaciente.Text = $"Paciente: {turno.PacienteCompleto} (DNI: {turno.Dni})";
+                    lblTurnoInfoTriage.Text = $"Turno: #{turno.NroOrden} | Triage: {turno.Prioridad} | Estado: {turno.Estado}";
+                    txtClaveCancelacionEmergencia.Clear();
+                    txtClaveCancelacionEmergencia.Focus();
+                }
+                else
+                {
+                    _turnoACancelar = null;
+                    lblTurnoInfoPaciente.Text = "Paciente: No se encontró ningún turno activo";
+                    lblTurnoInfoTriage.Text = "Triage: -- | Estado: --";
+                    txtClaveCancelacionEmergencia.Clear();
+                    MessageBox.Show($"No se encontró ningún turno de guardia activo (En Espera o Llamado) para el término '{termino}'.\n\nVerifique el número de ticket o DNI ingresado.", "Turno No Encontrado", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    txtBuscarTurnoCancelacion.Focus();
+                    txtBuscarTurnoCancelacion.SelectAll();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al buscar turno de guardia:\n{ex.Message}", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Manejador del botón CANCELAR TURNO (2FA) en guardia médica.
+        /// Valida en memoria y en base de datos la clave 2FA para procesar la baja inmediata en 1 solo paso.
+        /// </summary>
+        private void BtnConfirmarCancelacionEmergencia_Click(object? sender, EventArgs e)
+        {
+            if (_turnoACancelar == null)
+            {
+                MessageBox.Show("Primero debe buscar y seleccionar un turno de guardia activo para cancelar.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtBuscarTurnoCancelacion.Focus();
+                return;
+            }
+
+            string claveIngresada = txtClaveCancelacionEmergencia.Text.Trim();
+            if (string.IsNullOrWhiteSpace(claveIngresada))
+            {
+                MessageBox.Show("Debe ingresar la palabra clave alfanumérica (2FA) emitida en el ticket del paciente (ej. CAN-XXXX).", "Clave 2FA Requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtClaveCancelacionEmergencia.Focus();
+                return;
+            }
+
+            // Validación previa en memoria si el DTO ya traía la clave cargada
+            if (!string.IsNullOrWhiteSpace(_turnoACancelar.CodigoCancelacion) &&
+                !string.Equals(claveIngresada, _turnoACancelar.CodigoCancelacion, StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("La palabra clave / código 2FA ingresado no coincide con el ticket emitido para este turno.\n\nVerifique el comprobante impreso del paciente e intente nuevamente.", "Confirmación 2FA Fallida", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                txtClaveCancelacionEmergencia.Focus();
+                txtClaveCancelacionEmergencia.SelectAll();
+                return;
+            }
+
+            // Confirmación de seguridad
+            var confirmacion = MessageBox.Show(
+                $"¿Confirma la cancelación inmediata del turno #{_turnoACancelar.NroOrden} perteneciente al paciente {_turnoACancelar.PacienteCompleto}?\n\nEsta acción removerá al paciente de la lista de espera de guardia.",
+                "Confirmar Cancelación de Emergencia (2FA)",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            try
+            {
+                // Invocamos a la capa de negocio BLL para persistir la baja
+                _turnoBLL.CancelarTurnoEmergencia(_turnoACancelar.IdTurno, claveIngresada);
+
+                MessageBox.Show(
+                    $"¡El turno de guardia #{_turnoACancelar.NroOrden} fue cancelado exitosamente!\n\nEl paciente ha sido retirado de la guardia.",
+                    "Cancelación Exitosa",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+
+                // Si el turno recién cancelado era el que se mostraba en pantalla grande, limpiamos el display
+                if (Lid_turno.Text.Contains(_turnoACancelar.NroOrden))
+                {
+                    Lid_turno.Text = "# --------";
+                    Ldescrip_turno_especialidad.Text = "Especialidad";
+                    Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
+                    btnDescargarTxt.Enabled = false;
+                    _ultimoTurnoEmitido = null;
+                }
+
+                // Limpiamos los campos del panel de cancelación
+                _turnoACancelar = null;
+                txtBuscarTurnoCancelacion.Clear();
+                lblTurnoInfoPaciente.Text = "Paciente: (Sin búsqueda)";
+                lblTurnoInfoTriage.Text = "Triage: -- | Estado: --";
+                txtClaveCancelacionEmergencia.Clear();
+                txtBuscarTurnoCancelacion.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ocurrió un error al procesar la cancelación:\n{ex.Message}", "Error de Cancelación", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

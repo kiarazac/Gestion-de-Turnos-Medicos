@@ -77,28 +77,42 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="monto">Monto arancelario recaudado o pactado para el turno.</param>
         /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
         /// <exception cref="ArgumentException">Se lanza si el ID del paciente es inválido o no se especificó ningún síntoma ni la opción 'Otro'.</exception>
-        /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
+        /// <summary>
+        /// Determina la prioridad de triage según los síntomas seleccionados, crea el turno de emergencia,
+        /// persiste los síntomas asociados y retorna el código de turno asignado.
+        /// </summary>
         public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, decimal? monto = null)
         {
-            // Invoca la sobrecarga principal descartando la salida de texto de la prioridad
-            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out _, monto);
+            // Invoca la sobrecarga principal descartando la salida de texto de la prioridad y del código 2FA
+            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out _, out _, monto);
         }
 
         /// <summary>
-        /// Determina la prioridad de triage según los síntomas seleccionados, crea el turno de emergencia,
-        /// persiste los síntomas asociados y retorna tanto el código de turno como la descripción textual de la prioridad calculada.
-        /// Garantiza que el síntoma con la gravedad más severa determine la prioridad final del turno médico.
+        /// Sobrecarga de compatibilidad: crea el turno de emergencia y entrega la etiqueta de prioridad en texto.
+        /// </summary>
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto, decimal? monto = null)
+        {
+            // Invoca la sobrecarga completa descartando el código 2FA
+            return CrearTurnoEmergenciaConSintomas(idPaciente, idsSintomas, esOtroSeleccionado, out prioridadTexto, out _, monto);
+        }
+
+        /// <summary>
+        /// Determina la prioridad de triage según los síntomas seleccionados, autogenera el código de seguridad 2FA ('CAN-XXXX'),
+        /// crea el turno de emergencia en base de datos, persiste los síntomas asociados y retorna el código de turno,
+        /// la prioridad calculada y la clave 2FA para el ticket.
         /// </summary>
         /// <param name="idPaciente">Identificador único del paciente admitido.</param>
         /// <param name="idsSintomas">Lista de identificadores de síntomas tildados.</param>
         /// <param name="esOtroSeleccionado">Indica si el paciente seleccionó la opción de síntoma no catalogado ("Otro").</param>
         /// <param name="prioridadTexto">Parámetro de salida que entrega el nivel de urgencia asignado ('ALTA', 'MEDIA', 'BAJA').</param>
+        /// <param name="codigoCancelacion">Parámetro de salida que entrega la clave de seguridad 2FA generada para el comprobante.</param>
         /// <param name="monto">Monto arancelario recaudado o pactado para el turno.</param>
         /// <returns>Código correlativo de turno asignado (ej. 'E-001').</returns>
         /// <exception cref="ArgumentException">Se lanza si los datos son inválidos o no hay ningún síntoma seleccionado.</exception>
         /// <exception cref="Exception">Se lanza si ocurre un error al persistir el turno en base de datos.</exception>
-        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto, decimal? monto = null)
+        public string CrearTurnoEmergenciaConSintomas(int idPaciente, List<int> idsSintomas, bool esOtroSeleccionado, out string prioridadTexto, out string codigoCancelacion, decimal? monto = null)
         {
+            // Validamos que el paciente exista
             if (idPaciente <= 0)
                 throw new ArgumentException("El ID del paciente es inválido o no ha sido registrado/cargado.");
 
@@ -124,8 +138,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
                     // Si el síntoma actual tiene mayor severidad (es decir, un número menor)
                     // que la prioridad acumulada, se actualiza la prioridad asignada.
-                    // Esto asegura que si hay al menos UN síntoma de gravedad Alta (1),
-                    // la prioridad final será Alta aunque también haya síntomas de gravedad Media (2) o "Otro".
                     if (gravedadSintoma < prioridadDeterminada)
                     {
                         prioridadDeterminada = gravedadSintoma;
@@ -141,8 +153,11 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 _ => "BAJA"
             };
 
-            // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad calculada y el monto
-            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada, monto);
+            // Generamos la clave de cancelación de doble factor (2FA) formato CAN-XXXX
+            codigoCancelacion = GenerarCodigoCancelacion();
+
+            // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad, el monto y la clave 2FA
+            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada, monto, codigoCancelacion);
 
             if (resultadoTurno.IdNuevoTurno <= 0)
                 throw new Exception("Error al generar el turno en la base de datos.");
@@ -301,6 +316,42 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("Debe ingresar la palabra clave / código 2FA para cancelar el turno.");
 
             _turnoDAL.CancelarTurnoEspecialidad(idTurno, codigoCancelacion.Trim());
+        }
+
+        /// <summary>
+        /// Localiza un turno de guardia activo mediante su número de orden (ej: 'E-001') o DNI del paciente.
+        /// </summary>
+        /// <param name="termino">Término de búsqueda (número de orden o DNI).</param>
+        /// <returns>Detalle del turno encontrado o <c>null</c> si no existe un turno activo con ese identificador.</returns>
+        /// <exception cref="ArgumentException">Se lanza si el término de búsqueda está vacío.</exception>
+        public TurnoEmergenciaCancelacionDTO? BuscarTurnoActivoEmergencia(string termino)
+        {
+            // Validamos que el término de búsqueda no sea nulo ni consista únicamente en espacios
+            if (string.IsNullOrWhiteSpace(termino))
+                throw new ArgumentException("Debe ingresar un número de orden o DNI del paciente.");
+
+            // Delegamos la consulta a la capa de acceso a datos (TurnoDAL)
+            return _turnoDAL.BuscarTurnoActivoEmergencia(termino.Trim());
+        }
+
+        /// <summary>
+        /// Cancela un turno activo de guardia (Emergencia) previa validación de la palabra clave / código 2FA del comprobante.
+        /// </summary>
+        /// <param name="idTurno">Identificador único del turno a cancelar.</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica de seguridad 2FA emitida en el comprobante.</param>
+        /// <exception cref="ArgumentException">Se lanza si el código 2FA está vacío o el ID es inválido.</exception>
+        public void CancelarTurnoEmergencia(int idTurno, string codigoCancelacion)
+        {
+            // Validamos identificador de turno
+            if (idTurno <= 0)
+                throw new ArgumentException("El ID del turno de guardia es inválido.");
+
+            // Validamos que se proporcione el código 2FA
+            if (string.IsNullOrWhiteSpace(codigoCancelacion))
+                throw new ArgumentException("Debe ingresar la palabra clave / código 2FA para cancelar el turno de guardia.");
+
+            // Invocamos la operación atómica de cancelación en la capa de datos
+            _turnoDAL.CancelarTurnoEmergencia(idTurno, codigoCancelacion.Trim());
         }
 
         /// <summary>

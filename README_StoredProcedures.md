@@ -2115,7 +2115,9 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@IdPaciente` | `INT` | IN | ID del paciente asistido. |
   | `@IdPrioridad` | `INT` | IN | Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja). |
-- **Devuelve:** `IdNuevoTurno`, `NroOrden`.
+  | `@Monto` | `DECIMAL(18,2)` | IN | Monto arancelario cobrado en caja según obra social (opcional). |
+  | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Palabra clave alfanumérica de seguridad 2FA (opcional). |
+- **Devuelve:** `IdNuevoTurno`, `NroOrden`, `CodigoCancelacion`.
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
   | :--- | :--- | :--- |
@@ -2125,13 +2127,14 @@ GO
 ```sql
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEmergencia
     @IdPaciente INT,
-    @IdPrioridad INT
+    @IdPrioridad INT,
+    @Monto DECIMAL(18,2) = NULL,
+    @CodigoCancelacion NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        -- Validación de negocio previa en SQL por si acaso
         IF NOT EXISTS (SELECT 1 FROM Pacientes WHERE IdPaciente = @IdPaciente AND Activo = 1)
         BEGIN
             THROW 50001, 'El paciente seleccionado no existe o se encuentra inactivo en el sistema.', 1;
@@ -2150,20 +2153,29 @@ BEGIN
             THROW 50002, 'No se encontró configurada una especialidad activa para "Emergencia" en la base de datos.', 1;
         END
 
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, 1, GETDATE());
+        IF @Monto IS NULL
+        BEGIN
+            DECLARE @IdObraSocialPaciente INT;
+            SELECT @IdObraSocialPaciente = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+
+            IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocialPaciente AND Nombre NOT LIKE '%Particular%')
+                SET @Monto = 7500.00;
+            ELSE
+                SET @Monto = 25000.00;
+        END
+
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
+        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
         
         SET @NroOrden = CONCAT('E-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
         UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
 
-        -- Devolvemos ambas columnas requeridas por el DTO
-        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
+        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden, @CodigoCancelacion AS CodigoCancelacion;
 
     END TRY
     BEGIN CATCH
-        -- Capturamos el error de SQL y lo propagamos limpiamente al código C#
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
         DECLARE @ErrorState INT = ERROR_STATE();
@@ -2426,6 +2438,151 @@ BEGIN
         DECLARE @ErrorState INT = ERROR_STATE();
 
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
+END;
+GO
+```
+
+---
+
+### 5.6.0.1 `sp_BuscarTurnoActivoEmergencia`
+- **Descripción:** Localiza un turno de guardia (Emergencia) activo (`En Espera` o `Llamado`) para cancelación ágil, permitiendo filtrar indistintamente por Número de Orden (ej. `E-001`) o por Documento Nacional de Identidad (`DNI`) del paciente.
+- **Entidad:** Turno / Paciente
+- **Operación:** Búsqueda Directa para Cancelación
+- **Tablas:** `Turnos`, `Pacientes`, `Prioridades`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
+- **Acción:** Campo `txtBuscarTurnoCancelacion` (Enter o Click `btnBuscarTurnoCancelacion`)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Termino` | `NVARCHAR(50)` | IN | Número de orden (ej: 'E-001') o DNI del paciente. |
+- **Devuelve:** `IdTurno`, `NroOrden`, `Apellido`, `Nombre`, `Dni`, `Prioridad`, `Hora`, `Estado`, `CodigoCancelacion`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_BuscarTurnoActivoEmergencia
+    @Termino NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @TerminoLimpio NVARCHAR(50) = LTRIM(RTRIM(ISNULL(@Termino, '')));
+
+        IF LEFT(@TerminoLimpio, 1) = '#'
+            SET @TerminoLimpio = LTRIM(RTRIM(SUBSTRING(@TerminoLimpio, 2, LEN(@TerminoLimpio))));
+
+        SELECT TOP 1
+            t.IdTurno,
+            t.NroOrden,
+            pac.Apellido,
+            pac.Nombre,
+            pac.Dni,
+            ISNULL(pr.Descripcion, 'MEDIA') AS Prioridad,
+            LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+            t.Estado,
+            ISNULL(t.CodigoCancelacion, '') AS CodigoCancelacion
+        FROM Turnos t
+        INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND t.Estado IN ('En Espera', 'Llamado')
+          AND (
+              UPPER(t.NroOrden) = UPPER(@TerminoLimpio)
+              OR pac.Dni = @TerminoLimpio
+          )
+        ORDER BY t.IdTurno DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
+END;
+GO
+```
+
+---
+
+### 5.6.0.2 `sp_CancelarTurnoEmergencia`
+- **Descripción:** Cancela lógicamente un turno activo de guardia médica (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la lista de espera tras validar estrictamente la coincidencia de la palabra clave de seguridad 2FA (`CAN-XXXX`) emitida en el ticket.
+- **Entidad:** Turno
+- **Operación:** Cancelación de Turno de Guardia con Validación 2FA
+- **Tablas:** `Turnos`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
+- **Acción:** Botón `btnConfirmarCancelacionEmergencia`
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdTurno` | `INT` | IN | Identificador del turno de emergencia a cancelar. |
+  | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Palabra clave alfanumérica 2FA emitida en el ticket. |
+- **Devuelve:** `IdTurnoCancelado`, `Mensaje`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_CancelarTurnoEmergencia
+    @IdTurno INT,
+    @CodigoCancelacion NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @IdTurno IS NULL OR @IdTurno <= 0
+        BEGIN
+            THROW 50050, 'El ID de turno proporcionado es inválido.', 1;
+        END
+
+        IF LTRIM(RTRIM(ISNULL(@CodigoCancelacion, ''))) = ''
+        BEGIN
+            THROW 50051, 'Debe ingresar la palabra clave / código 2FA para cancelar el turno.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        BEGIN
+            THROW 50052, 'El turno de guardia especificado no existe en el sistema.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND (Activo = 0 OR Estado = 'Cancelado'))
+        BEGIN
+            THROW 50053, 'El turno de guardia ya se encuentra cancelado o dado de baja.', 1;
+        END
+
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE IdTurno = @IdTurno 
+              AND UPPER(LTRIM(RTRIM(ISNULL(CodigoCancelacion, '')))) = UPPER(LTRIM(RTRIM(@CodigoCancelacion)))
+        )
+        BEGIN
+            THROW 50054, 'La palabra clave o código 2FA ingresado es incorrecto. No se puede cancelar el turno.', 1;
+        END
+
+        UPDATE Turnos
+        SET 
+            Estado = 'Cancelado',
+            Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
+
+        SELECT @IdTurno AS IdTurnoCancelado, 'Turno de guardia cancelado exitosamente' AS Mensaje;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessageEmerg NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverityEmerg INT = ERROR_SEVERITY();
+        DECLARE @ErrorStateEmerg INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessageEmerg, @ErrorSeverityEmerg, @ErrorStateEmerg);
     END CATCH;
 END;
 GO

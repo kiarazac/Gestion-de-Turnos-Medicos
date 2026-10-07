@@ -65,6 +65,25 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | `@DescripcionSintoma` | `VARCHAR(100)` | IN | Descripción del síntoma tildado en el formulario. |
   | `@EstadoActual` | `VARCHAR(50)` | IN | Estado del síntoma al ingresar (ej. 'Presente'). |
 
+### 4. `sp_BuscarTurnoActivoEmergencia`
+- **Descripción**: Localiza un turno de guardia (Emergencia) activo (`En Espera` o `Llamado`) para cancelación ágil, filtrando por Número de Orden (ej. `E-001`) o por DNI del paciente en un solo paso.
+- **Tablas involucradas**: `Turnos`, `Pacientes`, `Prioridades`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@Termino` | `NVARCHAR(50)` | IN | Número de orden o DNI del paciente. |
+- **Devuelve**: `IdTurno`, `NroOrden`, `Apellido`, `Nombre`, `Dni`, `Prioridad`, `Hora`, `Estado`, `CodigoCancelacion`.
+
+### 5. `sp_CancelarTurnoEmergencia`
+- **Descripción**: Realiza la baja lógica del turno de guardia (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la guardia tras validar de forma estricta la palabra clave alfanumérica 2FA (`CAN-XXXX`) emitida en el ticket.
+- **Tablas involucradas**: `Turnos`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdTurno` | `INT` | IN | Identificador único del turno a cancelar. |
+  | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Clave alfanumérica de seguridad 2FA emitida en el comprobante. |
+- **Devuelve**: `IdTurnoCancelado`, `Mensaje`.
+
 ---
 
 ## FrmTurnoEspecialidad

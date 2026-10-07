@@ -1818,14 +1818,18 @@ GO
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `Especialidades`
 ** Invocado por  : `FrmTurnoEmergencia` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
-** Retorno       : `IdNuevoTurno`, `NroOrden`.
+** Retorno       : `IdNuevoTurno`, `NroOrden`, `CodigoCancelacion`.
 ** Parámetros   :
 **                `@IdPaciente` (`INT`, IN) - ID del paciente asistido.
 **                `@IdPrioridad` (`INT`, IN) - Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja).
+**                `@Monto` (`DECIMAL(18,2)`, IN, opcional) - Arancel aplicable en caja según obra social.
+**                `@CodigoCancelacion` (`NVARCHAR(50)`, IN, opcional) - Palabra clave alfanumérica de seguridad 2FA para cancelación.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEmergencia
     @IdPaciente INT,
-    @IdPrioridad INT
+    @IdPrioridad INT,
+    @Monto DECIMAL(18,2) = NULL,
+    @CodigoCancelacion NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1850,16 +1854,28 @@ BEGIN
             THROW 50002, 'No se encontró configurada una especialidad activa para "Emergencia" en la base de datos.', 1;
         END
 
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, 1, GETDATE());
+        -- Si no se proveyó un monto explícito, se calcula según si el paciente tiene obra social o es particular
+        IF @Monto IS NULL
+        BEGIN
+            DECLARE @IdObraSocialPaciente INT;
+            SELECT @IdObraSocialPaciente = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+
+            IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocialPaciente AND Nombre NOT LIKE '%Particular%')
+                SET @Monto = 7500.00;  -- 30% con Obra Social
+            ELSE
+                SET @Monto = 25000.00; -- Particular 100%
+        END
+
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
+        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
         
         SET @NroOrden = CONCAT('E-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
         UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
 
-        -- Devolvemos ambas columnas requeridas por el DTO
-        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
+        -- Devolvemos las columnas requeridas por el DTO
+        SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden, @CodigoCancelacion AS CodigoCancelacion;
 
     END TRY
     BEGIN CATCH
@@ -1962,7 +1978,8 @@ CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @Fecha DATE,
     @Horario NVARCHAR(10),
     @Estado NVARCHAR(50) = 'En Espera',
-    @CodigoCancelacion NVARCHAR(50) = NULL
+    @CodigoCancelacion NVARCHAR(50) = NULL,
+    @Monto DECIMAL(18,2) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2006,9 +2023,21 @@ BEGIN
         -- Obtenemos la primera letra de la especialidad en mayúscula (ej: C de Cardiología)
         SET @InicialEspecialidad = UPPER(LEFT(@NombreEspecialidad, 1));
 
+        -- Si no se proveyó un monto explícito, se calcula según si el paciente tiene obra social o es particular
+        IF @Monto IS NULL
+        BEGIN
+            DECLARE @IdObraSocialPaciente INT;
+            SELECT @IdObraSocialPaciente = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+
+            IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocialPaciente AND Nombre NOT LIKE '%Particular%')
+                SET @Monto = 4500.00;  -- 30% con Obra Social
+            ELSE
+                SET @Monto = 15000.00; -- Particular 100%
+        END
+
         -- Insertamos con un valor temporal
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Activo, FechaCreacion)
-        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
+        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
         
@@ -2103,6 +2132,144 @@ BEGIN
         DECLARE @ErrorState INT = ERROR_STATE();
 
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_BuscarTurnoActivoEmergencia
+** Sección       : 5.6.0.1
+** Propósito     : Busca turnos activos de guardia (Emergencia) para cancelación ágil,
+**                 permitiendo filtrar directamente por Número de Orden (ej. 'E-001') o por DNI del paciente.
+** Entidad/Tablas: `Turnos`, `Pacientes`, `Prioridades`
+** Invocado por  : `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
+** Estado        : `EN USO`
+** Retorno       : `IdTurno`, `NroOrden`, `Apellido`, `Nombre`, `Dni`, `Prioridad`, `Hora`, `Estado`, `CodigoCancelacion`
+** Parámetros   :
+**                `@Termino` (`NVARCHAR(50)`, IN) - N° de Orden (ej. 'E-001') o DNI del paciente.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_BuscarTurnoActivoEmergencia
+    @Termino NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @TerminoLimpio NVARCHAR(50) = LTRIM(RTRIM(ISNULL(@Termino, '')));
+
+        -- Si viene con prefijo numeral '# E-001' o '#E-001', limpiamos el numeral
+        IF LEFT(@TerminoLimpio, 1) = '#'
+            SET @TerminoLimpio = LTRIM(RTRIM(SUBSTRING(@TerminoLimpio, 2, LEN(@TerminoLimpio))));
+
+        SELECT TOP 1
+            t.IdTurno,
+            t.NroOrden,
+            pac.Apellido,
+            pac.Nombre,
+            pac.Dni,
+            ISNULL(pr.Descripcion, 'MEDIA') AS Prioridad,
+            LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+            t.Estado,
+            ISNULL(t.CodigoCancelacion, '') AS CodigoCancelacion
+        FROM Turnos t
+        INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+        WHERE t.TipoTurno = 'Emergencia'
+          AND t.Activo = 1
+          AND t.Estado IN ('En Espera', 'Llamado')
+          AND (
+              UPPER(t.NroOrden) = UPPER(@TerminoLimpio)
+              OR pac.Dni = @TerminoLimpio
+          )
+        ORDER BY t.IdTurno DESC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_CancelarTurnoEmergencia
+** Sección       : 5.6.0.2
+** Propósito     : Cancela un turno activo de guardia (Emergencia) validando de forma estricta
+**                 la palabra clave alfanumérica de seguridad (2FA) emitida en el ticket.
+** Entidad/Tablas: `Turnos`
+** Invocado por  : `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
+** Estado        : `EN USO`
+** Retorno       : `IdTurnoCancelado`, `Mensaje`
+** Parámetros   :
+**                `@IdTurno` (`INT`, IN) - Identificador del turno a cancelar.
+**                `@CodigoCancelacion` (`NVARCHAR(50)`, IN) - Palabra clave alfanumérica 2FA.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_CancelarTurnoEmergencia
+    @IdTurno INT,
+    @CodigoCancelacion NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @IdTurno IS NULL OR @IdTurno <= 0
+        BEGIN
+            THROW 50050, 'El ID de turno proporcionado es inválido.', 1;
+        END
+
+        IF LTRIM(RTRIM(ISNULL(@CodigoCancelacion, ''))) = ''
+        BEGIN
+            THROW 50051, 'Debe ingresar la palabra clave / código 2FA para cancelar el turno.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        BEGIN
+            THROW 50052, 'El turno de guardia especificado no existe en el sistema.', 1;
+        END
+
+        IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND (Activo = 0 OR Estado = 'Cancelado'))
+        BEGIN
+            THROW 50053, 'El turno de guardia ya se encuentra cancelado o dado de baja.', 1;
+        END
+
+        -- Validar coincidencia de código 2FA
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE IdTurno = @IdTurno 
+              AND UPPER(LTRIM(RTRIM(ISNULL(CodigoCancelacion, '')))) = UPPER(LTRIM(RTRIM(@CodigoCancelacion)))
+        )
+        BEGIN
+            THROW 50054, 'La palabra clave o código 2FA ingresado es incorrecto. No se puede cancelar el turno.', 1;
+        END
+
+        -- Actualización lógica del estado del turno
+        UPDATE Turnos
+        SET 
+            Estado = 'Cancelado',
+            Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno;
+
+        SELECT @IdTurno AS IdTurnoCancelado, 'Turno de guardia cancelado exitosamente' AS Mensaje;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessageEmerg NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverityEmerg INT = ERROR_SEVERITY();
+        DECLARE @ErrorStateEmerg INT = ERROR_STATE();
+
+        RAISERROR (@ErrorMessageEmerg, @ErrorSeverityEmerg, @ErrorStateEmerg);
     END CATCH;
 END;
 
@@ -3341,62 +3508,98 @@ USE dbGestionTurnos;
 
 GO
 
--- 1. Roles Base del Sistema
-INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
-VALUES 
-('Administrador', 1, GETDATE()),
-('Personal médico', 1, GETDATE()),
-('Recepcionista', 1, GETDATE()),
-('Usuario Ventana', 1, GETDATE());
+-- 1. Roles Base del Sistema (Idempotente)
+IF NOT EXISTS (SELECT 1 FROM Roles WHERE Descripcion = 'Administrador' OR Descripcion = 'Admin')
+    INSERT INTO Roles (Descripcion, Activo, FechaCreacion) VALUES ('Administrador', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Roles WHERE Descripcion LIKE '%Medic%' OR Descripcion LIKE '%médic%' OR Descripcion = 'Personal Medico')
+    INSERT INTO Roles (Descripcion, Activo, FechaCreacion) VALUES ('Personal Medico', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Roles WHERE Descripcion = 'Recepcionista')
+    INSERT INTO Roles (Descripcion, Activo, FechaCreacion) VALUES ('Recepcionista', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Roles WHERE Descripcion = 'Usuario Ventana' OR Descripcion = 'UsuarioVentana')
+    INSERT INTO Roles (Descripcion, Activo, FechaCreacion) VALUES ('Usuario Ventana', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Roles WHERE Descripcion = 'Gerente')
+    INSERT INTO Roles (Descripcion, Activo, FechaCreacion) VALUES ('Gerente', 1, GETDATE());
 
 GO
 
--- 2. Catálogo Base de Síntomas para Triage
-INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion)
-VALUES 
--- Prioridad Alta (Triage 1: Riesgo vital)
-('Dolor de pecho opresivo', 'Alta', 1, GETDATE()),
-('Dificultad respiratoria severa', 'Alta', 1, GETDATE()),
-('Pérdida de conocimiento', 'Alta', 1, GETDATE()),
-('Hemorragia abundante', 'Alta', 1, GETDATE()),
+-- 2. Catálogo Base de Síntomas para Triage (Carga Idempotente por Descripción)
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Dolor de pecho opresivo')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Dolor de pecho opresivo', 'Alta', 1, GETDATE());
 
--- Prioridad Media (Triage 2: Urgencias moderadas)
-('Fiebre alta persistente', 'Media', 1, GETDATE()),
-('Dolor abdominal agudo', 'Media', 1, GETDATE()),
-('Fractura expuesta o trauma fuerte', 'Media', 1, GETDATE()),
-('Reacción alérgica moderada', 'Media', 1, GETDATE()),
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Dificultad respiratoria severa')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Dificultad respiratoria severa', 'Alta', 1, GETDATE());
 
--- Prioridad Baja (Triage 3: Guardia regular)
-('Dolor de cabeza leve/moderado', 'Baja', 1, GETDATE()),
-('Tos y síntomas de resfrío', 'Baja', 1, GETDATE()),
-('Dolor muscular o articular', 'Baja', 1, GETDATE()),
-('Malestar estomacal leve', 'Baja', 1, GETDATE());
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Pérdida de conocimiento')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Pérdida de conocimiento', 'Alta', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Hemorragia abundante')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Hemorragia abundante', 'Alta', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Fiebre alta persistente')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Fiebre alta persistente', 'Media', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Dolor abdominal agudo')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Dolor abdominal agudo', 'Media', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Fractura expuesta o trauma fuerte')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Fractura expuesta o trauma fuerte', 'Media', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Reacción alérgica moderada')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Reacción alérgica moderada', 'Media', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Dolor de cabeza leve/moderado')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Dolor de cabeza leve/moderado', 'Baja', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Tos y síntomas de resfrío')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Tos y síntomas de resfrío', 'Baja', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Dolor muscular o articular')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Dolor muscular o articular', 'Baja', 1, GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Sintomas WHERE Descripcion = 'Malestar estomacal leve')
+    INSERT INTO Sintomas (Descripcion, Gravedad, Activo, FechaCreacion) VALUES ('Malestar estomacal leve', 'Baja', 1, GETDATE());
 
 GO
 
 -- 3. Usuario Administrador Inicial
-EXEC sp_InsertarUsuario 
-    @Nombre = 'Admin', 
-    @Apellido = 'Principal', 
-    @Correo = 'admin@consultorio.com', 
-    @Contrasena = '123456', 
-    @Dni = '11223344', 
-    @Telefono = '3794000000', 
-    @NroMatricula = '0',
-    @IdRol = 1;
+IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = 'admin@consultorio.com' OR Dni = '11223344')
+BEGIN
+    DECLARE @IdRolAdmin INT;
+    SELECT TOP 1 @IdRolAdmin = IdRol FROM Roles WHERE Descripcion = 'Administrador' OR Descripcion = 'Admin';
+
+    EXEC sp_InsertarUsuario 
+        @Nombre = 'Admin', 
+        @Apellido = 'Principal', 
+        @Correo = 'admin@consultorio.com', 
+        @Contrasena = '123456', 
+        @Dni = '11223344', 
+        @Telefono = '3794000000', 
+        @NroMatricula = '0',
+        @IdRol = @IdRolAdmin;
+END;
 
 GO
 
 -- 4. Usuario Ventana / Pantalla de Sala de Espera Inicial
-EXEC sp_InsertarUsuario 
-    @Nombre = 'Visor', 
-    @Apellido = 'SalaEspera', 
-    @Correo = 'ventana@consultorio.com', 
-    @Contrasena = '123456', 
-    @Dni = '99999999', 
-    @Telefono = '0000000000', 
-    @NroMatricula = '0',
-    @IdRol = 4;
+IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Correo = 'ventana@consultorio.com' OR Dni = '99999999')
+BEGIN
+    DECLARE @IdRolVentana INT;
+    SELECT TOP 1 @IdRolVentana = IdRol FROM Roles WHERE Descripcion LIKE '%Ventana%';
+
+    EXEC sp_InsertarUsuario 
+        @Nombre = 'Visor', 
+        @Apellido = 'SalaEspera', 
+        @Correo = 'ventana@consultorio.com', 
+        @Contrasena = '123456', 
+        @Dni = '99999999', 
+        @Telefono = '0000000000', 
+        @NroMatricula = '0',
+        @IdRol = @IdRolVentana;
+END;
 
 GO
 
@@ -3491,10 +3694,10 @@ BEGIN
             COUNT(t.IdTurno) AS TotalTurnos,
             ISNULL(SUM(t.Monto), 0.00) AS TotalRecaudado,
             -- Totales por Cobertura
-            ISNULL(SUM(CASE WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 1 ELSE 0 END), 0) AS TurnosParticulares,
-            ISNULL(SUM(CASE WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN t.Monto ELSE 0 END), 0.00) AS MontoParticulares,
-            ISNULL(SUM(CASE WHEN p.ObraSocial IS NOT NULL AND p.ObraSocial NOT IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 1 ELSE 0 END), 0) AS TurnosObraSocial,
-            ISNULL(SUM(CASE WHEN p.ObraSocial IS NOT NULL AND p.ObraSocial NOT IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN t.Monto ELSE 0 END), 0.00) AS MontoObraSocial,
+            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosParticulares,
+            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoParticulares,
+            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosObraSocial,
+            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoObraSocial,
             -- Totales por Modalidad
             ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEmergencia,
             ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEmergencia,
@@ -3502,6 +3705,7 @@ BEGIN
             ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEspecialidad
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         WHERE CAST(t.Fecha AS DATE) = @Fecha
           AND t.Activo = 1
           AND t.Estado <> 'Cancelado';
@@ -3519,7 +3723,7 @@ GO
 ** Procedimiento : sp_ReporteCierreCajaDetalle
 ** Sección       : 7.2
 ** Propósito     : Devuelve el listado detallado de turnos emitidos/atendidos en la fecha con paciente, DNI, cobertura, monto y profesional.
-** Entidad/Tablas: `Turnos`, `Pacientes`, `Especialidades`, `Usuarios`
+** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
 ** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
 ** Estado        : `EN USO`
 ** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`
@@ -3542,12 +3746,9 @@ BEGIN
             t.Horario,
             ISNULL(CONCAT(p.Apellido, ', ', p.Nombre), 'Sin Paciente') AS PacienteCompleto,
             ISNULL(p.Dni, '--') AS DniPaciente,
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
             CASE 
-                WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular' 
-                ELSE p.ObraSocial 
-            END AS ObraSocial,
-            CASE 
-                WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN CAST(1 AS BIT) 
+                WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN CAST(1 AS BIT) 
                 ELSE CAST(0 AS BIT) 
             END AS EsParticular,
             ISNULL(t.TipoTurno, 'Consulta') AS TipoTurno,
@@ -3557,6 +3758,7 @@ BEGIN
             ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
         LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
         WHERE CAST(t.Fecha AS DATE) = @Fecha
@@ -3649,7 +3851,7 @@ GO
 ** Procedimiento : sp_ReporteGerencialObrasSocialesVsParticulares
 ** Sección       : 7.4
 ** Propósito     : Compara la facturación y volumen de turnos de pacientes particulares frente a afiliados a obras sociales/prepagas.
-** Entidad/Tablas: `Turnos`, `Pacientes`
+** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`
 ** Invocado por  : `FrmReportesGerente` (Rol Gerente)
 ** Estado        : `EN USO`
 ** Retorno       : `IdFila`, `NombreCobertura`, `TipoCobertura`, `CantidadTurnos`, `TotalRecaudado`, `PorcentajeFacturacion`, `TicketPromedio`
@@ -3678,16 +3880,14 @@ BEGIN
             SELECT 
                 t.IdTurno,
                 t.Monto,
+                ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS NombreCobertura,
                 CASE 
-                    WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular / Sin Obra Social'
-                    ELSE LTRIM(RTRIM(p.ObraSocial))
-                END AS NombreCobertura,
-                CASE 
-                    WHEN p.ObraSocial IS NULL OR p.ObraSocial IN ('-', 'Particular', 'Sin Obra Social', '', 'Ninguna') THEN 'Particular' 
+                    WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN 'Particular' 
                     ELSE 'Obra Social / Prepaga' 
                 END AS TipoCobertura
             FROM Turnos t
             INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+            LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
             WHERE (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
               AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
               AND t.Activo = 1

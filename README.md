@@ -53,6 +53,10 @@ El sistema implementa una separación rigurosa de responsabilidades:
   - **Regla de Mayor Gravedad:** En caso de que se seleccionen múltiples síntomas de diferente severidad (ej. un síntoma de gravedad Alta junto con síntomas de gravedad Media o la opción "Otro"), el sistema garantiza que la prioridad asignada al turno corresponda a la del **síntoma con la gravedad más alta** (`1 = Alta`, `2 = Media`, `3 = Baja`).
   - **Persistencia atómica:** Persiste todos los síntomas seleccionados en la tabla `TurnoSintomas` (`sp_GuardarTurnoSintoma`).
   - **Retroalimentación visual:** Informa en pantalla y mediante código de color el nivel de prioridad resultante (Rojo para Alta, Naranja para Media, Verde para Baja).
+  - **Cancelación Ágil con Doble Factor (2FA):**
+    - Al emitir cada turno de guardia se autogenera una clave de seguridad (`CAN-XXXX`), persistida en `Turnos.CodigoCancelacion` y exhibida tanto en pantalla como en el comprobante `.txt`.
+    - En el propio formulario se incorpora el panel de cancelación directa en 1 solo paso: búsqueda instantánea por N° de orden (`E-001`) o DNI del paciente (`sp_BuscarTurnoActivoEmergencia`).
+    - Al ingresar la clave 2FA y pulsar *"CANCELAR TURNO (2FA)"*, `sp_CancelarTurnoEmergencia` valida la autenticidad y pasa el turno a estado `Cancelado` (`Activo = 0`), retirándolo de la guardia y sala de espera.
 - **`FrmTurnoEspecialidad`:** Programación y gestión integral de turnos por especialidad médica.
   - **Selector Desplegable de Obra Social:** Incorpora el mismo selector controlado (`cmbObraSocial`) con sincronización por DNI, garantizando consistencia relacional y eliminando errores de tipeo.
   - **Matriz de Horarios y Disponibilidad Visible:** El selector desplegable de horarios exhibe la totalidad de franjas horarias de atención distinguiendo claramente las vacantes (`XX:XX (Disponible)`) de las asignadas (`XX:XX [OCUPADO - NroTurno]`) mediante `sp_ObtenerHorariosConEstado`.

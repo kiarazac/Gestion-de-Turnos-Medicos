@@ -54,10 +54,19 @@ namespace Gestion_de_Turnos_Medicos
             Ldescrip_turno_especialidad = new Label();
             Lid_turno = new Label();
             btnDescargarTxt = new Button();
+            gbCancelacionEmergencia = new GroupBox();
+            txtBuscarTurnoCancelacion = new TextBox();
+            btnBuscarTurnoCancelacion = new Button();
+            lblTurnoInfoPaciente = new Label();
+            lblTurnoInfoTriage = new Label();
+            lblClaveCancelacionEmergencia = new Label();
+            txtClaveCancelacionEmergencia = new TextBox();
+            btnConfirmarCancelacionEmergencia = new Button();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
             panel3.SuspendLayout();
+            gbCancelacionEmergencia.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
@@ -182,7 +191,6 @@ namespace Gestion_de_Turnos_Medicos
             checkedListMedia.BackColor = Color.Moccasin;
             checkedListMedia.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             checkedListMedia.FormattingEnabled = true;
-            checkedListMedia.Items.AddRange(new object[] { "Fiebre Alta (MEDIA)", "Dolores de Cabeza Intensos (MEDIA)", "Dolores Abdominales (MEDIA)", "Nauseas/Vómitos (MEDIA)" });
             checkedListMedia.Location = new Point(28, 199);
             checkedListMedia.Name = "checkedListMedia";
             checkedListMedia.Size = new Size(389, 76);
@@ -193,7 +201,6 @@ namespace Gestion_de_Turnos_Medicos
             checkedListAlta.BackColor = Color.MistyRose;
             checkedListAlta.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             checkedListAlta.FormattingEnabled = true;
-            checkedListAlta.Items.AddRange(new object[] { "Dolor de Pecho (ALTA)", "Dificultad Para Respirar (ALTA)", "Sangrado (ALTA)", "Lesión Expuesta (ALTA)" });
             checkedListAlta.Location = new Point(28, 117);
             checkedListAlta.Name = "checkedListAlta";
             checkedListAlta.Size = new Size(389, 76);
@@ -333,11 +340,111 @@ namespace Gestion_de_Turnos_Medicos
             btnDescargarTxt.Text = "DESCARGAR COMPROBANTE (.TXT)";
             btnDescargarTxt.UseVisualStyleBackColor = false;
             // 
+            // gbCancelacionEmergencia
+            // 
+            gbCancelacionEmergencia.Controls.Add(btnConfirmarCancelacionEmergencia);
+            gbCancelacionEmergencia.Controls.Add(txtClaveCancelacionEmergencia);
+            gbCancelacionEmergencia.Controls.Add(lblClaveCancelacionEmergencia);
+            gbCancelacionEmergencia.Controls.Add(lblTurnoInfoTriage);
+            gbCancelacionEmergencia.Controls.Add(lblTurnoInfoPaciente);
+            gbCancelacionEmergencia.Controls.Add(btnBuscarTurnoCancelacion);
+            gbCancelacionEmergencia.Controls.Add(txtBuscarTurnoCancelacion);
+            gbCancelacionEmergencia.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            gbCancelacionEmergencia.ForeColor = SystemColors.ControlText;
+            gbCancelacionEmergencia.Location = new Point(814, 515);
+            gbCancelacionEmergencia.Name = "gbCancelacionEmergencia";
+            gbCancelacionEmergencia.Size = new Size(367, 185);
+            gbCancelacionEmergencia.TabIndex = 21;
+            gbCancelacionEmergencia.TabStop = false;
+            gbCancelacionEmergencia.Text = "Cancelación Ágil de Turno de Guardia (2FA)";
+            // 
+            // txtBuscarTurnoCancelacion
+            // 
+            txtBuscarTurnoCancelacion.CharacterCasing = CharacterCasing.Upper;
+            txtBuscarTurnoCancelacion.Font = new Font("Segoe UI", 9F);
+            txtBuscarTurnoCancelacion.Location = new Point(12, 22);
+            txtBuscarTurnoCancelacion.Name = "txtBuscarTurnoCancelacion";
+            txtBuscarTurnoCancelacion.PlaceholderText = "N° Orden (E-001) o DNI...";
+            txtBuscarTurnoCancelacion.Size = new Size(230, 23);
+            txtBuscarTurnoCancelacion.TabIndex = 0;
+            // 
+            // btnBuscarTurnoCancelacion
+            // 
+            btnBuscarTurnoCancelacion.BackColor = Color.SteelBlue;
+            btnBuscarTurnoCancelacion.Cursor = Cursors.Hand;
+            btnBuscarTurnoCancelacion.FlatStyle = FlatStyle.Flat;
+            btnBuscarTurnoCancelacion.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            btnBuscarTurnoCancelacion.ForeColor = SystemColors.ButtonHighlight;
+            btnBuscarTurnoCancelacion.Location = new Point(248, 21);
+            btnBuscarTurnoCancelacion.Name = "btnBuscarTurnoCancelacion";
+            btnBuscarTurnoCancelacion.Size = new Size(107, 26);
+            btnBuscarTurnoCancelacion.TabIndex = 1;
+            btnBuscarTurnoCancelacion.Text = "BUSCAR";
+            btnBuscarTurnoCancelacion.UseVisualStyleBackColor = false;
+            // 
+            // lblTurnoInfoPaciente
+            // 
+            lblTurnoInfoPaciente.AutoSize = true;
+            lblTurnoInfoPaciente.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblTurnoInfoPaciente.ForeColor = SystemColors.ControlText;
+            lblTurnoInfoPaciente.Location = new Point(12, 51);
+            lblTurnoInfoPaciente.Name = "lblTurnoInfoPaciente";
+            lblTurnoInfoPaciente.Size = new Size(130, 15);
+            lblTurnoInfoPaciente.TabIndex = 2;
+            lblTurnoInfoPaciente.Text = "Paciente: (Sin búsqueda)";
+            // 
+            // lblTurnoInfoTriage
+            // 
+            lblTurnoInfoTriage.AutoSize = true;
+            lblTurnoInfoTriage.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblTurnoInfoTriage.ForeColor = Color.MidnightBlue;
+            lblTurnoInfoTriage.Location = new Point(12, 70);
+            lblTurnoInfoTriage.Name = "lblTurnoInfoTriage";
+            lblTurnoInfoTriage.Size = new Size(147, 15);
+            lblTurnoInfoTriage.TabIndex = 3;
+            lblTurnoInfoTriage.Text = "Triage: -- | Estado: --";
+            // 
+            // lblClaveCancelacionEmergencia
+            // 
+            lblClaveCancelacionEmergencia.AutoSize = true;
+            lblClaveCancelacionEmergencia.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblClaveCancelacionEmergencia.ForeColor = Color.DarkRed;
+            lblClaveCancelacionEmergencia.Location = new Point(12, 92);
+            lblClaveCancelacionEmergencia.Name = "lblClaveCancelacionEmergencia";
+            lblClaveCancelacionEmergencia.Size = new Size(153, 15);
+            lblClaveCancelacionEmergencia.TabIndex = 4;
+            lblClaveCancelacionEmergencia.Text = "Clave 2FA (Ticket):";
+            // 
+            // txtClaveCancelacionEmergencia
+            // 
+            txtClaveCancelacionEmergencia.CharacterCasing = CharacterCasing.Upper;
+            txtClaveCancelacionEmergencia.Font = new Font("Segoe UI", 9F);
+            txtClaveCancelacionEmergencia.Location = new Point(12, 110);
+            txtClaveCancelacionEmergencia.Name = "txtClaveCancelacionEmergencia";
+            txtClaveCancelacionEmergencia.PlaceholderText = "Ingrese código 2FA (ej. CAN-XXXX)";
+            txtClaveCancelacionEmergencia.Size = new Size(343, 23);
+            txtClaveCancelacionEmergencia.TabIndex = 5;
+            // 
+            // btnConfirmarCancelacionEmergencia
+            // 
+            btnConfirmarCancelacionEmergencia.BackColor = Color.Crimson;
+            btnConfirmarCancelacionEmergencia.Cursor = Cursors.Hand;
+            btnConfirmarCancelacionEmergencia.FlatStyle = FlatStyle.Flat;
+            btnConfirmarCancelacionEmergencia.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnConfirmarCancelacionEmergencia.ForeColor = SystemColors.ButtonHighlight;
+            btnConfirmarCancelacionEmergencia.Location = new Point(12, 140);
+            btnConfirmarCancelacionEmergencia.Name = "btnConfirmarCancelacionEmergencia";
+            btnConfirmarCancelacionEmergencia.Size = new Size(343, 34);
+            btnConfirmarCancelacionEmergencia.TabIndex = 6;
+            btnConfirmarCancelacionEmergencia.Text = "CANCELAR TURNO (2FA)";
+            btnConfirmarCancelacionEmergencia.UseVisualStyleBackColor = false;
+            // 
             // FrmTurnoEmergencia
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1195, 662);
+            ClientSize = new Size(1195, 715);
+            Controls.Add(gbCancelacionEmergencia);
             Controls.Add(btnDescargarTxt);
             Controls.Add(LdescripTurno);
             Controls.Add(panel3);
@@ -359,6 +466,8 @@ namespace Gestion_de_Turnos_Medicos
             Condicionales.PerformLayout();
             panel3.ResumeLayout(false);
             panel3.PerformLayout();
+            gbCancelacionEmergencia.ResumeLayout(false);
+            gbCancelacionEmergencia.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -390,5 +499,13 @@ namespace Gestion_de_Turnos_Medicos
         private Label Ldescrip_turno_especialidad;
         private Label Lid_turno;
         private Button btnDescargarTxt;
+        private GroupBox gbCancelacionEmergencia;
+        private TextBox txtBuscarTurnoCancelacion;
+        private Button btnBuscarTurnoCancelacion;
+        private Label lblTurnoInfoPaciente;
+        private Label lblTurnoInfoTriage;
+        private Label lblClaveCancelacionEmergencia;
+        private TextBox txtClaveCancelacionEmergencia;
+        private Button btnConfirmarCancelacionEmergencia;
     }
 }

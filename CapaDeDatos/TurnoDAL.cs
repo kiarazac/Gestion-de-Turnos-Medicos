@@ -30,21 +30,33 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// </summary>
         /// <param name="idPaciente">Identificador del paciente.</param>
         /// <param name="idPrioridad">Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja).</param>
+        /// <param name="monto">Arancel cobrado en caja (opcional).</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica de seguridad 2FA para cancelación (opcional).</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del turno creado y el número de orden asignado.</returns>
-        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad, decimal? monto = null)
+        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad, decimal? monto = null, string? codigoCancelacion = null)
         {
+            // Instanciamos el contexto de base de datos para ejecutar el procedimiento
             using (var context = new dbTurnosMedicos())
             {
+                // Parámetros SQL para la ejecución del procedimiento almacenado
                 var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
                 var pIdPrioridad = new SqlParameter("@IdPrioridad", idPrioridad);
                 var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
+                var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
 
+                // Ejecutamos sp_CrearTurnoEmergencia pasando los parámetros requeridos
                 var resultado = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad, @Monto", pIdPaciente, pIdPrioridad, pMonto)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad, @Monto, @CodigoCancelacion", pIdPaciente, pIdPrioridad, pMonto, pCodigo)
                     .AsEnumerable()
                     .FirstOrDefault();
 
-                return resultado ?? new ResultadoTurnoDTO();
+                // Aseguramos que el código 2FA quede asignado en el DTO de retorno
+                if (resultado != null && !string.IsNullOrWhiteSpace(codigoCancelacion))
+                {
+                    resultado.CodigoCancelacion = codigoCancelacion;
+                }
+
+                return resultado ?? new ResultadoTurnoDTO { CodigoCancelacion = codigoCancelacion };
             }
         }
 
@@ -275,6 +287,48 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pCodigo = new SqlParameter("@CodigoCancelacion", codigoCancelacion.Trim());
 
                 context.Database.ExecuteSqlRaw("EXEC sp_CancelarTurnoEspecialidad @IdTurno, @CodigoCancelacion", pIdTurno, pCodigo);
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_BuscarTurnoActivoEmergencia</c> para localizar un turno activo
+        /// de guardia/emergencia por su número de orden (ej: 'E-001') o por el DNI del paciente.
+        /// </summary>
+        /// <param name="termino">Número de orden o DNI del paciente a buscar.</param>
+        /// <returns>Objeto <see cref="TurnoEmergenciaCancelacionDTO"/> con la información del turno o <c>null</c> si no existe.</returns>
+        public TurnoEmergenciaCancelacionDTO? BuscarTurnoActivoEmergencia(string termino)
+        {
+            // Instanciamos el contexto de base de datos
+            using (var context = new dbTurnosMedicos())
+            {
+                // Parámetro con el término de búsqueda limpio
+                var pTermino = new SqlParameter("@Termino", termino.Trim());
+
+                // Invocamos el procedimiento sp_BuscarTurnoActivoEmergencia y mapeamos al DTO especializado
+                return context.Database
+                    .SqlQueryRaw<TurnoEmergenciaCancelacionDTO>("EXEC sp_BuscarTurnoActivoEmergencia @Termino", pTermino)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_CancelarTurnoEmergencia</c> para cancelar un turno de guardia
+        /// mediante validación estricta de doble factor (2FA) con la palabra clave alfanumérica del ticket.
+        /// </summary>
+        /// <param name="idTurno">Identificador del turno de emergencia a cancelar.</param>
+        /// <param name="codigoCancelacion">Palabra clave alfanumérica de seguridad 2FA.</param>
+        public void CancelarTurnoEmergencia(int idTurno, string codigoCancelacion)
+        {
+            // Instanciamos el contexto de base de datos
+            using (var context = new dbTurnosMedicos())
+            {
+                // Parámetros SQL requeridos para validar 2FA y cancelar el turno
+                var pIdTurno = new SqlParameter("@IdTurno", idTurno);
+                var pCodigo = new SqlParameter("@CodigoCancelacion", codigoCancelacion.Trim());
+
+                // Ejecutamos sp_CancelarTurnoEmergencia en SQL Server
+                context.Database.ExecuteSqlRaw("EXEC sp_CancelarTurnoEmergencia @IdTurno, @CodigoCancelacion", pIdTurno, pCodigo);
             }
         }
 
