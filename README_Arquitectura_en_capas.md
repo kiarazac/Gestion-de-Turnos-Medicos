@@ -50,8 +50,8 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE LÓGICA DE NEGOCIO (BLL)                   │
 │  Namespace: Gestion_de_Turnos_Medicos.Negocio                          │
 │  Archivos: UsuarioBLL, SalaBLL, EspecialidadBLL,                       │
-│            PacienteBLL, TurnoBLL, HistoriaClinicaBLL, ReporteBLL,      │
-│            ReporteGuardiaBLL                                           │
+│            PacienteBLL, TurnoBLL, ObraSocialBLL,                       │
+│            HistoriaClinicaBLL, ReporteBLL, ReporteGuardiaBLL           │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Aplicar reglas de negocio médicas y administrativas.               │
@@ -67,8 +67,8 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                      CAPA DE ACCESO A DATOS (DAL)                      │
 │  Namespace: Gestion_de_Turnos_Medicos.CapaDeDatos                      │
 │  Archivos: UsuarioDAL, SalaDAL, EspecialidadDAL,                       │
-│            PacienteDAL, TurnoDAL, HistoriaClinicaDAL, ReporteDAL,      │
-│            ReporteGuardiaDAL                                           │
+│            PacienteDAL, TurnoDAL, ObraSocialDAL,                       │
+│            HistoriaClinicaDAL, ReporteDAL, ReporteGuardiaDAL           │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Uso exclusivo de ConsultorioContext (DbContext EF Core).            │
@@ -373,6 +373,16 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string? SalaAtencion { get; set; }
   ```
 
+### 3.23 `ObraSocialDTO`
+- **Uso**: Retorno de `sp_ListarObrasSociales` para poblar los ComboBox de obras sociales en `FrmTurnoEmergencia` y `FrmTurnoEspecialidad`.
+- **Propiedades**:
+  ```csharp
+  public int IdObraSocial { get; set; }
+  public string Nombre { get; set; }
+  public string? Sigla { get; set; }
+  public bool Activo { get; set; }
+  ```
+
 ---
 
 ## 4. Guía Técnica de Implementación: Capa DAL con Entity Framework Core
@@ -548,13 +558,15 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `EspecialidadBLL.ModificarEspecialidad`| `EspecialidadDAL.ModificarEspecialidad` | `sp_ModificarEspecialidad` |
 | | `EspecialidadBLL.EliminarEspecialidad` | `EspecialidadDAL.EliminarEspecialidad` | `sp_EliminarEspecialidad` |
 | | `EspecialidadBLL.ReactivarEspecialidad`| `EspecialidadDAL.ReactivarEspecialidad` | `sp_ReactivarEspecialidad` |
-| **`FrmTurnoEmergencia`** | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
-| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` |
+| **`FrmTurnoEmergencia`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
+| | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
+| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` (con `@IdObraSocial`) |
 | | `TurnoBLL.RegistrarTurnoEmergencia` | `TurnoDAL.RegistrarTurnoEmergencia` | `sp_CrearTurnoEmergencia` |
 | | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
-| **`FrmTurnoEspecialidad`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
+| **`FrmTurnoEspecialidad`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
+| | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosConEstado` |
-| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` |
+| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` (con `@IdObraSocial`) |
 | | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` (con generación 2FA) |
 | | `TurnoBLL.CancelarTurnoEspecialidad` | `TurnoDAL.CancelarTurnoEspecialidad` | `sp_CancelarTurnoEspecialidad` (con confirmación 2FA) |
 | **`FrmListaTurnos`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` |

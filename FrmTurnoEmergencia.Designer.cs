@@ -34,7 +34,7 @@ namespace Gestion_de_Turnos_Medicos
             LNuevoPaciente = new Label();
             LNuevoPaciente2 = new Label();
             panel2 = new Panel();
-            txtObraSocial = new TextBox();
+            cmbObraSocial = new ComboBox();
             LObraSocial = new Label();
             Condicionales = new GroupBox();
             button1 = new Button();
@@ -104,7 +104,7 @@ namespace Gestion_de_Turnos_Medicos
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
-            panel2.Controls.Add(txtObraSocial);
+            panel2.Controls.Add(cmbObraSocial);
             panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(Condicionales);
             panel2.Controls.Add(txtDNI);
@@ -118,12 +118,14 @@ namespace Gestion_de_Turnos_Medicos
             panel2.Size = new Size(740, 494);
             panel2.TabIndex = 7;
             // 
-            // txtObraSocial
+            // cmbObraSocial
             // 
-            txtObraSocial.Location = new Point(373, 110);
-            txtObraSocial.Name = "txtObraSocial";
-            txtObraSocial.Size = new Size(326, 23);
-            txtObraSocial.TabIndex = 12;
+            cmbObraSocial.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbObraSocial.Font = new Font("Segoe UI", 10F);
+            cmbObraSocial.Location = new Point(373, 110);
+            cmbObraSocial.Name = "cmbObraSocial";
+            cmbObraSocial.Size = new Size(326, 25);
+            cmbObraSocial.TabIndex = 12;
             // 
             // LObraSocial
             // 
@@ -381,7 +383,7 @@ namespace Gestion_de_Turnos_Medicos
         private Label label2;
         private TextBox txtNombre;
         private Label label1;
-        private TextBox txtObraSocial;
+        private ComboBox cmbObraSocial;
         private Label LObraSocial;
         private Label LdescripTurno;
         private Panel panel3;

@@ -18,7 +18,10 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Documento Nacional de Identidad.</summary>
         public string DNI { get; set; }
 
-        /// <summary>Obra social o cobertura médica prepaga.</summary>
-        public string ObraSocial { get; set; }
+        /// <summary>Identificador foráneo de la obra social asociada.</summary>
+        public int? IdObraSocial { get; set; }
+
+        /// <summary>Nombre descriptivo de la obra social o cobertura médica prepaga.</summary>
+        public string ObraSocial { get; set; } = string.Empty;
     }
 }

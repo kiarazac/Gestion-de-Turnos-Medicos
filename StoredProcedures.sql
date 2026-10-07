@@ -1508,13 +1508,51 @@ END;
 GO
 
 /* =========================================================================
+** Procedimiento : sp_ListarObrasSociales
+** Sección       : 4.0
+** Propósito     : Consulta el catálogo de obras sociales y medicinas prepagas activas en el sistema (con opción de incluir inactivas).
+** Entidad/Tablas: `ObrasSociales`
+** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (Carga del ComboBox de cobertura médica)
+** Estado        : `EN USO`
+** Retorno       : `IdObraSocial`, `Nombre`, `Sigla`, `Activo`.
+** Parámetros   :
+**                `@IncluirInactivas` (`BIT`, IN, DEFAULT 0) - Si es 1 lista también obras sociales dadas de baja lógica.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ListarObrasSociales
+    @IncluirInactivas BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            IdObraSocial,
+            Nombre,
+            ISNULL(Sigla, '') AS Sigla,
+            Activo
+        FROM ObrasSociales
+        WHERE (@IncluirInactivas = 1 OR Activo = 1)
+        ORDER BY 
+            CASE WHEN IdObraSocial = 1 THEN 0 ELSE 1 END,
+            Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
 ** Procedimiento : sp_BuscarPacientePorDNI
 ** Sección       : 4.1
-** Propósito     : Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI).
-** Entidad/Tablas: `Pacientes`
+** Propósito     : Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI), incluyendo su obra social vinculada.
+** Entidad/Tablas: `Pacientes`, `ObrasSociales`
 ** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (Autocompletado y verificación de antecedentes al ingresar DNI)
 ** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Retorno       : `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`.
 ** Parámetros   :
 **                `@DNI` (`NVARCHAR(20)`, IN) - Documento de identidad del paciente.
 ** ========================================================================= */
@@ -1525,10 +1563,16 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-
-    SELECT IdPaciente, Nombre, Apellido, Dni, ObraSocial 
-    FROM Pacientes 
-    WHERE DNI = @DNI AND Activo = 1;
+        SELECT 
+            p.IdPaciente, 
+            p.Nombre, 
+            p.Apellido, 
+            p.Dni, 
+            p.IdObraSocial,
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial 
+        FROM Pacientes p
+        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+        WHERE p.DNI = @DNI AND p.Activo = 1;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1542,8 +1586,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_GuardarPaciente
 ** Sección       : 4.2
-** Propósito     : Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
-** Entidad/Tablas: `Pacientes`, `Usuarios`
+** Propósito     : Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido e IdObraSocial y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
+** Entidad/Tablas: `Pacientes`, `Usuarios`, `ObrasSociales`
 ** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
 ** Retorno       : 1 fila: `IdPaciente`.
@@ -1551,13 +1595,13 @@ GO
 **                `@Nombre` (`NVARCHAR(100)`, IN) - Nombre del paciente.
 **                `@Apellido` (`NVARCHAR(100)`, IN) - Apellido del paciente.
 **                `@Dni` (`NVARCHAR(20)`, IN) - Documento de identidad.
-**                `@ObraSocial` (`NVARCHAR(100)`, IN) - Cobertura médica u obra social.
+**                `@IdObraSocial` (`INT`, IN, DEFAULT 1) - Clave foránea de la obra social seleccionada.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_GuardarPaciente
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Dni NVARCHAR(20),
-    @ObraSocial NVARCHAR(100)
+    @IdObraSocial INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1567,6 +1611,13 @@ BEGIN
         IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
         BEGIN
             THROW 50010, 'Ya existe un usuario registrado en el sistema con este mismo número de DNI. No se puede duplicar.', 1;
+        END
+
+        -- Si no se especificó o no existe, asignar obra social particular (ID 1)
+        IF @IdObraSocial IS NULL OR @IdObraSocial <= 0 OR NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            SELECT TOP 1 @IdObraSocial = IdObraSocial FROM ObrasSociales WHERE Nombre LIKE '%Particular%';
+            IF @IdObraSocial IS NULL SET @IdObraSocial = 1;
         END
 
         DECLARE @IdPaciente INT;
@@ -1580,14 +1631,14 @@ BEGIN
             UPDATE Pacientes
             SET Nombre = @Nombre,
                 Apellido = @Apellido,
-                ObraSocial = @ObraSocial,
+                IdObraSocial = @IdObraSocial,
                 FechaModificacion = GETDATE()
             WHERE IdPaciente = @IdPaciente;
         END
         ELSE
         BEGIN
-            INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, Activo, FechaCreacion)
-            VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, 1, GETDATE());
+            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Activo, FechaCreacion)
+            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, 1, GETDATE());
 
             SET @IdPaciente = SCOPE_IDENTITY();
         END
@@ -1608,32 +1659,37 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_InsertarPaciente
 ** Sección       : 4.3
-** Propósito     : Inserción simple y directa de un paciente sin validación de duplicidad por DNI ni verificación cruzada con la tabla de usuarios. Fue superado operativamente por `sp_GuardarPaciente`.
-** Entidad/Tablas: `Pacientes`
-** Invocado por  : Ninguno actualmente (reemplazado por `sp_GuardarPaciente`). (N/A)
+** Propósito     : Inserción directa de un paciente vinculando IdObraSocial.
+** Entidad/Tablas: `Pacientes`, `ObrasSociales`
+** Invocado por  : Ninguno actualmente (superado por `sp_GuardarPaciente`). (N/A)
 ** Estado        : `NO UTILIZADO (SUPERADO POR sp_GuardarPaciente)`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
 **                `@Nombre` (`NVARCHAR(100)`, IN) - Nombre del paciente.
 **                `@Apellido` (`NVARCHAR(100)`, IN) - Apellido del paciente.
 **                `@Dni` (`NVARCHAR(20)`, IN) - Documento de identidad.
-**                `@ObraSocial` (`NVARCHAR(100)`, IN) - Cobertura médica.
+**                `@IdObraSocial` (`INT`, IN) - Clave foránea de la cobertura médica.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_InsertarPaciente
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Dni NVARCHAR(20),
-    @ObraSocial NVARCHAR(100)
+    @IdObraSocial INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF @IdObraSocial IS NULL OR @IdObraSocial <= 0
+        BEGIN
+            SELECT TOP 1 @IdObraSocial = IdObraSocial FROM ObrasSociales WHERE Nombre LIKE '%Particular%';
+            IF @IdObraSocial IS NULL SET @IdObraSocial = 1;
+        END
 
-    INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, FechaCreacion, Activo)
-    VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, GETDATE(), 1);
+        INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, FechaCreacion, Activo)
+        VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, GETDATE(), 1);
 
-    SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
+        SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1852,7 +1908,7 @@ BEGIN
         t.NroOrden,
         CASE WHEN t.IdTurno IS NOT NULL THEN CONCAT(pac.Apellido, ', ', pac.Nombre) ELSE NULL END AS Paciente,
         pac.Dni,
-        pac.ObraSocial,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         t.Estado,
         t.CodigoCancelacion
     FROM @Horarios h
@@ -1872,6 +1928,7 @@ BEGIN
           AND t_sub.Estado <> 'Cancelado'
     ) t ON h.Horario = t.HorarioTexto
     LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
     ORDER BY h.Horario ASC;
     END TRY
     BEGIN CATCH
@@ -2390,10 +2447,11 @@ BEGIN
         p.Nombre AS NombrePaciente,
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
-        p.ObraSocial,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         ISNULL(s.NombreSala, '') AS NombreSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
@@ -2910,12 +2968,13 @@ BEGIN
         p.Nombre AS NombrePaciente,
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
-        ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         ISNULL(t.NroOrden, '--') AS NroOrden,
         ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
         ISNULL(e.Nombre, 'General') AS Especialidad
     FROM HistoriasClinicas hc
     INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
+    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
     LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
@@ -3237,7 +3296,7 @@ BEGIN
             ISNULL(p.Nombre, '') AS NombrePaciente,
             ISNULL(p.Apellido, '') AS ApellidoPaciente,
             ISNULL(p.Dni, '') AS DniPaciente,
-            ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
             -- Prioridad de triage ('Alta', 'Media', 'Baja')
             ISNULL(pr.Descripcion, 'Baja') AS Prioridad,
             ISNULL(t.IdPrioridad, 3) AS IdPrioridad,
@@ -3257,6 +3316,7 @@ BEGIN
             ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
         LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
         WHERE t.TipoTurno = 'Emergencia'
@@ -3339,3 +3399,65 @@ EXEC sp_InsertarUsuario
     @IdRol = 4;
 
 GO
+
+-- 5. Definición DDL de Tabla ObrasSociales y Clave Foránea en Pacientes
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ObrasSociales')
+BEGIN
+    CREATE TABLE ObrasSociales (
+        IdObraSocial INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Nombre NVARCHAR(100) NOT NULL,
+        Sigla NVARCHAR(20) NULL,
+        FechaCreacion DATETIME NOT NULL DEFAULT GETDATE(),
+        FechaModificacion DATETIME NULL,
+        Activo BIT NOT NULL DEFAULT 1,
+        FechaBaja DATETIME NULL
+    );
+END;
+
+GO
+
+-- Asegurar columna IdObraSocial y restricción de Clave Foránea explícita
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Pacientes') AND name = 'IdObraSocial')
+BEGIN
+    ALTER TABLE Pacientes ADD IdObraSocial INT NOT NULL DEFAULT 1;
+END;
+
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Pacientes_ObrasSociales')
+BEGIN
+    ALTER TABLE Pacientes WITH CHECK 
+    ADD CONSTRAINT FK_Pacientes_ObrasSociales 
+    FOREIGN KEY (IdObraSocial) REFERENCES ObrasSociales (IdObraSocial);
+
+    ALTER TABLE Pacientes CHECK CONSTRAINT FK_Pacientes_ObrasSociales;
+END;
+
+GO
+
+-- 6. Catálogo Inicial de Obras Sociales (Argentina / Corrientes)
+IF NOT EXISTS (SELECT 1 FROM ObrasSociales)
+BEGIN
+    INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion) VALUES
+    ('Particular / Sin Obra Social', 'PARTICULAR', 1, GETDATE()),
+    ('IOSCOR', 'IOSCOR', 1, GETDATE()),
+    ('PAMI', 'PAMI', 1, GETDATE()),
+    ('ISSUNE', 'ISSUNE', 1, GETDATE()),
+    ('OSDE', 'OSDE', 1, GETDATE()),
+    ('Swiss Medical', 'SMG', 1, GETDATE()),
+    ('OSECAC', 'OSECAC', 1, GETDATE()),
+    ('Sancor Salud', 'SANCOR', 1, GETDATE()),
+    ('Medifé', 'MEDIFE', 1, GETDATE()),
+    ('Galeno', 'GALENO', 1, GETDATE()),
+    ('OSPRERA', 'OSPRERA', 1, GETDATE()),
+    ('Unión Personal / Accord Salud', 'UPCN', 1, GETDATE()),
+    ('OSDEPYM', 'OSDEPYM', 1, GETDATE()),
+    ('OSUTHGRA', 'OSUTHGRA', 1, GETDATE()),
+    ('UOCRA (Construir Salud)', 'UOCRA', 1, GETDATE()),
+    ('SPS Salud', 'SPS', 1, GETDATE()),
+    ('Jerárquicos Salud', 'JERARQUICOS', 1, GETDATE()),
+    ('Prevención Salud', 'PREVENCION', 1, GETDATE());
+END;
+
+GO
+

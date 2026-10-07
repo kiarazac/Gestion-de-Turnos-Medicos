@@ -337,7 +337,7 @@ namespace Gestion_de_Turnos_Medicos
                                 Nombre = dto.NombrePaciente ?? string.Empty,
                                 Apellido = dto.ApellidoPaciente ?? string.Empty,
                                 Dni = dto.DniPaciente ?? string.Empty,
-                                ObraSocial = dto.ObraSocial ?? string.Empty
+                                ObraSocial = new ObraSocial { Nombre = dto.ObraSocial ?? string.Empty }
                             }
                         };
 
@@ -798,7 +798,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoPaciente.Text = t.Paciente != null ? $"Paciente: {t.Paciente.Apellido}, {t.Paciente.Nombre}" : "Paciente: -";
             string dni = t.Paciente?.Dni ?? "-";
             string edad = "-";
-            string cobertura = t.Paciente?.ObraSocial ?? "-";
+            string cobertura = t.Paciente?.ObraSocial?.Nombre ?? "-";
             lblInfoDni.Text = $"DNI / Edad / Cobertura: {dni} / {edad} / {cobertura}";
 
             string prioridad = t.Prioridad?.Descripcion ?? "MEDIA";

@@ -47,11 +47,14 @@ El sistema implementa una separación rigurosa de responsabilidades:
 
 ### 4. Módulo de Atención y Turnos
 - **`FrmTurnoEmergencia`:** Admite triage con escala de gravedad Manchester / prioridades y síntomas del paciente.
+  - **Selector de Obra Social (`ComboBox`):** Sustituye la entrada de texto libre por un desplegable de selección obligatoria (`cmbObraSocial`) alimentado desde `ObrasSociales` mediante `ObraSocialBLL.ObtenerObrasSociales()`. Lista obras sociales de Argentina activas en Corrientes (IOSCOR, PAMI, ISSUNE, OSDE, Swiss Medical, OSECAC, Sancor Salud, Medifé, Galeno, OSPRERA, Unión Personal, OSDEPYM, OSUTHGRA, UOCRA, SPS Salud, Jerárquicos Salud, Prevención Salud) y la opción "Particular / Sin Obra Social".
+  - **Detección Automática por DNI:** Al ingresar el DNI del paciente, si ya se encuentra registrado, selecciona y bloquea automáticamente su obra social vinculada.
   - **Carga dinámica:** Consume el catálogo de síntomas activos desde `sp_ObtenerSintomas` mediante `TurnoBLL.ObtenerSintomas()` separando síntomas de gravedad **Alta** y **Media**.
   - **Regla de Mayor Gravedad:** En caso de que se seleccionen múltiples síntomas de diferente severidad (ej. un síntoma de gravedad Alta junto con síntomas de gravedad Media o la opción "Otro"), el sistema garantiza que la prioridad asignada al turno corresponda a la del **síntoma con la gravedad más alta** (`1 = Alta`, `2 = Media`, `3 = Baja`).
   - **Persistencia atómica:** Persiste todos los síntomas seleccionados en la tabla `TurnoSintomas` (`sp_GuardarTurnoSintoma`).
   - **Retroalimentación visual:** Informa en pantalla y mediante código de color el nivel de prioridad resultante (Rojo para Alta, Naranja para Media, Verde para Baja).
 - **`FrmTurnoEspecialidad`:** Programación y gestión integral de turnos por especialidad médica.
+  - **Selector Desplegable de Obra Social:** Incorpora el mismo selector controlado (`cmbObraSocial`) con sincronización por DNI, garantizando consistencia relacional y eliminando errores de tipeo.
   - **Matriz de Horarios y Disponibilidad Visible:** El selector desplegable de horarios exhibe la totalidad de franjas horarias de atención distinguiendo claramente las vacantes (`XX:XX (Disponible)`) de las asignadas (`XX:XX [OCUPADO - NroTurno]`) mediante `sp_ObtenerHorariosConEstado`.
   - **Consulta de Detalle de Turno Ocupado:** Al seleccionar un horario ocupado, se despliega en tiempo real la ficha de la cita: nombre y apellido del paciente, DNI, obra social, número de orden y estado.
   - **Cancelación con Doble Factor (2FA):**

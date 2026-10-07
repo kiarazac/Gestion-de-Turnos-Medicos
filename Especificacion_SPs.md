@@ -20,20 +20,29 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 
 ## FrmTurnoEmergencia
 
-### 1. `sp_GuardarPaciente`
-- **Descripción**: Busca al paciente por su DNI. Si ya existe, actualiza sus datos básicos y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y devuelve el nuevo `IdPaciente`.
+### 1. `sp_ListarObrasSociales`
+- **Descripción**: Consulta el catálogo de obras sociales y empresas prepagas activas en Argentina con presencia operativa en Corrientes para poblar los controles `ComboBox` desplegables de selección de cobertura.
+- **Nota de reutilización**: Este procedimiento es **reutilizado** por `FrmTurnoEmergencia` y `FrmTurnoEspecialidad`.
+- **Tablas involucradas**: `ObrasSociales`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IncluirInactivas` | `BIT` | IN | Si es 1 lista también obras sociales dadas de baja lógica. |
+
+### 2. `sp_GuardarPaciente`
+- **Descripción**: Busca al paciente por su DNI. Si ya existe, actualiza sus datos básicos y su cobertura (`IdObraSocial`) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y devuelve el nuevo `IdPaciente`.
 - **Nota de reutilización**: Este procedimiento es **reutilizado** por `FrmTurnoEspecialidad`.
-- **Tablas involucradas**: `Pacientes`
+- **Tablas involucradas**: `Pacientes`, `ObrasSociales`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@Nombre` | `VARCHAR(100)` | IN | Nombre del paciente. |
   | `@Apellido` | `VARCHAR(100)` | IN | Apellido del paciente. |
   | `@Dni` | `VARCHAR(20)` | IN | Número de documento del paciente. |
-  | `@ObraSocial` | `VARCHAR(100)` | IN | Cobertura médica u obra social. |
+  | `@IdObraSocial` | `INT` | IN | Clave foránea de la obra social seleccionada. |
   | `@IdPaciente` | `INT` | OUT | ID único autoincremental del paciente. |
 
-### 2. `sp_CrearTurno`
+### 3. `sp_CrearTurno`
 - **Descripción**: Registra un turno de urgencia en la tabla `Turnos`, asociando la prioridad calculada ('ALTA', 'MEDIA', 'BAJA') y el servicio de Guardia/Emergencia. Genera el código correlativo de turno (ej. `'E-001'`).
 - **Tablas involucradas**: `Turnos`, `Prioridades`, `Especialidades`
 - **Parámetros**:

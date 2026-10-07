@@ -146,7 +146,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             t.NroOrden,
                             CASE WHEN t.IdTurno IS NOT NULL THEN CONCAT(pac.Apellido, ', ', pac.Nombre) ELSE NULL END AS Paciente,
                             pac.Dni,
-                            pac.ObraSocial,
+                            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
                             t.Estado,
                             t.CodigoCancelacion
                         FROM @Horarios h
@@ -166,6 +166,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                               AND t_sub.Estado <> 'Cancelado'
                         ) t ON h.Horario = t.HorarioTexto
                         LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+                        LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
                         ORDER BY h.Horario ASC;";
 
                     return context.Database
@@ -405,10 +406,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             p.Nombre AS NombrePaciente,
                             p.Apellido AS ApellidoPaciente,
                             p.Dni AS DniPaciente,
-                            p.ObraSocial,
+                            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
                             ISNULL(s.NombreSala, '') AS NombreSala
                         FROM Turnos t
                         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+                        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
                         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
                         LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
                         LEFT JOIN Salas s ON t.IdSala = s.IdSala

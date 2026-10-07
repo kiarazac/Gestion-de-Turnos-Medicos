@@ -16,6 +16,7 @@ namespace Gestion_de_Turnos_Medicos
     {
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL(); // Instanciamos para guardar pacientes nuevos
+        private readonly ObraSocialBLL _obraSocialBLL = new ObraSocialBLL();
         private int? idPacienteActual = null; // Almacena el ID si el paciente ya existe en la BD
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
 
@@ -27,8 +28,12 @@ namespace Gestion_de_Turnos_Medicos
 
         private void ConfigurarEventosAdicionales()
         {
-            // Cargar el catálogo dinámico de síntomas al inicializar el formulario
-            this.Load += (s, e) => CargarCatalogoSintomas();
+            // Cargar el catálogo dinámico de síntomas y obras sociales al inicializar el formulario
+            this.Load += (s, e) =>
+            {
+                CargarCatalogoSintomas();
+                CargarObrasSociales();
+            };
 
             // Suscribimos los eventos de búsqueda por DNI
             txtDNI.Leave += TxtDNI_Leave;
@@ -90,6 +95,25 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        private void CargarObrasSociales()
+        {
+            try
+            {
+                var lista = _obraSocialBLL.ObtenerObrasSociales();
+                cmbObraSocial.DataSource = lista;
+                cmbObraSocial.DisplayMember = "Nombre";
+                cmbObraSocial.ValueMember = "IdObraSocial";
+                if (cmbObraSocial.Items.Count > 0)
+                {
+                    cmbObraSocial.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar el catálogo de obras sociales:\n{ex.Message}", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         private void BuscarYAutocompletarPaciente()
         {
             string dniBuscado = txtDNI.Text.Trim();
@@ -104,12 +128,21 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
-                    txtObraSocial.Text = paciente.ObraSocial;
+
+                    if (paciente.IdObraSocial.HasValue && paciente.IdObraSocial.Value > 0)
+                    {
+                        cmbObraSocial.SelectedValue = paciente.IdObraSocial.Value;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(paciente.ObraSocial))
+                    {
+                        int idx = cmbObraSocial.FindStringExact(paciente.ObraSocial);
+                        if (idx >= 0) cmbObraSocial.SelectedIndex = idx;
+                    }
 
                     // Bloqueamos edición para evitar modificar registros existentes por error
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
-                    txtObraSocial.ReadOnly = true;
+                    cmbObraSocial.Enabled = false;
                 }
                 else
                 {
@@ -117,11 +150,11 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
-                    txtObraSocial.Clear();
+                    if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
                     txtNombre.ReadOnly = false;
                     txtApellido.ReadOnly = false;
-                    txtObraSocial.ReadOnly = false;
+                    cmbObraSocial.Enabled = true;
                     txtNombre.Focus();
                 }
             }
@@ -138,7 +171,6 @@ namespace Gestion_de_Turnos_Medicos
                 string nombre = txtNombre.Text.Trim();
                 string apellido = txtApellido.Text.Trim();
                 string dni = txtDNI.Text.Trim();
-                string obraSocial = txtObraSocial.Text.Trim();
 
                 if (string.IsNullOrEmpty(dni) || string.IsNullOrEmpty(nombre) || string.IsNullOrEmpty(apellido))
                 {
@@ -146,12 +178,15 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
+                int idObraSocial = cmbObraSocial.SelectedValue is int val ? val : 1;
+                string obraSocial = cmbObraSocial.Text;
+
                 int idPacienteFinal;
 
                 // Si el paciente no estaba registrado, lo guardamos automáticamente en la BD antes de crear el turno
                 if (!idPacienteActual.HasValue)
                 {
-                    idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
+                    idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
                     idPacienteActual = idPacienteFinal; // Actualizamos la referencia local
                 }
                 else
@@ -309,11 +344,11 @@ namespace Gestion_de_Turnos_Medicos
             txtDNI.Clear();
             txtNombre.Clear();
             txtApellido.Clear();
-            txtObraSocial.Clear();
+            if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
             txtNombre.ReadOnly = false;
             txtApellido.ReadOnly = false;
-            txtObraSocial.ReadOnly = false;
+            cmbObraSocial.Enabled = true;
 
             idPacienteActual = null;
             checkBoxBaja.Checked = false;

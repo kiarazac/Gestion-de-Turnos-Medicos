@@ -19,6 +19,9 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>Conjunto de entidades para las prioridades de triage médico (Alta, Media, Baja).</summary>
         public DbSet<Prioridad> Prioridades { get; set; }
 
+        /// <summary>Conjunto de entidades para las obras sociales y entidades de cobertura médica.</summary>
+        public DbSet<ObraSocial> ObrasSociales { get; set; }
+
         /// <summary>Conjunto de entidades para pacientes registrados en el sistema.</summary>
         public DbSet<Paciente> Pacientes { get; set; }
 
@@ -86,6 +89,7 @@ namespace Gestion_de_Turnos_Medicos
             modelBuilder.Entity<Usuario>().HasQueryFilter(u => u.Activo);
             modelBuilder.Entity<Sala>().HasQueryFilter(s => s.Activo);
             modelBuilder.Entity<Especialidad>().HasQueryFilter(e => e.Activo);
+            modelBuilder.Entity<ObraSocial>().HasQueryFilter(o => o.Activo);
         }
 
         /// <summary>

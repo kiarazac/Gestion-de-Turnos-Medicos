@@ -40,6 +40,31 @@ namespace Gestion_de_Turnos_Medicos
     }
 
     /// <summary>
+    /// Representa una obra social o entidad de cobertura médica prepaga activa en el centro médico.
+    /// </summary>
+    public class ObraSocial : EntidadAuditable
+    {
+        /// <summary>Identificador único de la obra social.</summary>
+        [Key]
+        public int IdObraSocial { get; set; }
+
+        /// <summary>Nombre oficial o denominación de la obra social o prepaga.</summary>
+        [Required]
+        [StringLength(100)]
+        public string Nombre { get; set; } = string.Empty;
+
+        /// <summary>Acrónimo o sigla identificatoria (ej. IOSCOR, PAMI, OSDE).</summary>
+        [StringLength(20)]
+        public string? Sigla { get; set; }
+
+        /// <summary>Colección de pacientes afiliados o asociados a esta cobertura médica.</summary>
+        public ICollection<Paciente> Pacientes { get; set; } = new List<Paciente>();
+
+        /// <summary>Representación textual de la obra social (su nombre).</summary>
+        public override string ToString() => Nombre;
+    }
+
+    /// <summary>
     /// Representa a un paciente registrado en el centro médico.
     /// </summary>
     public class Paciente : EntidadAuditable
@@ -57,8 +82,12 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>Documento Nacional de Identidad (DNI) del paciente (único para búsqueda y verificación).</summary>
         public string Dni { get; set; }
 
-        /// <summary>Nombre de la obra social o cobertura médica prepaga del paciente.</summary>
-        public string ObraSocial { get; set; }
+        /// <summary>Identificador foráneo de la obra social asociada al paciente.</summary>
+        public int IdObraSocial { get; set; }
+
+        /// <summary>Entidad de obra social o cobertura médica prepaga del paciente.</summary>
+        [ForeignKey("IdObraSocial")]
+        public ObraSocial? ObraSocial { get; set; }
 
         /// <summary>Historial de turnos solicitados o recibidos por el paciente.</summary>
         public ICollection<Turno> Turnos { get; set; }

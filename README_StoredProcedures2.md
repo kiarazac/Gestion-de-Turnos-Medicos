@@ -1755,6 +1755,64 @@ GO
   | `@DNI` | `NVARCHAR(20)` | IN | Documento de identidad del paciente. |
 - **Devuelve:** `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `ObraSocial`.
 
+### 4.0 `sp_ListarObrasSociales`
+- **Descripción:** Consulta el catálogo de obras sociales y empresas prepagas activas en Argentina con presencia operativa en Corrientes para poblar los controles `ComboBox` desplegables de selección de cobertura.
+- **Entidad:** ObraSocial
+- **Operación:** Catálogo / Consulta
+- **Tablas:** `ObrasSociales`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
+- **Acción:** Carga inicial y refresco de combos de selección de cobertura
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IncluirInactivas` | `BIT` | IN | Si es 1 lista también obras sociales dadas de baja lógica (default 0). |
+- **Devuelve:** `IdObraSocial`, `Nombre`, `Sigla`, `Activo`.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_ListarObrasSociales
+    @IncluirInactivas BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            IdObraSocial,
+            Nombre,
+            ISNULL(Sigla, '') AS Sigla,
+            Activo
+        FROM ObrasSociales
+        WHERE (@IncluirInactivas = 1 OR Activo = 1)
+        ORDER BY 
+            CASE WHEN IdObraSocial = 1 THEN 0 ELSE 1 END,
+            Nombre ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+```
+
+---
+
+### 4.1 `sp_BuscarPacientePorDNI`
+- **Descripción:** Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI), resolviendo mediante join el nombre y código de su obra social vinculada.
+- **Entidad:** Paciente
+- **Operación:** Búsqueda
+- **Tablas:** `Pacientes`, `ObrasSociales`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
+- **Acción:** Autocompletado y verificación de antecedentes al ingresar DNI
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@DNI` | `NVARCHAR(20)` | IN | Documento de identidad del paciente. |
+- **Devuelve:** `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`.
+
 ```sql
 CREATE OR ALTER PROCEDURE sp_BuscarPacientePorDNI
     @DNI NVARCHAR(20)
@@ -1763,10 +1821,16 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-
-    SELECT IdPaciente, Nombre, Apellido, Dni, ObraSocial 
-    FROM Pacientes 
-    WHERE DNI = @DNI AND Activo = 1;
+        SELECT 
+            p.IdPaciente, 
+            p.Nombre, 
+            p.Apellido, 
+            p.Dni, 
+            p.IdObraSocial,
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial 
+        FROM Pacientes p
+        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+        WHERE p.DNI = @DNI AND p.Activo = 1;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1780,10 +1844,10 @@ GO
 ---
 
 ### 4.2 `sp_GuardarPaciente` (Upsert Inteligente)
-- **Descripción:** Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
+- **Descripción:** Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica (`IdObraSocial`) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
 - **Entidad:** Paciente
 - **Operación:** Búsqueda / Alta / Actualización con Integridad Cruzada
-- **Tablas:** `Pacientes`, `Usuarios`
+- **Tablas:** `Pacientes`, `Usuarios`, `ObrasSociales`
 - **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
 - **Acción:** Botón `BtnGenerarTurno`
 - **Estado:** `EN USO`
@@ -1793,7 +1857,7 @@ GO
   | `@Nombre` | `NVARCHAR(100)` | IN | Nombre del paciente. |
   | `@Apellido` | `NVARCHAR(100)` | IN | Apellido del paciente. |
   | `@Dni` | `NVARCHAR(20)` | IN | Documento de identidad. |
-  | `@ObraSocial` | `NVARCHAR(100)` | IN | Cobertura médica u obra social. |
+  | `@IdObraSocial` | `INT` | IN | Clave foránea de la obra social asociada (default 1). |
 - **Devuelve:** 1 fila: `IdPaciente`.
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
@@ -1805,7 +1869,7 @@ CREATE OR ALTER PROCEDURE sp_GuardarPaciente
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Dni NVARCHAR(20),
-    @ObraSocial NVARCHAR(100)
+    @IdObraSocial INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1815,6 +1879,12 @@ BEGIN
         IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
         BEGIN
             THROW 50010, 'Ya existe un usuario registrado en el sistema con este mismo número de DNI. No se puede duplicar.', 1;
+        END
+
+        IF @IdObraSocial IS NULL OR @IdObraSocial <= 0 OR NOT EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocial)
+        BEGIN
+            SELECT TOP 1 @IdObraSocial = IdObraSocial FROM ObrasSociales WHERE Nombre LIKE '%Particular%';
+            IF @IdObraSocial IS NULL SET @IdObraSocial = 1;
         END
 
         DECLARE @IdPaciente INT;
@@ -1828,14 +1898,14 @@ BEGIN
             UPDATE Pacientes
             SET Nombre = @Nombre,
                 Apellido = @Apellido,
-                ObraSocial = @ObraSocial,
+                IdObraSocial = @IdObraSocial,
                 FechaModificacion = GETDATE()
             WHERE IdPaciente = @IdPaciente;
         END
         ELSE
         BEGIN
-            INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, Activo, FechaCreacion)
-            VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, 1, GETDATE());
+            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Activo, FechaCreacion)
+            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, 1, GETDATE());
 
             SET @IdPaciente = SCOPE_IDENTITY();
         END
@@ -3788,6 +3858,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 23 | `sp_ReactivarEspecialidad`| Especialidad | Reactivación / Alta | `FrmGestionEspecialidades` | Botón `btnReactivar` (Re-dar de Alta Especialidad) | `EN USO` |
 | 24 | `sp_AsignarEspecialidadMedico`| MedicoEspecialidad | Asignación | `FrmGestionUsuarios2` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 25 | `sp_ObtenerEspecialidadesPorMedico`| MedicoEspecialidad | Consulta por Médico | `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` | Precarga de especialidades vinculadas | `EN USO` |
+| 25b | `sp_ListarObrasSociales`| ObraSocial | Catálogo | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Carga de desplegable de obras sociales activas | `EN USO` |
 | 26 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
 | 27 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
 | 28 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |

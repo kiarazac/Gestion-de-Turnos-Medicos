@@ -33,7 +33,7 @@ namespace Gestion_de_Turnos_Medicos
             LNuevoPaciente2 = new Label();
             LNuevoPaciente = new Label();
             panel2 = new Panel();
-            txtObraSocial = new TextBox();
+            cmbObraSocial = new ComboBox();
             LObraSocial = new Label();
             LEspecialidad = new Label();
             cmbEspecialidad = new ComboBox();
@@ -115,7 +115,7 @@ namespace Gestion_de_Turnos_Medicos
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
-            panel2.Controls.Add(txtObraSocial);
+            panel2.Controls.Add(cmbObraSocial);
             panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(LEspecialidad);
             panel2.Controls.Add(cmbEspecialidad);
@@ -131,12 +131,14 @@ namespace Gestion_de_Turnos_Medicos
             panel2.Size = new Size(740, 494);
             panel2.TabIndex = 6;
             // 
-            // txtObraSocial
+            // cmbObraSocial
             // 
-            txtObraSocial.Location = new Point(373, 110);
-            txtObraSocial.Name = "txtObraSocial";
-            txtObraSocial.Size = new Size(326, 23);
-            txtObraSocial.TabIndex = 21;
+            cmbObraSocial.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbObraSocial.Font = new Font("Segoe UI", 10F);
+            cmbObraSocial.Location = new Point(373, 110);
+            cmbObraSocial.Name = "cmbObraSocial";
+            cmbObraSocial.Size = new Size(326, 25);
+            cmbObraSocial.TabIndex = 21;
             // 
             // LObraSocial
             // 
@@ -509,7 +511,7 @@ namespace Gestion_de_Turnos_Medicos
         private ComboBox cmbHorarios;
         private Label LEspecialidad;
         private ComboBox cmbEspecialidad;
-        private TextBox txtObraSocial;
+        private ComboBox cmbObraSocial;
         private Label LObraSocial;
         private Panel panel3;
         private Label Ldescrip_turno_especialidad;

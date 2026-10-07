@@ -16,6 +16,7 @@ namespace Gestion_de_Turnos_Medicos
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL();
+        private readonly ObraSocialBLL _obraSocialBLL = new ObraSocialBLL();
 
         private int? idPacienteActual = null;
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
@@ -37,6 +38,7 @@ namespace Gestion_de_Turnos_Medicos
         {
             calFechaTurno.MinDate = DateTime.Today;
             CargarEspecialidades();
+            CargarObrasSociales();
 
             Lid_turno.Text = "# --";
             Ldescrip_turno_especialidad.Text = "Especialidad";
@@ -71,11 +73,20 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
-                    txtObraSocial.Text = paciente.ObraSocial;
+
+                    if (paciente.IdObraSocial.HasValue && paciente.IdObraSocial.Value > 0)
+                    {
+                        cmbObraSocial.SelectedValue = paciente.IdObraSocial.Value;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(paciente.ObraSocial))
+                    {
+                        int idx = cmbObraSocial.FindStringExact(paciente.ObraSocial);
+                        if (idx >= 0) cmbObraSocial.SelectedIndex = idx;
+                    }
 
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
-                    txtObraSocial.ReadOnly = true;
+                    cmbObraSocial.Enabled = false;
                 }
                 else
                 {
@@ -83,17 +94,36 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
-                    txtObraSocial.Clear();
+                    if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
                     txtNombre.ReadOnly = false;
                     txtApellido.ReadOnly = false;
-                    txtObraSocial.ReadOnly = false;
+                    cmbObraSocial.Enabled = true;
                     txtNombre.Focus();
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error al buscar el paciente:\n{ex.Message}", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void CargarObrasSociales()
+        {
+            try
+            {
+                var lista = _obraSocialBLL.ObtenerObrasSociales();
+                cmbObraSocial.DataSource = lista;
+                cmbObraSocial.DisplayMember = "Nombre";
+                cmbObraSocial.ValueMember = "IdObraSocial";
+                if (cmbObraSocial.Items.Count > 0)
+                {
+                    cmbObraSocial.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar el catálogo de obras sociales:\n{ex.Message}", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -316,7 +346,8 @@ namespace Gestion_de_Turnos_Medicos
             string nombre = txtNombre.Text.Trim();
             string apellido = txtApellido.Text.Trim();
             string dni = txtDNI.Text.Trim();
-            string obraSocial = txtObraSocial.Text.Trim();
+            int idObraSocial = cmbObraSocial.SelectedValue is int val ? val : 1;
+            string obraSocial = cmbObraSocial.Text;
             string especialidad = cmbEspecialidad.SelectedItem!.ToString()!;
             DateTime fecha = calFechaTurno.SelectionStart.Date;
 
@@ -334,7 +365,7 @@ namespace Gestion_de_Turnos_Medicos
                 }
                 else
                 {
-                    idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, obraSocial);
+                    idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
                     idPacienteActual = idPaciente;
                 }
 
@@ -440,9 +471,9 @@ namespace Gestion_de_Turnos_Medicos
             if (string.IsNullOrWhiteSpace(txtNombre.Text) ||
                 string.IsNullOrWhiteSpace(txtApellido.Text) ||
                 string.IsNullOrWhiteSpace(txtDNI.Text) ||
-                string.IsNullOrWhiteSpace(txtObraSocial.Text))
+                cmbObraSocial.SelectedIndex < 0)
             {
-                MessageBox.Show("Por favor, complete todos los datos del paciente.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, complete todos los datos del paciente y seleccione una obra social.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -517,11 +548,11 @@ namespace Gestion_de_Turnos_Medicos
             txtNombre.Clear();
             txtApellido.Clear();
             txtDNI.Clear();
-            txtObraSocial.Clear();
+            if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
             txtNombre.ReadOnly = false;
             txtApellido.ReadOnly = false;
-            txtObraSocial.ReadOnly = false;
+            cmbObraSocial.Enabled = true;
 
             idPacienteActual = null;
             txtClaveCancelacion.Clear();
