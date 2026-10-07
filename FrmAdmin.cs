@@ -21,7 +21,17 @@ namespace Gestion_de_Turnos_Medicos
         {
             InitializeComponent();
             _usuarioActual = usuario;
+            this.Load += FrmAdmin_Load;
         }
+
+        private void FrmAdmin_Load(object? sender, EventArgs e)
+        {
+            if (_usuarioActual != null && !string.IsNullOrWhiteSpace(_usuarioActual.Nombre))
+            {
+                lblUsuarioAdmin.Text = $"{_usuarioActual.Nombre} {_usuarioActual.Apellido}".Trim();
+            }
+        }
+
 
         /// <summary>
         /// Embebe un formulario hijo dentro del panel central (<c>pnlContenedor</c>), cerrando previamente el formulario activo si existiese.

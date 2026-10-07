@@ -28,9 +28,9 @@ namespace Gestion_de_Turnos_Medicos
 
         private void FrmGerente_Load(object? sender, EventArgs e)
         {
-            if (_usuarioActual != null)
+            if (_usuarioActual != null && !string.IsNullOrWhiteSpace(_usuarioActual.Nombre))
             {
-                LUsuarioInfo.Text = $"Gerente: {_usuarioActual.Nombre} {_usuarioActual.Apellido}";
+                LUsuarioInfo.Text = $"{_usuarioActual.Nombre} {_usuarioActual.Apellido}".Trim();
             }
 
             // Abre automáticamente el módulo de reportes gerenciales en el panel principal

@@ -71,9 +71,61 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde ?? DBNull.Value);
                 var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta ?? DBNull.Value);
 
-                return context.Database
-                    .SqlQueryRaw<AtencionMedicoDTO>("EXEC sp_ObtenerAtencionesPorMedico @IdUsuario, @FechaDesde, @FechaHasta", pIdUsuario, pFechaDesde, pFechaHasta)
-                    .ToList();
+                try
+                {
+                    return context.Database
+                        .SqlQueryRaw<AtencionMedicoDTO>("EXEC sp_ObtenerAtencionesPorMedico @IdUsuario, @FechaDesde, @FechaHasta", pIdUsuario, pFechaDesde, pFechaHasta)
+                        .ToList();
+                }
+                catch (Exception)
+                {
+                    // Fallback defensivo: garantiza que la consulta retorne exactamente las columnas requeridas por AtencionMedicoDTO
+                    var pIdUsuario2 = new SqlParameter("@IdUsuario", idUsuario);
+                    var pFechaDesde2 = new SqlParameter("@FechaDesde", (object?)fechaDesde ?? DBNull.Value);
+                    var pFechaHasta2 = new SqlParameter("@FechaHasta", (object?)fechaHasta ?? DBNull.Value);
+
+                    string sql = @"
+                        SELECT 
+                            hc.IdHistoria,
+                            hc.Fecha,
+                            hc.TipoTurno,
+                            hc.DiagRapido,
+                            hc.DescripHistoriaClinica,
+                            hc.RecetaMedicamentos,
+                            p.IdPaciente,
+                            p.Nombre AS NombrePaciente,
+                            p.Apellido AS ApellidoPaciente,
+                            p.Dni AS DniPaciente,
+                            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+                            ISNULL(t.NroOrden, '--') AS NroOrden,
+                            ISNULL(s.NombreSala, 'Consultorio') AS NombreSala,
+                            ISNULL(e.Nombre, 'General') AS Especialidad,
+                            t.IdPrioridad,
+                            ISNULL(pr.Descripcion, 'N/A') AS GravedadTriage,
+                            ISNULL(
+                                (SELECT STRING_AGG(s2.Descripcion, ', ')
+                                 FROM TurnoSintomas ts2
+                                 INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+                                 WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1),
+                                '--'
+                            ) AS SintomasTriage
+                        FROM HistoriasClinicas hc
+                        INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
+                        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+                        LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+                        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                        LEFT JOIN Salas s ON t.IdSala = s.IdSala
+                        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+                        WHERE hc.IdUsuario = @IdUsuario
+                          AND hc.Activo = 1
+                          AND (@FechaDesde IS NULL OR hc.Fecha >= @FechaDesde)
+                          AND (@FechaHasta IS NULL OR hc.Fecha <= @FechaHasta)
+                        ORDER BY hc.Fecha DESC;";
+
+                    return context.Database
+                        .SqlQueryRaw<AtencionMedicoDTO>(sql, pIdUsuario2, pFechaDesde2, pFechaHasta2)
+                        .ToList();
+                }
             }
         }
     }
