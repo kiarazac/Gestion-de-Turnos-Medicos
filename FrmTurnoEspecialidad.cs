@@ -86,7 +86,7 @@ namespace Gestion_de_Turnos_Medicos
 
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
-                    cmbObraSocial.Enabled = false;
+                    cmbObraSocial.Enabled = true; // Permite actualizar o asignar obra social si el paciente cambió de cobertura
                 }
                 else
                 {
@@ -358,16 +358,9 @@ namespace Gestion_de_Turnos_Medicos
             {
                 int idPaciente;
 
-                // Si el paciente ya existe usamos su ID; si es nuevo, lo guardamos automáticamente en la BD
-                if (idPacienteActual.HasValue)
-                {
-                    idPaciente = idPacienteActual.Value;
-                }
-                else
-                {
-                    idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
-                    idPacienteActual = idPaciente;
-                }
+                // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
+                idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
+                idPacienteActual = idPaciente;
 
                 // Cálculo del arancel según reglas de negocio (fijo $15.000, 30% $4.500 con Obra Social)
                 decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Especialidad", obraSocial);

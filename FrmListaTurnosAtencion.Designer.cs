@@ -40,6 +40,8 @@ namespace Gestion_de_Turnos_Medicos
             txtHistoriaPrevia = new TextBox();
             lblDiagnostico = new Label();
             txtDiagnostico = new TextBox();
+            lblReceta = new Label();
+            txtReceta = new TextBox();
             btnSiguientePaciente = new Button();
             btnIniciarAtencion = new Button();
             btnTerminarAtencion = new Button();
@@ -176,9 +178,11 @@ namespace Gestion_de_Turnos_Medicos
             pnlAtencionActual.Controls.Add(txtHistoriaPrevia);
             pnlAtencionActual.Controls.Add(lblDiagnostico);
             pnlAtencionActual.Controls.Add(txtDiagnostico);
+            pnlAtencionActual.Controls.Add(lblReceta);
+            pnlAtencionActual.Controls.Add(txtReceta);
             pnlAtencionActual.Location = new Point(656, 10);
             pnlAtencionActual.Name = "pnlAtencionActual";
-            pnlAtencionActual.Size = new Size(340, 380);
+            pnlAtencionActual.Size = new Size(340, 405);
             pnlAtencionActual.TabIndex = 2;
             // 
             // lblPanelTitulo
@@ -255,7 +259,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             lblObservaciones.AutoSize = true;
             lblObservaciones.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-            lblObservaciones.Location = new Point(16, 148);
+            lblObservaciones.Location = new Point(16, 142);
             lblObservaciones.Name = "lblObservaciones";
             lblObservaciones.Size = new Size(224, 15);
             lblObservaciones.TabIndex = 7;
@@ -265,41 +269,61 @@ namespace Gestion_de_Turnos_Medicos
             // 
             txtHistoriaPrevia.BackColor = Color.FromArgb(245, 245, 245);
             txtHistoriaPrevia.Font = new Font("Segoe UI", 8.5F);
-            txtHistoriaPrevia.Location = new Point(16, 168);
+            txtHistoriaPrevia.Location = new Point(16, 159);
             txtHistoriaPrevia.Multiline = true;
             txtHistoriaPrevia.Name = "txtHistoriaPrevia";
             txtHistoriaPrevia.ReadOnly = true;
             txtHistoriaPrevia.ScrollBars = ScrollBars.Vertical;
-            txtHistoriaPrevia.Size = new Size(308, 80);
+            txtHistoriaPrevia.Size = new Size(308, 62);
             txtHistoriaPrevia.TabIndex = 8;
             // 
             // lblDiagnostico
             // 
             lblDiagnostico.AutoSize = true;
             lblDiagnostico.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-            lblDiagnostico.Location = new Point(16, 255);
+            lblDiagnostico.Location = new Point(16, 225);
             lblDiagnostico.Name = "lblDiagnostico";
-            lblDiagnostico.Size = new Size(111, 15);
+            lblDiagnostico.Size = new Size(125, 15);
             lblDiagnostico.TabIndex = 9;
-            lblDiagnostico.Text = "Diagnóstico Actual";
+            lblDiagnostico.Text = "Diagnóstico Médico *";
             // 
             // txtDiagnostico
             // 
             txtDiagnostico.Font = new Font("Segoe UI", 8.5F);
-            txtDiagnostico.Location = new Point(16, 275);
+            txtDiagnostico.Location = new Point(16, 243);
             txtDiagnostico.Multiline = true;
             txtDiagnostico.Name = "txtDiagnostico";
             txtDiagnostico.ScrollBars = ScrollBars.Vertical;
-            txtDiagnostico.Size = new Size(308, 90);
+            txtDiagnostico.Size = new Size(308, 62);
             txtDiagnostico.TabIndex = 1;
+            // 
+            // lblReceta
+            // 
+            lblReceta.AutoSize = true;
+            lblReceta.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblReceta.Location = new Point(16, 309);
+            lblReceta.Name = "lblReceta";
+            lblReceta.Size = new Size(211, 15);
+            lblReceta.TabIndex = 10;
+            lblReceta.Text = "Receta / Indicaciones Farmacológicas";
+            // 
+            // txtReceta
+            // 
+            txtReceta.Font = new Font("Segoe UI", 8.5F);
+            txtReceta.Location = new Point(16, 327);
+            txtReceta.Multiline = true;
+            txtReceta.Name = "txtReceta";
+            txtReceta.ScrollBars = ScrollBars.Vertical;
+            txtReceta.Size = new Size(308, 64);
+            txtReceta.TabIndex = 2;
             // 
             // btnSiguientePaciente
             // 
             btnSiguientePaciente.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnSiguientePaciente.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            btnSiguientePaciente.Location = new Point(656, 400);
+            btnSiguientePaciente.Location = new Point(656, 423);
             btnSiguientePaciente.Name = "btnSiguientePaciente";
-            btnSiguientePaciente.Size = new Size(340, 38);
+            btnSiguientePaciente.Size = new Size(340, 36);
             btnSiguientePaciente.TabIndex = 3;
             btnSiguientePaciente.Text = "➜  Siguiente Paciente";
             btnSiguientePaciente.UseVisualStyleBackColor = true;
@@ -310,9 +334,9 @@ namespace Gestion_de_Turnos_Medicos
             btnIniciarAtencion.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnIniciarAtencion.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             btnIniciarAtencion.ForeColor = Color.FromArgb(21, 101, 178);
-            btnIniciarAtencion.Location = new Point(656, 442);
+            btnIniciarAtencion.Location = new Point(656, 464);
             btnIniciarAtencion.Name = "btnIniciarAtencion";
-            btnIniciarAtencion.Size = new Size(340, 38);
+            btnIniciarAtencion.Size = new Size(340, 36);
             btnIniciarAtencion.TabIndex = 4;
             btnIniciarAtencion.Text = "🕐  Iniciar Atención";
             btnIniciarAtencion.UseVisualStyleBackColor = true;
@@ -322,9 +346,9 @@ namespace Gestion_de_Turnos_Medicos
             // 
             btnTerminarAtencion.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnTerminarAtencion.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            btnTerminarAtencion.Location = new Point(656, 484);
+            btnTerminarAtencion.Location = new Point(656, 505);
             btnTerminarAtencion.Name = "btnTerminarAtencion";
-            btnTerminarAtencion.Size = new Size(340, 38);
+            btnTerminarAtencion.Size = new Size(340, 36);
             btnTerminarAtencion.TabIndex = 5;
             btnTerminarAtencion.Text = "☑  Terminar Atención";
             btnTerminarAtencion.UseVisualStyleBackColor = true;
@@ -335,7 +359,7 @@ namespace Gestion_de_Turnos_Medicos
             lblAvisoBloqueo.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblAvisoBloqueo.Font = new Font("Segoe UI", 8.25F, FontStyle.Italic);
             lblAvisoBloqueo.ForeColor = Color.DimGray;
-            lblAvisoBloqueo.Location = new Point(656, 526);
+            lblAvisoBloqueo.Location = new Point(656, 545);
             lblAvisoBloqueo.Name = "lblAvisoBloqueo";
             lblAvisoBloqueo.Size = new Size(340, 16);
             lblAvisoBloqueo.TabIndex = 6;
@@ -348,7 +372,7 @@ namespace Gestion_de_Turnos_Medicos
             lblTrazabilidad.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblTrazabilidad.Font = new Font("Segoe UI", 8.25F, FontStyle.Italic);
             lblTrazabilidad.ForeColor = Color.DimGray;
-            lblTrazabilidad.Location = new Point(656, 544);
+            lblTrazabilidad.Location = new Point(656, 563);
             lblTrazabilidad.Name = "lblTrazabilidad";
             lblTrazabilidad.Size = new Size(340, 16);
             lblTrazabilidad.TabIndex = 7;
@@ -428,6 +452,8 @@ namespace Gestion_de_Turnos_Medicos
         private System.Windows.Forms.TextBox txtHistoriaPrevia;
         private System.Windows.Forms.Label lblDiagnostico;
         private System.Windows.Forms.TextBox txtDiagnostico;
+        private System.Windows.Forms.Label lblReceta;
+        private System.Windows.Forms.TextBox txtReceta;
 
         private System.Windows.Forms.Button btnSiguientePaciente;
         private System.Windows.Forms.Button btnIniciarAtencion;

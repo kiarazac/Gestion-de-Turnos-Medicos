@@ -455,7 +455,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         SELECT 
                             t.IdTurno,
                             t.NroOrden,
-                            t.Fecha,
+                            CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, ISNULL(CAST(t.FechaCreacion AS TIME), '00:00')) AS DATETIME) AS Fecha,
                             t.Estado,
                             ISNULL(e.Nombre, 'Emergencias / Guardia') AS Especialidad,
                             ISNULL(pr.Descripcion, 'MEDIA') AS Triage,
