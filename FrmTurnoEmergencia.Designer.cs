@@ -53,6 +53,7 @@ namespace Gestion_de_Turnos_Medicos
             panel3 = new Panel();
             Ldescrip_turno_especialidad = new Label();
             Lid_turno = new Label();
+            lblMontoCobro = new Label();
             btnDescargarTxt = new Button();
             gbCancelacionEmergencia = new GroupBox();
             txtBuscarTurnoCancelacion = new TextBox();
@@ -298,6 +299,7 @@ namespace Gestion_de_Turnos_Medicos
             // 
             panel3.BackColor = SystemColors.ActiveCaption;
             panel3.BorderStyle = BorderStyle.Fixed3D;
+            panel3.Controls.Add(lblMontoCobro);
             panel3.Controls.Add(Ldescrip_turno_especialidad);
             panel3.Controls.Add(Lid_turno);
             panel3.Location = new Point(814, 255);
@@ -305,27 +307,38 @@ namespace Gestion_de_Turnos_Medicos
             panel3.Size = new Size(367, 191);
             panel3.TabIndex = 9;
             // 
-            // Ldescrip_turno_especialidad
-            // 
-            Ldescrip_turno_especialidad.AutoSize = true;
-            Ldescrip_turno_especialidad.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
-            Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
-            Ldescrip_turno_especialidad.Location = new Point(89, 120);
-            Ldescrip_turno_especialidad.Name = "Ldescrip_turno_especialidad";
-            Ldescrip_turno_especialidad.Size = new Size(193, 41);
-            Ldescrip_turno_especialidad.TabIndex = 19;
-            Ldescrip_turno_especialidad.Text = "Especialidad";
-            // 
             // Lid_turno
             // 
-            Lid_turno.AutoSize = true;
-            Lid_turno.Font = new Font("Segoe UI", 32F, FontStyle.Bold);
+            Lid_turno.Font = new Font("Segoe UI", 28F, FontStyle.Bold);
             Lid_turno.ForeColor = SystemColors.ControlText;
-            Lid_turno.Location = new Point(74, 58);
+            Lid_turno.Location = new Point(10, 10);
             Lid_turno.Name = "Lid_turno";
-            Lid_turno.Size = new Size(198, 59);
+            Lid_turno.Size = new Size(345, 48);
             Lid_turno.TabIndex = 18;
             Lid_turno.Text = "# --------";
+            Lid_turno.TextAlign = ContentAlignment.MiddleCenter;
+            // 
+            // Ldescrip_turno_especialidad
+            // 
+            Ldescrip_turno_especialidad.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
+            Ldescrip_turno_especialidad.ForeColor = SystemColors.Highlight;
+            Ldescrip_turno_especialidad.Location = new Point(10, 60);
+            Ldescrip_turno_especialidad.Name = "Ldescrip_turno_especialidad";
+            Ldescrip_turno_especialidad.Size = new Size(345, 32);
+            Ldescrip_turno_especialidad.TabIndex = 19;
+            Ldescrip_turno_especialidad.Text = "Especialidad";
+            Ldescrip_turno_especialidad.TextAlign = ContentAlignment.MiddleCenter;
+            // 
+            // lblMontoCobro
+            // 
+            lblMontoCobro.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            lblMontoCobro.ForeColor = Color.DarkGreen;
+            lblMontoCobro.Location = new Point(10, 102);
+            lblMontoCobro.Name = "lblMontoCobro";
+            lblMontoCobro.Size = new Size(345, 78);
+            lblMontoCobro.TabIndex = 22;
+            lblMontoCobro.Text = "Arancel: $ --";
+            lblMontoCobro.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // btnDescargarTxt
             // 
@@ -498,6 +511,7 @@ namespace Gestion_de_Turnos_Medicos
         private Panel panel3;
         private Label Ldescrip_turno_especialidad;
         private Label Lid_turno;
+        private Label lblMontoCobro;
         private Button btnDescargarTxt;
         private GroupBox gbCancelacionEmergencia;
         private TextBox txtBuscarTurnoCancelacion;

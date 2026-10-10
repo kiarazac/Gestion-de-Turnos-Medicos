@@ -34,6 +34,10 @@ namespace Gestion_de_Turnos_Medicos
             {
                 CargarCatalogoSintomas();
                 CargarObrasSociales();
+                Lid_turno.Text = "# --------";
+                Ldescrip_turno_especialidad.Text = "Especialidad";
+                lblMontoCobro.Text = "Arancel: $ --";
+                lblMontoCobro.ForeColor = SystemColors.ControlDarkDark;
             };
 
             // Suscribimos los eventos de búsqueda por DNI
@@ -242,16 +246,20 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
-                // 3. Cálculo de arancel según reglas de negocio (fijo $25.000 emergencia, 30% $7.500 con Obra Social)
+                // 3. Cálculo de arancel según reglas de negocio (fijo $25.000 emergencia Particular, 30% $7.500 con Obra Social)
                 decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", obraSocial);
+                bool tieneOS = TurnoBLL.TieneObraSocial(obraSocial);
+                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial);
 
                 // Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados, el estado de "Otro" y el arancel.
                 // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja) y autogenera la clave 2FA (CAN-XXXX).
                 string nroOrden = _turnoBLL.CrearTurnoEmergenciaConSintomas(idPacienteFinal, sintomasSeleccionados, esOtro, out string prioridadTexto, out string codigoCancelacion, montoArancel);
 
-                // 4. Mostramos el resultado visual en pantalla con el número de turno y la prioridad asignada
+                // 4. Mostramos el resultado visual en pantalla con el número de turno, prioridad y arancel a cobrar
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = $"Prioridad ({prioridadTexto})";
+                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? "Copago 30%" : "Particular 100%")})";
+                lblMontoCobro.ForeColor = tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
 
                 // Coloreamos el texto según el nivel de urgencia del triage
                 switch (prioridadTexto.ToUpperInvariant())
@@ -270,7 +278,7 @@ namespace Gestion_de_Turnos_Medicos
                         break;
                 }
 
-                // Guardamos los datos completos del turno emitido para la descarga del comprobante .txt, incluyendo la clave 2FA
+                // Guardamos los datos completos del turno emitido para la descarga del comprobante .txt, incluyendo la clave 2FA y arancel
                 _ultimoTurnoEmitido = new DatosComprobanteTurno
                 {
                     NroOrden = nroOrden,
@@ -279,8 +287,10 @@ namespace Gestion_de_Turnos_Medicos
                     FechaEmision = DateTime.Now,
                     NombrePaciente = $"{apellido}, {nombre}",
                     DniPaciente = dni,
-                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial,
-                    CodigoCancelacion = codigoCancelacion
+                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Sin Obra Social" : obraSocial,
+                    CodigoCancelacion = codigoCancelacion,
+                    MontoCobrado = montoArancel,
+                    DetalleArancel = condicionCobro
                 };
 
                 // Habilitamos el botón de descarga ubicado debajo del número de orden
@@ -302,14 +312,20 @@ namespace Gestion_de_Turnos_Medicos
                 lblTurnoInfoTriage.Text = $"Triage: {prioridadTexto} | Estado: En Espera";
                 txtClaveCancelacionEmergencia.Text = codigoCancelacion;
 
-                MessageBox.Show(
+                string mensajeCobro =
+                    "==============================================\n" +
+                    $" 💰 COBRAR EN CAJA: $ {montoArancel:N2}\n" +
+                    $" Condición: {condicionCobro}\n" +
+                    "==============================================\n\n" +
                     $"¡Turno de emergencia generado correctamente!\n\n" +
-                    $"Número de Orden: {nroOrden}\n" +
-                    $"Prioridad Triage: {prioridadTexto}\n" +
-                    $"Arancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})\n\n" +
+                    $"• Número de Orden: {nroOrden}\n" +
+                    $"• Prioridad Triage: {prioridadTexto}\n\n" +
                     $"CLAVE DE CANCELACIÓN (2FA): {codigoCancelacion}\n" +
-                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)",
-                    "Éxito",
+                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)";
+
+                MessageBox.Show(
+                    mensajeCobro,
+                    "Turno de Guardia - Cobro en Caja",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );

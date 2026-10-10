@@ -39,14 +39,16 @@ namespace Gestion_de_Turnos_Medicos.Servicios
         #region 1. Reporte de Cierre Diario de Caja (Recepcionista)
 
         /// <summary>
-        /// Genera el reporte oficial de cierre de caja en PDF inmutable.
+        /// Genera el reporte oficial de cierre de caja y turnos emitidos en PDF inmutable.
         /// </summary>
         public static void ExportarCierreCaja(
             string rutaArchivo,
             ReporteCierreCajaResumenDTO resumen,
             List<ReporteCierreCajaDetalleDTO> detalles,
             DateTime fechaCierre,
-            UsuarioLoginResult? usuarioActual)
+            UsuarioLoginResult? usuarioActual,
+            string? filtroEspecialidad = null,
+            string? tituloPersonalizado = null)
         {
             var doc = Document.Create(container =>
             {
@@ -66,9 +68,24 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             {
                                 c.Item().Text("CENTRO MÉDICO DE ESPECIALIDADES")
                                     .FontSize(14).Bold().FontColor(ColorPrimario);
-                                c.Item().Text("REPORTE OFICIAL DE CIERRE DIARIO DE CAJA")
+
+                                string titulo = !string.IsNullOrWhiteSpace(tituloPersonalizado)
+                                    ? tituloPersonalizado
+                                    : (!string.IsNullOrWhiteSpace(filtroEspecialidad)
+                                        ? "REPORTE OFICIAL DE TURNOS Y FACTURACIÓN POR ESPECIALIDAD"
+                                        : "REPORTE OFICIAL DE CIERRE DIARIO DE CAJA Y TURNOS");
+
+                                c.Item().Text(titulo)
                                     .FontSize(11).Bold().FontColor(ColorSecundario);
-                                c.Item().Text($"Fecha de Operación: {fechaCierre:dd/MM/yyyy}")
+
+                                string subtituloFecha = $"Fecha Auditada: {fechaCierre:dd/MM/yyyy}";
+                                if (!string.IsNullOrWhiteSpace(filtroEspecialidad) &&
+                                    !filtroEspecialidad.Equals("Todas", StringComparison.OrdinalIgnoreCase) &&
+                                    !filtroEspecialidad.Equals("Todas las Especialidades", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    subtituloFecha += $"  |  Especialidad: {filtroEspecialidad}";
+                                }
+                                c.Item().Text(subtituloFecha)
                                     .FontSize(10).SemiBold();
                             });
 
@@ -105,7 +122,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             {
                                 c.Item().Text("RECAUDACIÓN CAJA (PACIENTES)").FontSize(8).Bold().FontColor(ColorGrisTexto);
                                 c.Item().Text($"$ {resumen.TotalRecaudado:N2}").FontSize(14).Bold().FontColor(ColorExito);
-                                c.Item().Text("Abonado en efectivo / débito").FontSize(7);
+                                c.Item().Text("Abonado en ventanilla").FontSize(7);
                             });
 
                             row.RelativeItem().Column(c =>
@@ -123,7 +140,13 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             });
                         });
 
-                        col.Item().PaddingTop(12).Text("DETALLE DE TURNOS Y MOVIMIENTOS DEL DÍA")
+                        string tituloTabla = !string.IsNullOrWhiteSpace(filtroEspecialidad) &&
+                                             !filtroEspecialidad.Equals("Todas", StringComparison.OrdinalIgnoreCase) &&
+                                             !filtroEspecialidad.Equals("Todas las Especialidades", StringComparison.OrdinalIgnoreCase)
+                            ? $"DETALLE DE TURNOS Y FACTURACIÓN ({filtroEspecialidad.ToUpperInvariant()})"
+                            : "DETALLE DE TURNOS Y FACTURACIÓN DE LA JORNADA";
+
+                        col.Item().PaddingTop(12).Text(tituloTabla)
                             .FontSize(10).Bold().FontColor(ColorPrimario);
 
                         // Tabla de Detalle
@@ -131,27 +154,29 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                         {
                             tabla.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(45);  // N° Orden
-                                columns.ConstantColumn(40);  // Hora
+                                columns.ConstantColumn(40);  // N° Orden
+                                columns.ConstantColumn(48);  // Fecha Turno
+                                columns.ConstantColumn(35);  // Hora
                                 columns.RelativeColumn(2.5f);// Paciente
-                                columns.ConstantColumn(60);  // DNI
+                                columns.ConstantColumn(55);  // DNI
                                 columns.RelativeColumn(2f);  // Obra Social
-                                columns.ConstantColumn(65);  // Tipo
+                                columns.ConstantColumn(58);  // Tipo
                                 columns.RelativeColumn(2f);  // Profesional / Sala
-                                columns.ConstantColumn(65);  // Monto Cobrado
+                                columns.ConstantColumn(60);  // Monto Cobrado
                             });
 
                             // Cabecera de la tabla
                             tabla.Header(header =>
                             {
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Turno").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Hora").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Paciente").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("DNI").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Cobertura").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Tipo").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).Text("Médico / Sala").FontSize(8).Bold().FontColor(ColorBlanco);
-                                header.Cell().Background(ColorPrimario).Padding(4).AlignRight().Text("Monto Caja").FontSize(8).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Turno").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Fecha").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Hora").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Paciente").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("DNI").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Cobertura").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Tipo").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).Text("Médico / Sala").FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                                header.Cell().Background(ColorPrimario).Padding(4).AlignRight().Text("Monto Caja").FontSize(7.5f).Bold().FontColor(ColorBlanco);
                             });
 
                             // Filas de datos
@@ -160,14 +185,15 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                                 var d = detalles[i];
                                 var fondoFila = (i % 2 == 1) ? ColorFondoTabla : ColorBlanco;
 
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.NroOrden ?? "-").FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.Horario.ToString(@"hh\:mm")).FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.PacienteCompleto).FontSize(8).SemiBold();
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.DniPaciente).FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.ObraSocial).FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.TipoTurno).FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).Text(!string.IsNullOrWhiteSpace(d.MedicoAsignado) ? d.MedicoAsignado : d.Especialidad).FontSize(8);
-                                tabla.Cell().Background(fondoFila).Padding(4).AlignRight().Text($"$ {d.MontoCobrado:N2}").FontSize(8).Bold();
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.NroOrden ?? "-").FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.Fecha.ToString("dd/MM/yyyy")).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.Horario.ToString(@"hh\:mm")).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.PacienteCompleto).FontSize(7.5f).SemiBold();
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.DniPaciente).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.ObraSocial).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(d.TipoTurno).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).Text(!string.IsNullOrWhiteSpace(d.MedicoAsignado) ? d.MedicoAsignado : d.Especialidad).FontSize(7.5f);
+                                tabla.Cell().Background(fondoFila).Padding(4).AlignRight().Text($"$ {d.MontoCobrado:N2}").FontSize(7.5f).Bold();
                             }
                         });
 

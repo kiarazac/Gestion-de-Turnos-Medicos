@@ -42,6 +42,8 @@ namespace Gestion_de_Turnos_Medicos
 
             Lid_turno.Text = "# --";
             Ldescrip_turno_especialidad.Text = "Especialidad";
+            lblMontoCobro.Text = "Arancel: $ --";
+            lblMontoCobro.ForeColor = SystemColors.ControlDarkDark;
         }
 
         private void TxtDNI_Leave(object sender, EventArgs e)
@@ -206,13 +208,51 @@ namespace Gestion_de_Turnos_Medicos
 
                 if (horarios != null && horarios.Count > 0)
                 {
+                    DateTime ahora = DateTime.Now;
+                    bool esHoy = fechaElegida.Date == ahora.Date;
+
                     foreach (var h in horarios)
                     {
-                        if (!string.IsNullOrWhiteSpace(h.Horario))
-                            cmbHorarios.Items.Add(h);
+                        if (string.IsNullOrWhiteSpace(h.Horario))
+                            continue;
+
+                        // Si la fecha elegida es hoy, solo se admiten horarios posteriores a la hora actual
+                        if (esHoy && TimeSpan.TryParse(h.Horario.Trim(), out TimeSpan tsSlot))
+                        {
+                            if (tsSlot <= ahora.TimeOfDay)
+                                continue; // Horario ya transcurrido
+                        }
+
+                        cmbHorarios.Items.Add(h);
                     }
-                    cmbHorarios.SelectedIndex = 0;
-                    ActualizarEstadoHorarioSeleccionado();
+
+                    if (cmbHorarios.Items.Count > 0)
+                    {
+                        cmbHorarios.SelectedIndex = 0;
+                        ActualizarEstadoHorarioSeleccionado();
+                    }
+                    else
+                    {
+                        if (esHoy)
+                        {
+                            MessageBox.Show(
+                                "No quedan más horarios de atención disponibles para el día de hoy.\nPor favor, seleccione una fecha posterior en el calendario.",
+                                "Jornada Finalizada",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "No hay turnos disponibles para esta fecha y especialidad.",
+                                "Sin Turnos",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        ActualizarEstadoHorarioSeleccionado();
+                    }
                 }
                 else
                 {
@@ -362,8 +402,10 @@ namespace Gestion_de_Turnos_Medicos
                 idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
                 idPacienteActual = idPaciente;
 
-                // Cálculo del arancel según reglas de negocio (fijo $15.000, 30% $4.500 con Obra Social)
+                // Cálculo del arancel según reglas de negocio (fijo $15.000 Particular, 30% $4.500 con Obra Social)
                 decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Especialidad", obraSocial);
+                bool tieneOS = TurnoBLL.TieneObraSocial(obraSocial);
+                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial);
 
                 // Registro del turno con generación automática de palabra clave 2FA y arancel
                 var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera", null, montoArancel);
@@ -372,8 +414,10 @@ namespace Gestion_de_Turnos_Medicos
 
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
+                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? "Copago 30%" : "Particular 100%")})";
+                lblMontoCobro.ForeColor = tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
 
-                // Guardamos los datos del comprobante para su exportación a .txt incluyendo la clave 2FA
+                // Guardamos los datos del comprobante para su exportación a .txt incluyendo la clave 2FA y arancel
                 _ultimoTurnoEmitido = new DatosComprobanteTurno
                 {
                     NroOrden = nroOrden,
@@ -382,25 +426,33 @@ namespace Gestion_de_Turnos_Medicos
                     FechaEmision = DateTime.Now,
                     NombrePaciente = $"{apellido}, {nombre}",
                     DniPaciente = dni,
-                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Ninguna" : obraSocial,
+                    ObraSocial = string.IsNullOrWhiteSpace(obraSocial) ? "Particular / Sin Obra Social" : obraSocial,
                     FechaTurnoProgramado = fecha.ToString("dd/MM/yyyy"),
                     HorarioTurnoProgramado = horario,
-                    CodigoCancelacion = codigoCancelacion
+                    CodigoCancelacion = codigoCancelacion,
+                    MontoCobrado = montoArancel,
+                    DetalleArancel = condicionCobro
                 };
 
                 // Habilitamos el botón de descarga del comprobante
                 btnDescargarTxt.Enabled = true;
 
-                MessageBox.Show(
+                string mensajeCobro =
+                    "==============================================\n" +
+                    $" 💰 COBRAR EN CAJA: $ {montoArancel:N2}\n" +
+                    $" Condición: {condicionCobro}\n" +
+                    "==============================================\n\n" +
                     $"¡Turno programado con éxito!\n\n" +
-                    $"Paciente: {apellido}, {nombre}\n" +
-                    $"Especialidad: {especialidad}\n" +
-                    $"Fecha: {fecha:dd/MM/yyyy} a las {horario} hs\n" +
-                    $"N° Turno: {nroOrden}\n" +
-                    $"Arancel en Caja: $ {montoArancel:N2} ({(TurnoBLL.TieneObraSocial(obraSocial) ? "30% con Obra Social" : "Particular")})\n\n" +
+                    $"• Paciente: {apellido}, {nombre}\n" +
+                    $"• Especialidad: {especialidad}\n" +
+                    $"• Fecha y Hora: {fecha:dd/MM/yyyy} a las {horario} hs\n" +
+                    $"• N° Turno: {nroOrden}\n\n" +
                     $"CLAVE DE CANCELACIÓN (2FA): {codigoCancelacion}\n" +
-                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)",
-                    "Turno Generado",
+                    $"(Conserve esta clave. Se incluyó en el comprobante descargable para cancelaciones)";
+
+                MessageBox.Show(
+                    mensajeCobro,
+                    "Turno Generado - Cobro en Caja",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );
@@ -518,6 +570,25 @@ namespace Gestion_de_Turnos_Medicos
                     MessageBoxIcon.Warning
                 );
                 return false;
+            }
+
+            // Control de fecha y horario: el turno debe ser estrictamente posterior al momento actual
+            DateTime fechaSeleccionada = calFechaTurno.SelectionStart.Date;
+            if (TimeSpan.TryParse(slot.Horario.Trim(), out TimeSpan tsSeleccionado))
+            {
+                DateTime fechaHoraTurno = fechaSeleccionada.Add(tsSeleccionado);
+                if (fechaHoraTurno <= DateTime.Now)
+                {
+                    MessageBox.Show(
+                        $"El horario seleccionado ({fechaHoraTurno:dd/MM/yyyy HH:mm} hs) ya ha transcurrido.\n\nSolo se permite programar turnos para un momento posterior al actual.",
+                        "Horario Pasado No Permitido",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    string esp = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
+                    CargarHorariosDisponibles(esp, fechaSeleccionada);
+                    return false;
+                }
             }
 
             // Control de concurrencia/duplicidad: Validar que no exista un turno registrado con la misma fecha, horario y especialidad

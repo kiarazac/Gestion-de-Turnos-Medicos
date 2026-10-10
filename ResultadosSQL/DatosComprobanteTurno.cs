@@ -39,6 +39,12 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Palabra clave alfanumérica de confirmación de doble factor (2FA) para cancelación del turno.</summary>
         public string? CodigoCancelacion { get; set; }
 
+        /// <summary>Arancel monetario cobrado o a abonar en caja.</summary>
+        public decimal? MontoCobrado { get; set; }
+
+        /// <summary>Detalle de la condición arancelaria (ej. 'Particular (100% Arancel Completo)' o 'Copago 30% (Obra Social)').</summary>
+        public string? DetalleArancel { get; set; }
+
         /// <summary>
         /// Genera el contenido formateado del comprobante médico en texto plano.
         /// </summary>
@@ -67,6 +73,14 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
                 sb.AppendLine($"FECHA PROGRAMADA  : {FechaTurnoProgramado}");
                 if (!string.IsNullOrWhiteSpace(HorarioTurnoProgramado))
                     sb.AppendLine($"HORARIO ASIGNADO  : {HorarioTurnoProgramado} hs");
+            }
+
+            if (MontoCobrado.HasValue)
+            {
+                sb.AppendLine("------------------------------------------------------------");
+                sb.AppendLine($"ARANCEL EN CAJA   : $ {MontoCobrado.Value:N2}");
+                if (!string.IsNullOrWhiteSpace(DetalleArancel))
+                    sb.AppendLine($"CONDICIÓN DE PAGO : {DetalleArancel}");
             }
 
             if (!string.IsNullOrWhiteSpace(CodigoCancelacion))

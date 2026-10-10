@@ -173,7 +173,7 @@ namespace Gestion_de_Turnos_Medicos
             btnCierreCaja.Padding = new Padding(12, 0, 0, 0);
             btnCierreCaja.Size = new Size(210, 46);
             btnCierreCaja.TabIndex = 4;
-            btnCierreCaja.Text = "💰  Cierre de Caja";
+            btnCierreCaja.Text = "📊  Reportes y Caja";
             btnCierreCaja.TextAlign = ContentAlignment.MiddleLeft;
             btnCierreCaja.UseVisualStyleBackColor = false;
             btnCierreCaja.Click += btnCierreCaja_Click;

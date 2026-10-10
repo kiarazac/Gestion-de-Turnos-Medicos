@@ -37,12 +37,20 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
         /// <summary>
         /// Determina si una denominación de cobertura médica califica como obra social activa o particular.
+        /// Un paciente se considera particular si no posee cobertura o tiene asignada la opción "Particular / Sin Obra Social".
         /// </summary>
         public static bool TieneObraSocial(string? obraSocial)
         {
             if (string.IsNullOrWhiteSpace(obraSocial)) return false;
-            var normalizada = obraSocial.Trim().ToLowerInvariant();
-            return !(normalizada == "-" || normalizada == "particular" || normalizada == "sin obra social" || normalizada == "ninguna");
+            return !string.Equals(obraSocial.Trim(), "Particular / Sin Obra Social", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Obtiene el texto descriptivo de la condición de cobro para emisión de comprobantes y alertas.
+        /// </summary>
+        public static string ObtenerCondicionCobroTexto(string? obraSocial)
+        {
+            return TieneObraSocial(obraSocial) ? "Copago 30% (Obra Social)" : "Particular (100% Arancel Completo)";
         }
 
         /// <summary>
@@ -286,6 +294,15 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             if (fecha.Date < DateTime.Now.Date)
                 throw new ArgumentException("No se pueden registrar turnos en fechas pasadas.");
+
+            if (TimeSpan.TryParse(horario.Trim(), out TimeSpan tsHorario))
+            {
+                DateTime fechaHoraTurno = fecha.Date.Add(tsHorario);
+                if (fechaHoraTurno <= DateTime.Now)
+                {
+                    throw new ArgumentException($"No se puede registrar un turno en un horario anterior al momento actual ({fechaHoraTurno:dd/MM/yyyy HH:mm} hs). Por favor, seleccione un horario posterior.");
+                }
+            }
 
             // Control de duplicidad: no se puede sacar más de un turno con la misma fecha, horario y especialidad
             if (ExisteTurnoEspecialidad(nombreEspecialidad, fecha, horario))

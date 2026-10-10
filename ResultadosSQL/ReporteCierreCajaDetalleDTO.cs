@@ -11,6 +11,7 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public string NroOrden { get; set; } = string.Empty;
         public DateTime Fecha { get; set; }
         public TimeSpan Horario { get; set; }
+        public DateTime FechaEmision { get; set; }
         public string PacienteCompleto { get; set; } = string.Empty;
         public string DniPaciente { get; set; } = string.Empty;
         public string ObraSocial { get; set; } = string.Empty;

@@ -2230,6 +2230,12 @@ BEGIN
             THROW 50001, 'El paciente especificado no se encuentra registrado o está inactivo.', 1;
         END
 
+        -- Validamos que la fecha y horario solicitados sean posteriores a la fecha y hora actual
+        IF CAST(@Fecha AS DATETIME) + CAST(CAST(@Horario AS TIME) AS DATETIME) <= GETDATE()
+        BEGIN
+            THROW 50005, 'No se pueden registrar turnos para una fecha u horario pasados. El turno debe ser posterior al momento actual.', 1;
+        END
+
         -- Validamos que no exista ya un turno activo para la misma fecha, horario y especialidad
         IF EXISTS (
             SELECT 1 
@@ -3951,7 +3957,8 @@ GO
 **                `@Fecha` (`DATE`, IN, OPT) - Fecha de la jornada para el cierre de caja.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDiario
-    @Fecha DATE = NULL
+    @Fecha DATE = NULL,
+    @SoloEmitidosHoy BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -3976,7 +3983,8 @@ BEGIN
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
         LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
-        WHERE CAST(t.Fecha AS DATE) = @Fecha
+        WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
+               OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
           AND t.Activo = 1
           AND t.Estado <> 'Cancelado';
 
@@ -3996,12 +4004,16 @@ GO
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
 ** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
 ** Estado        : `EN USO`
-** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`
 ** Parámetros   :
 **                `@Fecha` (`DATE`, IN, OPT) - Fecha consultada para el detalle de caja.
+**                `@Especialidad` (`NVARCHAR(100)`, IN, OPT) - Especialidad a filtrar.
+**                `@SoloEmitidosHoy` (`BIT`, IN, OPT) - Si es 1, filtra por FechaCreacion = @Fecha.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDetalle
-    @Fecha DATE = NULL
+    @Fecha DATE = NULL,
+    @Especialidad NVARCHAR(100) = NULL,
+    @SoloEmitidosHoy BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -4014,6 +4026,7 @@ BEGIN
             ISNULL(t.NroOrden, 'S/N') AS NroOrden,
             CAST(t.Fecha AS DATE) AS Fecha,
             t.Horario,
+            ISNULL(t.FechaCreacion, t.Fecha) AS FechaEmision,
             ISNULL(CONCAT(p.Apellido, ', ', p.Nombre), 'Sin Paciente') AS PacienteCompleto,
             ISNULL(p.Dni, '--') AS DniPaciente,
             ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
@@ -4031,7 +4044,14 @@ BEGIN
         LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
         LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
-        WHERE CAST(t.Fecha AS DATE) = @Fecha
+        WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
+               OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
+          AND (@Especialidad IS NULL 
+               OR @Especialidad = '' 
+               OR @Especialidad = 'Todas' 
+               OR @Especialidad = 'Todas las Especialidades'
+               OR e.Nombre = @Especialidad 
+               OR (@Especialidad = 'Emergencia' AND t.TipoTurno = 'Emergencia'))
           AND t.Activo = 1
           AND t.Estado <> 'Cancelado'
         ORDER BY t.Horario ASC, t.IdTurno ASC;

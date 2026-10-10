@@ -13,17 +13,23 @@ using Gestion_de_Turnos_Medicos.Servicios;
 namespace Gestion_de_Turnos_Medicos
 {
     /// <summary>
-    /// Formulario de cierre diario de caja y control financiero para el perfil Recepcionista.
-    /// Permite auditar en tiempo real la cantidad de turnos emitidos (emergencias y especialidades),
-    /// la recaudación efectiva en ventanilla y exportar el acta oficial inmutable en formato PDF.
+    /// Formulario de reportería y control financiero para el perfil Recepcionista.
+    /// Incorpora dos apartados:
+    /// 1. Turnos del Día de la Fecha (auditoría operativa y conciliación financiera en tiempo real).
+    /// 2. Búsqueda por Fecha y Especialidad (consulta histórica y discriminada por especialidad).
+    /// Permite exportar informes oficiales inmutables en formato PDF con el estándar institucional.
     /// </summary>
     public partial class FrmCierreCaja : Form
     {
         private readonly CajaBLL _cajaBLL = new CajaBLL();
+        private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
         private readonly UsuarioLoginResult? _usuarioActual;
 
-        private ReporteCierreCajaResumenDTO _resumen = new ReporteCierreCajaResumenDTO();
-        private List<ReporteCierreCajaDetalleDTO> _detalles = new List<ReporteCierreCajaDetalleDTO>();
+        private ReporteCierreCajaResumenDTO _resumenHoy = new ReporteCierreCajaResumenDTO();
+        private List<ReporteCierreCajaDetalleDTO> _detallesHoy = new List<ReporteCierreCajaDetalleDTO>();
+
+        private ReporteCierreCajaResumenDTO _resumenFiltro = new ReporteCierreCajaResumenDTO();
+        private List<ReporteCierreCajaDetalleDTO> _detallesFiltro = new List<ReporteCierreCajaDetalleDTO>();
 
         public FrmCierreCaja() : this(null)
         {
@@ -35,27 +41,40 @@ namespace Gestion_de_Turnos_Medicos
             _usuarioActual = usuario;
 
             this.Load += FrmCierreCaja_Load;
-            this.btnConsultar.Click += BtnConsultar_Click;
-            this.btnExportarPdf.Click += BtnExportarPdf_Click;
+
+            // Eventos Pestaña 1: Turnos de Hoy
+            this.btnActualizarHoy.Click += (s, e) => CargarTurnosHoy();
+            this.btnExportarPdfHoy.Click += BtnExportarPdfHoy_Click;
+
+            // Eventos Pestaña 2: Búsqueda Histórica
+            this.btnConsultarFiltro.Click += (s, e) => CargarTurnosFiltro();
+            this.btnExportarPdfFiltro.Click += BtnExportarPdfFiltro_Click;
         }
 
         private void FrmCierreCaja_Load(object? sender, EventArgs e)
         {
-            ConfigurarGrilla();
-            dtpFechaCaja.Value = DateTime.Today;
-            CargarCierre();
+            ConfigurarGrilla(dgvTurnosHoy);
+            ConfigurarGrilla(dgvTurnosFiltro);
+
+            lblHoyFechaValor.Text = DateTime.Today.ToString("dd/MM/yyyy");
+            dtpFechaFiltro.Value = DateTime.Today;
+
+            CargarComboEspecialidades();
+
+            CargarTurnosHoy();
+            CargarTurnosFiltro();
         }
 
-        private void ConfigurarGrilla()
+        private void ConfigurarGrilla(DataGridView dgv)
         {
-            dgvTurnosCaja.AutoGenerateColumns = false;
-            dgvTurnosCaja.Columns.Clear();
-            dgvTurnosCaja.RowHeadersVisible = false;
-            dgvTurnosCaja.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvTurnosCaja.ReadOnly = true;
-            dgvTurnosCaja.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+            dgv.AutoGenerateColumns = false;
+            dgv.Columns.Clear();
+            dgv.RowHeadersVisible = false;
+            dgv.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgv.ReadOnly = true;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colNroOrden",
                 HeaderText = "N° Turno",
@@ -64,7 +83,16 @@ namespace Gestion_de_Turnos_Medicos
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colFechaProgramada",
+                HeaderText = "Fecha Turno",
+                DataPropertyName = "Fecha",
+                Width = 90,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Format = "dd/MM/yyyy" }
+            });
+
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colHorario",
                 HeaderText = "Horario",
@@ -73,7 +101,7 @@ namespace Gestion_de_Turnos_Medicos
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Format = @"hh\:mm" }
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colPaciente",
                 HeaderText = "Paciente",
@@ -81,7 +109,7 @@ namespace Gestion_de_Turnos_Medicos
                 Width = 190
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colDni",
                 HeaderText = "DNI",
@@ -89,7 +117,7 @@ namespace Gestion_de_Turnos_Medicos
                 Width = 90
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colObraSocial",
                 HeaderText = "Cobertura / Obra Social",
@@ -97,7 +125,7 @@ namespace Gestion_de_Turnos_Medicos
                 Width = 160
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colTipo",
                 HeaderText = "Tipo Turno",
@@ -106,7 +134,7 @@ namespace Gestion_de_Turnos_Medicos
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colEspecialidad",
                 HeaderText = "Especialidad / Sala",
@@ -114,7 +142,7 @@ namespace Gestion_de_Turnos_Medicos
                 Width = 140
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colMedico",
                 HeaderText = "Profesional Asignado",
@@ -122,7 +150,7 @@ namespace Gestion_de_Turnos_Medicos
                 Width = 160
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colMonto",
                 HeaderText = "Monto Abonado",
@@ -137,7 +165,7 @@ namespace Gestion_de_Turnos_Medicos
                 }
             });
 
-            dgvTurnosCaja.Columns.Add(new DataGridViewTextBoxColumn
+            dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colEstado",
                 HeaderText = "Estado",
@@ -147,31 +175,58 @@ namespace Gestion_de_Turnos_Medicos
             });
         }
 
-        private void BtnConsultar_Click(object? sender, EventArgs e)
+        private void CargarComboEspecialidades()
         {
-            CargarCierre();
+            cmbEspecialidadFiltro.Items.Clear();
+            cmbEspecialidadFiltro.Items.Add("Todas las Especialidades");
+            cmbEspecialidadFiltro.Items.Add("Emergencia");
+
+            try
+            {
+                var lista = _especialidadBLL.ObtenerEspecialidades();
+                if (lista != null)
+                {
+                    foreach (var esp in lista)
+                    {
+                        if (!string.IsNullOrWhiteSpace(esp.Nombre) &&
+                            !esp.Nombre.StartsWith("Emergenc", StringComparison.OrdinalIgnoreCase))
+                        {
+                            cmbEspecialidadFiltro.Items.Add(esp.Nombre);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback silencioso si no se pudo acceder al catálogo de especialidades
+            }
+
+            cmbEspecialidadFiltro.SelectedIndex = 0;
         }
 
-        private void CargarCierre()
+        #region Apartado 1: Turnos de la Jornada Actual (Hoy)
+
+        private void CargarTurnosHoy()
         {
-            DateTime fechaSeleccionada = dtpFechaCaja.Value.Date;
+            DateTime fechaHoy = DateTime.Today;
 
             try
             {
                 Cursor = Cursors.WaitCursor;
 
-                _resumen = _cajaBLL.ObtenerResumenCierreCaja(fechaSeleccionada);
-                _detalles = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada);
+                // Carga todos los turnos emitidos en la fecha actual (independientemente del día para el que fueron programados o modalidad)
+                _detallesHoy = _cajaBLL.ObtenerDetalleCierreCaja(fechaHoy, especialidad: null, soloEmitidosHoy: true);
+                _resumenHoy = _cajaBLL.CalcularResumenDeDetalles(fechaHoy, _detallesHoy);
 
-                dgvTurnosCaja.DataSource = null;
-                dgvTurnosCaja.DataSource = _detalles;
+                dgvTurnosHoy.DataSource = null;
+                dgvTurnosHoy.DataSource = _detallesHoy;
 
-                ActualizarKpis();
+                ActualizarKpisHoy();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al consultar el cierre de caja:\n" + ex.Message,
-                    "Error de Cierre", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Ocurrió un error al consultar los turnos de la jornada actual:\n" + ex.Message,
+                    "Error de Consulta", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -179,41 +234,41 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private void ActualizarKpis()
+        private void ActualizarKpisHoy()
         {
-            decimal totalRecaudadoCaja = _resumen.TotalRecaudado;
-            decimal coberturaOS = _resumen.TurnosObraSocial > 0 ? Math.Round(_resumen.MontoObraSocial * (70m / 30m), 2) : 0m;
-            decimal facturacionTotal = _resumen.MontoParticulares + (_resumen.TurnosObraSocial > 0 ? (_resumen.MontoObraSocial + coberturaOS) : 0m);
+            decimal totalRecaudadoCaja = _resumenHoy.TotalRecaudado;
+            decimal coberturaOS = _resumenHoy.TurnosObraSocial > 0 ? Math.Round(_resumenHoy.MontoObraSocial * (70m / 30m), 2) : 0m;
+            decimal facturacionTotal = _resumenHoy.MontoParticulares + (_resumenHoy.TurnosObraSocial > 0 ? (_resumenHoy.MontoObraSocial + coberturaOS) : 0m);
 
-            lblKpiTurnos.Text = _resumen.TotalTurnos.ToString();
-            lblSubKpiTurnos.Text = $"Esp: {_resumen.TurnosEspecialidad} | Urg: {_resumen.TurnosEmergencia}";
+            lblKpiTurnosHoy.Text = _resumenHoy.TotalTurnos.ToString();
+            lblSubKpiTurnosHoy.Text = $"Esp: {_resumenHoy.TurnosEspecialidad} | Urg: {_resumenHoy.TurnosEmergencia}";
 
-            lblKpiRecaudacion.Text = $"$ {totalRecaudadoCaja:N2}";
-            lblSubKpiRecaudacion.Text = $"Part: $ {_resumen.MontoParticulares:N2} | O.S.: $ {_resumen.MontoObraSocial:N2}";
+            lblKpiRecaudacionHoy.Text = $"$ {totalRecaudadoCaja:N2}";
+            lblSubKpiRecaudacionHoy.Text = $"Part: $ {_resumenHoy.MontoParticulares:N2} | O.S.: $ {_resumenHoy.MontoObraSocial:N2}";
 
-            lblKpiCobertura.Text = $"$ {coberturaOS:N2}";
-            lblSubKpiCobertura.Text = $"70% cubierto por { _resumen.TurnosObraSocial} pacientes O.S.";
+            lblKpiCoberturaHoy.Text = $"$ {coberturaOS:N2}";
+            lblSubKpiCoberturaHoy.Text = $"70% cubierto por {_resumenHoy.TurnosObraSocial} pacientes O.S.";
 
-            lblKpiFacturacion.Text = $"$ {facturacionTotal:N2}";
-            decimal promedio = _resumen.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumen.TotalTurnos, 2) : 0m;
-            lblSubKpiFacturacion.Text = $"Promedio Caja: $ {promedio:N2} / turno";
+            lblKpiFacturacionHoy.Text = $"$ {facturacionTotal:N2}";
+            decimal promedio = _resumenHoy.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenHoy.TotalTurnos, 2) : 0m;
+            lblSubKpiFacturacionHoy.Text = $"Promedio Caja: $ {promedio:N2} / turno";
         }
 
-        private void BtnExportarPdf_Click(object? sender, EventArgs e)
+        private void BtnExportarPdfHoy_Click(object? sender, EventArgs e)
         {
-            if (_detalles.Count == 0 && _resumen.TotalTurnos == 0)
+            if (_detallesHoy.Count == 0 && _resumenHoy.TotalTurnos == 0)
             {
-                MessageBox.Show("No hay movimientos registrados en la fecha seleccionada para generar el cierre de caja.",
+                MessageBox.Show("No hay turnos registrados emitidos en la jornada de hoy para generar el reporte.",
                     "Sin Movimientos", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             using (var sfd = new SaveFileDialog())
             {
-                string fechaStr = dtpFechaCaja.Value.ToString("yyyyMMdd");
+                string fechaStr = DateTime.Today.ToString("yyyyMMdd");
                 sfd.Filter = "Documento Oficial PDF (*.pdf)|*.pdf";
                 sfd.FilterIndex = 1;
-                sfd.FileName = $"Cierre_Caja_Oficial_{fechaStr}.pdf";
+                sfd.FileName = $"Reporte_Turnos_Emitidos_{fechaStr}.pdf";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
@@ -223,14 +278,16 @@ namespace Gestion_de_Turnos_Medicos
 
                         ExportadorPdf.ExportarCierreCaja(
                             sfd.FileName,
-                            _resumen,
-                            _detalles,
-                            dtpFechaCaja.Value.Date,
-                            _usuarioActual);
+                            _resumenHoy,
+                            _detallesHoy,
+                            DateTime.Today,
+                            _usuarioActual,
+                            null,
+                            "REPORTE OFICIAL DE TURNOS EMITIDOS EN EL DÍA");
 
                         var resp = MessageBox.Show(
-                            $"Cierre diario de caja exportado exitosamente en:\n{sfd.FileName}\n\n¿Desea abrir el comprobante PDF oficial?",
-                            "Cierre de Caja Generado",
+                            $"Reporte del día exportado exitosamente en:\n{sfd.FileName}\n\n¿Desea abrir el comprobante PDF oficial?",
+                            "Reporte Generado",
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Information);
 
@@ -240,15 +297,12 @@ namespace Gestion_de_Turnos_Medicos
                             {
                                 Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
                             }
-                            catch
-                            {
-                                // Silencioso si no se pudo disparar el visor predeterminado del sistema operativo
-                            }
+                            catch { }
                         }
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Error al exportar el cierre de caja en PDF:\n" + ex.Message,
+                        MessageBox.Show("Error al exportar el reporte en PDF:\n" + ex.Message,
                             "Error de Exportación", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     finally
@@ -258,5 +312,137 @@ namespace Gestion_de_Turnos_Medicos
                 }
             }
         }
+
+        #endregion
+
+        #region Apartado 2: Búsqueda por Fecha y Especialidad
+
+        private void CargarTurnosFiltro()
+        {
+            DateTime fechaSeleccionada = dtpFechaFiltro.Value.Date;
+            string? espSeleccionada = cmbEspecialidadFiltro.SelectedItem?.ToString();
+
+            if (string.IsNullOrWhiteSpace(espSeleccionada) ||
+                espSeleccionada.Equals("Todas las Especialidades", StringComparison.OrdinalIgnoreCase))
+            {
+                espSeleccionada = null;
+            }
+
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+
+                _detallesFiltro = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada, espSeleccionada);
+                _resumenFiltro = _cajaBLL.CalcularResumenDeDetalles(fechaSeleccionada, _detallesFiltro);
+
+                dgvTurnosFiltro.DataSource = null;
+                dgvTurnosFiltro.DataSource = _detallesFiltro;
+
+                ActualizarKpisFiltro();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al consultar los turnos filtrados:\n" + ex.Message,
+                    "Error de Consulta", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+        private void ActualizarKpisFiltro()
+        {
+            decimal totalRecaudadoCaja = _resumenFiltro.TotalRecaudado;
+            decimal coberturaOS = _resumenFiltro.TurnosObraSocial > 0 ? Math.Round(_resumenFiltro.MontoObraSocial * (70m / 30m), 2) : 0m;
+            decimal facturacionTotal = _resumenFiltro.MontoParticulares + (_resumenFiltro.TurnosObraSocial > 0 ? (_resumenFiltro.MontoObraSocial + coberturaOS) : 0m);
+
+            lblKpiTurnosFiltro.Text = _resumenFiltro.TotalTurnos.ToString();
+            lblSubKpiTurnosFiltro.Text = $"Esp: {_resumenFiltro.TurnosEspecialidad} | Urg: {_resumenFiltro.TurnosEmergencia}";
+
+            lblKpiRecaudacionFiltro.Text = $"$ {totalRecaudadoCaja:N2}";
+            lblSubKpiRecaudacionFiltro.Text = $"Part: $ {_resumenFiltro.MontoParticulares:N2} | O.S.: $ {_resumenFiltro.MontoObraSocial:N2}";
+
+            lblKpiCoberturaFiltro.Text = $"$ {coberturaOS:N2}";
+            lblSubKpiCoberturaFiltro.Text = $"70% cubierto por {_resumenFiltro.TurnosObraSocial} pacientes O.S.";
+
+            lblKpiFacturacionFiltro.Text = $"$ {facturacionTotal:N2}";
+            decimal promedio = _resumenFiltro.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenFiltro.TotalTurnos, 2) : 0m;
+            lblSubKpiFacturacionFiltro.Text = $"Promedio: $ {promedio:N2} / turno";
+        }
+
+        private void BtnExportarPdfFiltro_Click(object? sender, EventArgs e)
+        {
+            if (_detallesFiltro.Count == 0 && _resumenFiltro.TotalTurnos == 0)
+            {
+                MessageBox.Show("No se encontraron turnos con los filtros seleccionados para generar el reporte.",
+                    "Sin Resultados", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            DateTime fecha = dtpFechaFiltro.Value.Date;
+            string? esp = cmbEspecialidadFiltro.SelectedItem?.ToString();
+            if (string.IsNullOrWhiteSpace(esp) || esp.Equals("Todas las Especialidades", StringComparison.OrdinalIgnoreCase))
+            {
+                esp = null;
+            }
+
+            string espSanitizada = !string.IsNullOrWhiteSpace(esp) ? esp.Replace(" ", "_") : "General";
+
+            using (var sfd = new SaveFileDialog())
+            {
+                string fechaStr = fecha.ToString("yyyyMMdd");
+                sfd.Filter = "Documento Oficial PDF (*.pdf)|*.pdf";
+                sfd.FilterIndex = 1;
+                sfd.FileName = $"Reporte_Turnos_{fechaStr}_{espSanitizada}.pdf";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        Cursor = Cursors.WaitCursor;
+
+                        string titulo = !string.IsNullOrWhiteSpace(esp)
+                            ? $"REPORTE OFICIAL DE TURNOS Y FACTURACIÓN — {esp.ToUpperInvariant()}"
+                            : "REPORTE OFICIAL DE TURNOS Y FACTURACIÓN POR FECHA";
+
+                        ExportadorPdf.ExportarCierreCaja(
+                            sfd.FileName,
+                            _resumenFiltro,
+                            _detallesFiltro,
+                            fecha,
+                            _usuarioActual,
+                            esp,
+                            titulo);
+
+                        var resp = MessageBox.Show(
+                            $"Reporte exportado exitosamente en:\n{sfd.FileName}\n\n¿Desea abrir el comprobante PDF oficial?",
+                            "Reporte Generado",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Information);
+
+                        if (resp == DialogResult.Yes)
+                        {
+                            try
+                            {
+                                Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
+                            }
+                            catch { }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error al exportar el reporte en PDF:\n" + ex.Message,
+                            "Error de Exportación", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        Cursor = Cursors.Default;
+                    }
+                }
+            }
+        }
+
+        #endregion
     }
 }
