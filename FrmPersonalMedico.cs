@@ -21,7 +21,17 @@ namespace Gestion_de_Turnos_Medicos
         {
             InitializeComponent();
             _usuarioActual = usuario;
+            this.Load += Pantalla_Principal_PERSONAL_MEDICO_Load;
         }
+
+        private void Pantalla_Principal_PERSONAL_MEDICO_Load(object? sender, EventArgs e)
+        {
+            if (_usuarioActual != null && !string.IsNullOrWhiteSpace(_usuarioActual.Nombre))
+            {
+                lblUsuarioMedico.Text = $"Dr./a. {_usuarioActual.Nombre} {_usuarioActual.Apellido}".Trim();
+            }
+        }
+
 
         /// <summary>
         /// Embebe un formulario hijo dentro del panel central (<c>panelContenedor</c>), cerrando la vista previa.

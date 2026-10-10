@@ -154,10 +154,10 @@ namespace Gestion_de_Turnos_Medicos
                         if (idx >= 0) cmbObraSocial.SelectedIndex = idx;
                     }
 
-                    // Bloqueamos edición para evitar modificar registros existentes por error
+                    // Bloqueamos nombres para evitar errores de tipeo pero permitimos modificar la obra social
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
-                    cmbObraSocial.Enabled = false;
+                    cmbObraSocial.Enabled = true;
                 }
                 else
                 {
@@ -198,16 +198,9 @@ namespace Gestion_de_Turnos_Medicos
 
                 int idPacienteFinal;
 
-                // Si el paciente no estaba registrado, lo guardamos automáticamente en la BD antes de crear el turno
-                if (!idPacienteActual.HasValue)
-                {
-                    idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
-                    idPacienteActual = idPacienteFinal; // Actualizamos la referencia local
-                }
-                else
-                {
-                    idPacienteFinal = idPacienteActual.Value;
-                }
+                // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
+                idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
+                idPacienteActual = idPacienteFinal;
 
                 bool esOtro = checkBoxBaja.Checked;
                 List<int> sintomasSeleccionados = new List<int>();

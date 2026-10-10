@@ -328,6 +328,7 @@ namespace Gestion_de_Turnos_Medicos
                             IdTurno = dto.IdTurno,
                             NroOrden = !string.IsNullOrWhiteSpace(dto.NroOrden) ? dto.NroOrden : dto.IdTurno.ToString(),
                             Fecha = dto.Fecha,
+                            Horario = dto.Fecha.TimeOfDay,
                             Estado = !string.IsNullOrWhiteSpace(dto.Estado) ? dto.Estado : "En Espera",
                             TipoTurno = esEmergenciaTurno ? "Emergencia" : "Especialidad",
                             Especialidad = new Especialidad { Nombre = !string.IsNullOrWhiteSpace(dto.Especialidad) ? dto.Especialidad : "Emergencias / Guardia" },
@@ -673,6 +674,7 @@ namespace Gestion_de_Turnos_Medicos
                 return;
 
             _diagnosticoRapido = txtDiagnostico.Text.Trim();
+            string receta = txtReceta.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(_diagnosticoRapido))
             {
@@ -716,7 +718,7 @@ namespace Gestion_de_Turnos_Medicos
                         tipoTurno: tipoTurno,
                         diagRapido: _diagnosticoRapido,
                         descripHistoriaClinica: _diagnosticoRapido,
-                        recetaMedicamentos: string.Empty,
+                        recetaMedicamentos: receta,
                         idPaciente: idPaciente,
                         idTurno: _turnoActual.IdTurno,
                         idUsuario: idUsuario
@@ -810,6 +812,7 @@ namespace Gestion_de_Turnos_Medicos
             ActualizarTiempoTranscurrido();
             txtHistoriaPrevia.Clear();
             txtDiagnostico.Clear();
+            txtReceta.Clear();
         }
 
         private void LimpiarPanelAtencion()
@@ -823,6 +826,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoTiempo.Text = "Hora de Entrada / Tiempo: -";
             txtHistoriaPrevia.Clear();
             txtDiagnostico.Clear();
+            txtReceta.Clear();
         }
 
         private Color ColorSegunTriage(string triage)
@@ -850,6 +854,15 @@ namespace Gestion_de_Turnos_Medicos
             }
 
             DateTime horaEntrada = _turnoActual.Fecha;
+            if (horaEntrada.TimeOfDay == TimeSpan.Zero && _turnoActual.Horario != TimeSpan.Zero)
+            {
+                horaEntrada = horaEntrada.Date + _turnoActual.Horario;
+            }
+            else if (horaEntrada.TimeOfDay == TimeSpan.Zero && _turnoActual.FechaCreacion != default)
+            {
+                horaEntrada = _turnoActual.FechaCreacion;
+            }
+
             TimeSpan transcurrido = DateTime.Now - horaEntrada;
             int minutos = Math.Max(0, (int)transcurrido.TotalMinutes);
 
@@ -909,6 +922,27 @@ namespace Gestion_de_Turnos_Medicos
                             e.CellStyle.ForeColor = Color.White;
                             e.CellStyle.Font = new Font(dgvTurnos.Font, FontStyle.Bold);
                             break;
+                    }
+                }
+            }
+            else if (colName == "colHora")
+            {
+                if (dgvTurnos.Rows[e.RowIndex].DataBoundItem is Turno t)
+                {
+                    if (t.Fecha.TimeOfDay != TimeSpan.Zero)
+                    {
+                        e.Value = t.Fecha.ToString("HH:mm");
+                        e.FormattingApplied = true;
+                    }
+                    else if (t.Horario != TimeSpan.Zero)
+                    {
+                        e.Value = t.Horario.ToString(@"hh\:mm");
+                        e.FormattingApplied = true;
+                    }
+                    else if (t.FechaCreacion != default && t.FechaCreacion.TimeOfDay != TimeSpan.Zero)
+                    {
+                        e.Value = t.FechaCreacion.ToString("HH:mm");
+                        e.FormattingApplied = true;
                     }
                 }
             }

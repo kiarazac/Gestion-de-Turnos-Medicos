@@ -617,9 +617,9 @@ GO
 - **Entidad:** Usuario / Rol
 - **Operación:** Listado / Selector
 - **Tablas:** `Usuarios`, `Roles`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmListaTurnosAtencion`
 - **Acción:** Evento `Load` / `CargarPersonalMedicoDesdeBD`
-- **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
+- **Estado:** `EN USO`
 - **Parámetros:** Ninguno.
 - **Devuelve:** `IdUsuario`, `NombreCompleto`.
 
@@ -637,7 +637,7 @@ BEGIN
     FROM Usuarios u
     INNER JOIN Roles r ON u.IdRol = r.IdRol
     WHERE u.Activo = 1 
-      AND (r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
+      AND (u.IdRol = 1 OR r.Descripcion COLLATE Modern_Spanish_CI_AI LIKE '%Medic%' OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
     ORDER BY u.Apellido, u.Nombre;
     END TRY
     BEGIN CATCH
@@ -2097,7 +2097,7 @@ GO
 ---
 
 ### 4.2 `sp_GuardarPaciente` (Upsert Inteligente)
-- **Descripción:** Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica (`IdObraSocial`) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
+- **Descripción:** Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido y cobertura médica (`IdObraSocial`) persistiendo cualquier cambio de obra social que el recepcionista seleccione en pantalla, y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
 - **Entidad:** Paciente
 - **Operación:** Búsqueda / Alta / Actualización con Integridad Cruzada
 - **Tablas:** `Pacientes`, `Usuarios`, `ObrasSociales`
@@ -3213,7 +3213,7 @@ BEGIN
     SELECT 
         t.IdTurno,
         t.NroOrden,
-        t.Fecha,
+        CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, ISNULL(CAST(t.FechaCreacion AS TIME), '00:00')) AS DATETIME) AS Fecha,
         t.Estado,
         ISNULL(e.Nombre, 'Emergencias / Guardia') AS Especialidad,
         ISNULL(pr.Descripcion, 'MEDIA') AS Triage,

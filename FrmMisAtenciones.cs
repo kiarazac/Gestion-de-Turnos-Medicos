@@ -71,9 +71,15 @@ namespace Gestion_de_Turnos_Medicos
                 }
             }
 
-            // Inicializar fechas predeterminadas (Últimos 7 días)
-            cmbPeriodo.SelectedIndex = 1; // "Últimos 7 días"
-            CargarAtencionesDesdeBD();
+            // Inicializar fechas predeterminadas (Últimos 7 días) asegurando una sola carga inicial
+            if (cmbPeriodo.SelectedIndex == 1)
+            {
+                CargarAtencionesDesdeBD();
+            }
+            else
+            {
+                cmbPeriodo.SelectedIndex = 1; // "Últimos 7 días", dispara CmbPeriodo_SelectedIndexChanged
+            }
         }
 
         private void ConfigurarGrillaAtenciones()

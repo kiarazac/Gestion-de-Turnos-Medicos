@@ -51,13 +51,36 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ListarPersonalMedico</c> para obtener los profesionales de la salud habilitados.
+        /// Cuenta con mecanismo de contingencia para consultar directamente si el procedimiento almacenado falla o no retorna datos.
         /// </summary>
         /// <returns>Lista de <see cref="MedicoDTO"/>.</returns>
         public List<MedicoDTO> ListarPersonalMedico()
         {
             using (var context = new dbTurnosMedicos())
             {
-                return context.Database.SqlQueryRaw<MedicoDTO>("EXEC sp_ListarPersonalMedico").ToList();
+                try
+                {
+                    var resultado = context.Database.SqlQueryRaw<MedicoDTO>("EXEC sp_ListarPersonalMedico").ToList();
+                    if (resultado != null && resultado.Count > 0)
+                    {
+                        return resultado;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Fallback resiliente si el SP no está disponible o falla
+                }
+
+                // Fallback directo con LINQ a base de datos
+                return (from u in context.Usuarios
+                        join r in context.Roles on u.IdRol equals r.IdRol
+                        where u.Activo && (u.IdRol == 1 || EF.Functions.Like(r.Descripcion, "%Médic%") || EF.Functions.Like(r.Descripcion, "%Medic%"))
+                        orderby u.Apellido, u.Nombre
+                        select new MedicoDTO
+                        {
+                            IdUsuario = u.IdUsuario,
+                            NombreCompleto = "Dr. " + u.Apellido + ", " + u.Nombre
+                        }).ToList();
             }
         }
 
