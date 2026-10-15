@@ -138,7 +138,18 @@ namespace Gestion_de_Turnos_Medicos
                 }
             }
 
-            formularioDestino.FormClosed += (s, args) => this.Close();
+            formularioDestino.FormClosed += (s, args) =>
+            {
+                // Usuario Ventana es un visor fijo: al cerrarlo se cierra la app
+                if (formularioDestino is FrmUsuarioVentana)
+                {
+                    this.Close();
+                    return;
+                }
+                txtContraseña.Clear();
+                this.Show();
+                txtContraseña.Focus();
+            };
             formularioDestino.Show();
             this.Hide();
         }
