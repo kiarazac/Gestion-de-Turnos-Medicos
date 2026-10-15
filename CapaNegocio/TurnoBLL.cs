@@ -2,6 +2,7 @@ using Gestion_de_Turnos_Medicos.CapaDeDatos;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Gestion_de_Turnos_Medicos.Negocio
 {
@@ -454,6 +455,19 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
+        /// Registra la inasistencia de un paciente pasando el turno al estado 'Ausente'.
+        /// </summary>
+        /// <param name="idTurno">Identificador único del turno.</param>
+        /// <exception cref="ArgumentException">Se lanza si el ID del turno es menor o igual a cero.</exception>
+        public void MarcarTurnoAusente(int idTurno)
+        {
+            if (idTurno <= 0)
+                throw new ArgumentException("El identificador del turno debe ser válido y mayor a cero.");
+
+            _turnoDAL.MarcarTurnoAusente(idTurno);
+        }
+
+        /// <summary>
         /// Obtiene los turnos llamados recientemente para ser mostrados en la pantalla pública de visualización.
         /// </summary>
         /// <returns>Lista de <see cref="TurnoPantallaDTO"/>.</returns>
@@ -486,6 +500,42 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         {
             if (idUsuario <= 0) return false;
             return _turnoDAL.PuedeAtenderEmergencias(idUsuario);
+        }
+
+        /// <summary>
+        /// Obtiene los síntomas asociados a un turno de emergencia a través del procedimiento almacenado sp_ObtenerSintomasPorTurno.
+        /// </summary>
+        /// <param name="idTurno">Identificador único del turno.</param>
+        /// <returns>Lista de <see cref="SintomaDTO"/> asociados al turno.</returns>
+        public List<SintomaDTO> ObtenerSintomasPorTurno(int idTurno)
+        {
+            if (idTurno <= 0) return new List<SintomaDTO>();
+            return _turnoDAL.ObtenerSintomasPorTurno(idTurno);
+        }
+
+        /// <summary>
+        /// Obtiene una representación textual legible de los síntomas descritos en un turno de emergencia.
+        /// </summary>
+        /// <param name="idTurno">Identificador único del turno.</param>
+        /// <returns>Cadena separada por comas con los síntomas registrados, o cadena vacía si no posee.</returns>
+        public string ObtenerSintomasTextoTurno(int idTurno)
+        {
+            if (idTurno <= 0) return string.Empty;
+            var lista = ObtenerSintomasPorTurno(idTurno);
+            return (lista != null && lista.Count > 0) ? string.Join(", ", lista.Select(s => s.Descripcion)) : string.Empty;
+        }
+
+        /// <summary>
+        /// Verifica si existe un turno activo y en estado no atendido/cancelado con el número de orden provisto.
+        /// Garantiza que no se repitan números de turnos entre los no atendidos.
+        /// </summary>
+        /// <param name="nroOrden">Número de orden a verificar (ej. E-001, C-002).</param>
+        /// <param name="idTurnoExcluir">ID opcional de turno a excluir de la validación (para actualizaciones).</param>
+        /// <returns><c>true</c> si existe una colisión con un turno no atendido; de lo contrario, <c>false</c>.</returns>
+        public bool ExisteNroOrdenNoAtendido(string nroOrden, int? idTurnoExcluir = null)
+        {
+            if (string.IsNullOrWhiteSpace(nroOrden)) return false;
+            return _turnoDAL.ExisteNroOrdenNoAtendido(nroOrden, idTurnoExcluir);
         }
     }
 }

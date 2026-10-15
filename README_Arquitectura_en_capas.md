@@ -533,7 +533,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
 | Formulario (Capa UI) | Método BLL invocado | Método DAL subyacente | Stored Procedure (`README_StoredProcedures.md`) |
 | :--- | :--- | :--- | :--- |
-| **`FrmLogin`** | `UsuarioBLL.Login` | `UsuarioDAL.ValidarLogin` | `sp_ValidarLogin` (Rutea a `FrmAdmin`, `Pantalla_Principal_PERSONAL_MEDICO`, `FrmRecepcionista` o `FrmUsuarioVentana` según rol 1, 2, 3 o 4) |
+| **`FrmLogin`** | `UsuarioBLL.Login` (Computa hash SHA-256) | `UsuarioDAL.ValidarLogin` | `sp_ValidarLogin` (Rutea a `FrmAdmin`, `Pantalla_Principal_PERSONAL_MEDICO`, `FrmRecepcionista` o `FrmUsuarioVentana` según rol 1, 2, 3 o 4) |
 | **`FrmGestionUsuarios2`** *(Form Oficial)* | `UsuarioBLL.ObtenerRoles` | `UsuarioDAL.ListarRoles` | `sp_ListarRoles` (Soporta rol Usuario Ventana) |
 | | `EspecialidadBLL.ObtenerEspecialidades` | `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
@@ -560,7 +560,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`FrmTurnoEmergencia`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
 | | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` (con `@IdObraSocial`) |
-| | `TurnoBLL.CrearTurnoEmergenciaConSintomas` | `TurnoDAL.CrearTurnoEmergenciaCompleto` | `sp_CrearTurnoEmergencia` (con generación 2FA) |
+| | `TurnoBLL.CrearTurnoEmergenciaConSintomas` | `TurnoDAL.CrearTurnoEmergenciaCompleto` | `sp_CrearTurnoEmergencia` (Numeración correlativa diaria E-xxx, unicidad entre no atendidos, generación 2FA) |
 | | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
 | | `TurnoBLL.BuscarTurnoActivoEmergencia` | `TurnoDAL.BuscarTurnoActivoEmergencia` | `sp_BuscarTurnoActivoEmergencia` (por NroOrden o DNI) |
 | | `TurnoBLL.CancelarTurnoEmergencia` | `TurnoDAL.CancelarTurnoEmergencia` | `sp_CancelarTurnoEmergencia` (con validación 2FA) |
@@ -568,17 +568,19 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
 | | `TurnoBLL.ObtenerHorariosDisponibles` | `TurnoDAL.ObtenerHorariosDisponibles` | `sp_ObtenerHorariosConEstado` |
 | | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` (con `@IdObraSocial`) |
-| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` (con generación 2FA) |
+| | `TurnoBLL.CrearTurnoEspecialidad` | `TurnoDAL.CrearTurnoEspecialidad` | `sp_CrearTurnoEspecialidad` (Numeración correlativa por letra y fecha, unicidad entre no atendidos, generación 2FA) |
 | | `TurnoBLL.CancelarTurnoEspecialidad` | `TurnoDAL.CancelarTurnoEspecialidad` | `sp_CancelarTurnoEspecialidad` (con confirmación 2FA) |
-| **`FrmListaTurnos`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` |
+| **`FrmListaTurnos`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` (Refresco automático background cada 5s) |
 | | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ListarEspecialidades` |
-| | `TurnoBLL.ListarTurnosEspecialidad` | `TurnoDAL.ListarTurnosEspecialidad` | `sp_ListarTurnosEspecialidad` |
+| | `TurnoBLL.ListarTurnosEspecialidad` | `TurnoDAL.ListarTurnosEspecialidad` | `sp_ListarTurnosEspecialidad` (Refresco automático background cada 5s) |
 | **`FrmListaTurnosAtencion`** | `EspecialidadBLL.ObtenerEspecialidades`| `EspecialidadDAL.ListarEspecialidades` | `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` |
-| | `TurnoBLL.ObtenerTurnosAtencion` | `TurnoDAL.ListarTurnosAtencion` | `sp_ListarTurnosAtencion` |
-| | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | Valida en BLL que la sala no esté `Ocupada` antes de llamar -> `sp_LlamarSiguienteTurno` |
-| | `TurnoBLL.IniciarAtencionTurno` | `TurnoDAL.IniciarAtencionTurno` | `sp_IniciarAtencionTurno` / `sp_ActualizarEstadoSala` |
+| | `TurnoBLL.ObtenerTurnosAtencion` | `TurnoDAL.ListarTurnosAtencion` | `sp_ListarTurnosAtencion` (Filtrado por fecha de hoy, incluye sintomatología, refresco por timer cada 5s) |
+| | `TurnoBLL.MarcarTurnoAusente` | `TurnoDAL.MarcarTurnoAusente` | `sp_MarcarTurnoAusente` (Botón "❌ No se presentó", pasa turno a 'Ausente') |
+| | `TurnoBLL.ObtenerSintomasPorTurno` | `TurnoDAL.ObtenerSintomasPorTurno` | `sp_ObtenerSintomasPorTurno` (Visualización de sintomatología de guardia en triage al iniciar atención) |
+| | `TurnoBLL.LlamarSiguientePaciente` | `TurnoDAL.LlamarSiguienteTurno` | `sp_LlamarSiguienteTurno` (Valida origen 'En Espera', Activo = 1 y habilitación médica clínica) |
+| | `TurnoBLL.IniciarAtencionTurno` | `TurnoDAL.IniciarAtencionTurno` | `sp_IniciarAtencionTurno` (Valida origen 'Llamado', Activo = 1, sala a 'Ocupada') |
 | | `HistoriaClinicaBLL.ObtenerHistoriaClinicaPaciente` | `HistoriaClinicaDAL.ObtenerHistoriaClinicaPaciente` | `sp_ObtenerHistoriaClinicaPaciente` |
-| | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencionTurno` |
+| | `TurnoBLL.FinalizarAtencion` | `TurnoDAL.FinalizarAtencion` | `sp_FinalizarAtencionTurno` (Valida origen 'En Consulta', Activo = 1, libera sala a 'Disponible') |
 | | `HistoriaClinicaBLL.RegistrarHistoria` | `HistoriaClinicaDAL.InsertarHistoria` | `sp_InsertarHistoriaClinica` |
 | **`MisSalas_PM`** | `SalaBLL.ObtenerSalas` (`@IdUsuario`) | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` |
 | | `SalaBLL.AbrirSala` | `SalaDAL.AbrirSala` | `sp_AbrirSala` |

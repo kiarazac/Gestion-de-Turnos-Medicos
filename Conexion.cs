@@ -18,7 +18,7 @@ namespace Gestion_de_Turnos_Medicos
         /// Configurada por defecto para SQL Server en Docker o local en el puerto estándar 1433.
         /// Modifique las credenciales según el entorno de despliegue correspondiente.
         /// </remarks>
-        public static string CadenaConexion = "Server=localhost,1433;Database=GestionTurnosMedicos;User Id=sa;Password=TU_PASSWORD;TrustServerCertificate=True;";
+        public static string CadenaConexion = "Server=localhost\\SQLEXPRESS;Database=dbGestionTurnos;Integrated Security=True;TrustServerCertificate=True;";
 
         /// <summary>
         /// Crea y devuelve una nueva instancia de <see cref="SqlConnection"/> utilizando la cadena de conexión configurada.

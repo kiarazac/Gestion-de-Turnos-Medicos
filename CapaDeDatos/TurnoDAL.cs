@@ -520,6 +520,19 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_MarcarTurnoAusente</c> para registrar la no comparecencia del paciente.
+        /// </summary>
+        /// <param name="idTurno">ID del turno a marcar como ausente.</param>
+        public void MarcarTurnoAusente(int idTurno)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdTurno = new SqlParameter("@IdTurno", idTurno);
+                context.Database.ExecuteSqlRaw("EXEC sp_MarcarTurnoAusente @IdTurno", pIdTurno);
+            }
+        }
+
+        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ObtenerTurnosPantallaPublica</c> para poblar la pantalla de llamados en sala de espera.
         /// </summary>
         /// <returns>Lista de <see cref="TurnoPantallaDTO"/>.</returns>
@@ -643,6 +656,64 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     .Where(t => t.IdTurno == idTurno && t.Activo)
                     .Select(t => t.TipoTurno == "Emergencia" || (t.Especialidad != null && t.Especialidad.Nombre == "Emergencia") || (t.NroOrden != null && t.NroOrden.StartsWith("E-")))
                     .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Recupera la lista de síntomas manifestados en el triage para un turno de emergencia específico mediante <c>sp_ObtenerSintomasPorTurno</c>.
+        /// </summary>
+        /// <param name="idTurno">Identificador del turno médico.</param>
+        /// <returns>Lista de <see cref="SintomaDTO"/> asociados al turno.</returns>
+        public List<SintomaDTO> ObtenerSintomasPorTurno(int idTurno)
+        {
+            if (idTurno <= 0) return new List<SintomaDTO>();
+
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdTurno = new SqlParameter("@IdTurno", idTurno);
+                return context.Database
+                    .SqlQueryRaw<SintomaDTO>("EXEC sp_ObtenerSintomasPorTurno @IdTurno", pIdTurno)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Comprueba si ya existe un turno activo y no atendido con el mismo número de orden.
+        /// </summary>
+        /// <param name="nroOrden">Número de orden a verificar (ej. 'E-001', 'C-002').</param>
+        /// <param name="idTurnoExcluir">ID opcional del turno a excluir de la búsqueda (para modificaciones).</param>
+        /// <returns><c>true</c> si ya existe otro turno no atendido con ese número; de lo contrario, <c>false</c>.</returns>
+        public bool ExisteNroOrdenNoAtendido(string nroOrden, int? idTurnoExcluir = null)
+        {
+            if (string.IsNullOrWhiteSpace(nroOrden)) return false;
+
+            using (var context = new dbTurnosMedicos())
+            {
+                return context.Turnos
+                    .Any(t => t.Activo 
+                           && t.NroOrden == nroOrden 
+                           && (!idTurnoExcluir.HasValue || t.IdTurno != idTurnoExcluir.Value)
+                           && t.Estado != "Atendido" 
+                           && t.Estado != "Cancelado");
+            }
+        }
+
+        /// <summary>
+        /// Inserta un turno ejecutando el procedimiento almacenado <c>sp_InsertarTurno</c>.
+        /// </summary>
+        public void InsertarTurno(string nroOrden, string tipoTurno, int idPrioridad, int idPaciente, int idEspecialidad)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pNroOrden = new SqlParameter("@NroOrden", nroOrden);
+                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno);
+                var pIdPrioridad = new SqlParameter("@IdPrioridad", idPrioridad);
+                var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
+                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", idEspecialidad);
+
+                context.Database.ExecuteSqlRaw(
+                    "EXEC sp_InsertarTurno @NroOrden, @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad",
+                    pNroOrden, pTipoTurno, pIdPrioridad, pIdPaciente, pIdEspecialidad);
             }
         }
     }

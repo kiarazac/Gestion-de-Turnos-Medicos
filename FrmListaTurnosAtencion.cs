@@ -98,6 +98,14 @@ namespace Gestion_de_Turnos_Medicos
                 MessageBox.Show("Aviso: No tienes ninguna sala de atención abierta en este momento.\n\nPara poder llamar y atender pacientes, debes abrir tu consultorio asignado desde el menú 'Mis Salas'.",
                     "Sala Requerida para Atención", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+
+            // Iniciar refresco automático de la cola del médico
+            tmrRefrescoCola.Start();
+            this.FormClosing += (s, ev) =>
+            {
+                tmrRefrescoCola.Stop();
+                tmrRefrescoCola.Dispose();
+            };
         }
 
         /// <summary>
@@ -342,6 +350,13 @@ namespace Gestion_de_Turnos_Medicos
                             }
                         };
 
+                        if (!string.IsNullOrWhiteSpace(dto.Sintomas))
+                        {
+                            t.TurnoSintomas = dto.Sintomas.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(s => new TurnoSintoma { Sintoma = new Sintoma { Descripcion = s.Trim() } })
+                                .ToList();
+                        }
+
                         _todosLosTurnos.Add(t);
                     }
                 }
@@ -538,7 +553,8 @@ namespace Gestion_de_Turnos_Medicos
                     "Aviso de Comunicación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
-            // Consultar antecedentes y antecedentes previos de la historia clínica
+            // Asegurar visualización de datos y sintomatología en el panel y en la historia clínica previa
+            LlenarPanelAtencion(_turnoActual);
             CargarHistoriaClinicaPrevia(_turnoActual);
 
             CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
@@ -554,10 +570,41 @@ namespace Gestion_de_Turnos_Medicos
         {
             txtHistoriaPrevia.Clear();
 
+            bool esEmergencia = turno.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || turno.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || turno.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true;
+
+            string bannerSintomas = string.Empty;
+            if (esEmergencia)
+            {
+                string prioridad = turno.Prioridad?.Descripcion ?? "MEDIA";
+                string sintomas = string.Empty;
+                if (turno.TurnoSintomas != null && turno.TurnoSintomas.Count > 0)
+                {
+                    sintomas = string.Join(", ", turno.TurnoSintomas.Select(ts => ts.Sintoma?.Descripcion).Where(d => !string.IsNullOrWhiteSpace(d)));
+                }
+                if (string.IsNullOrWhiteSpace(sintomas))
+                {
+                    sintomas = _turnoBLL.ObtenerSintomasTextoTurno(turno.IdTurno);
+                }
+                if (string.IsNullOrWhiteSpace(sintomas))
+                {
+                    sintomas = "Sin síntomas registrados";
+                }
+
+                var sbEmergencia = new System.Text.StringBuilder();
+                sbEmergencia.AppendLine("==================================================");
+                sbEmergencia.AppendLine($"🚨 SINTOMATOLOGÍA DE GUARDIA / TRIAGE (Prioridad: {prioridad})");
+                sbEmergencia.AppendLine($"• Síntomas descritos: {sintomas}");
+                sbEmergencia.AppendLine("==================================================");
+                sbEmergencia.AppendLine();
+                bannerSintomas = sbEmergencia.ToString();
+            }
+
             int idPaciente = ObtenerIdPacienteDelTurno(turno);
             if (idPaciente <= 0)
             {
-                txtHistoriaPrevia.Text = "(No se pudo determinar el identificador del paciente)";
+                txtHistoriaPrevia.Text = bannerSintomas + "(No se pudo determinar el identificador del paciente)";
                 return;
             }
 
@@ -568,6 +615,12 @@ namespace Gestion_de_Turnos_Medicos
                 if (antecedentes != null && antecedentes.Count > 0)
                 {
                     var sb = new System.Text.StringBuilder();
+                    if (!string.IsNullOrEmpty(bannerSintomas))
+                    {
+                        sb.Append(bannerSintomas);
+                        sb.AppendLine("HISTORIA CLÍNICA PREVIA:");
+                    }
+
                     foreach (var h in antecedentes)
                     {
                         string medico = !string.IsNullOrWhiteSpace(h.ApellidoMedico)
@@ -592,12 +645,12 @@ namespace Gestion_de_Turnos_Medicos
                 }
                 else
                 {
-                    txtHistoriaPrevia.Text = "(El paciente no registra historia clínica previa cargada)";
+                    txtHistoriaPrevia.Text = bannerSintomas + "(El paciente no registra historia clínica previa cargada)";
                 }
             }
             catch (Exception ex)
             {
-                txtHistoriaPrevia.Text = $"(Error al consultar historia clínica previa: {ex.Message})";
+                txtHistoriaPrevia.Text = bannerSintomas + $"(Error al consultar historia clínica previa: {ex.Message})";
             }
         }
 
@@ -746,6 +799,83 @@ namespace Gestion_de_Turnos_Medicos
             RefrescarListado();
         }
 
+        /// <summary>
+        /// Manejador de evento del botón 'No se presentó'.
+        /// Registra la inasistencia del paciente pasando el turno a estado 'Ausente'.
+        /// </summary>
+        private void btnNoSePresento_Click(object? sender, EventArgs e)
+        {
+            Turno? turnoAMarcar = null;
+
+            if (_turnoActual != null)
+            {
+                turnoAMarcar = _turnoActual;
+            }
+            else if (dgvTurnos.CurrentRow?.DataBoundItem is Turno turnoSeleccionado)
+            {
+                turnoAMarcar = turnoSeleccionado;
+            }
+
+            if (turnoAMarcar == null)
+            {
+                MessageBox.Show("No hay ningún turno seleccionado ni llamado actualmente.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string ident = !string.IsNullOrWhiteSpace(turnoAMarcar.NroOrden) ? turnoAMarcar.NroOrden : turnoAMarcar.IdTurno.ToString();
+            string paciente = turnoAMarcar.Paciente != null ? $"{turnoAMarcar.Paciente.Apellido}, {turnoAMarcar.Paciente.Nombre}" : "el paciente";
+
+            var dialog = MessageBox.Show($"¿Confirma que desea marcar como 'No se presentó' (Ausente) al turno {ident} ({paciente})?",
+                "Confirmar No Presentación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (dialog != DialogResult.Yes)
+                return;
+
+            try
+            {
+                _turnoBLL.MarcarTurnoAusente(turnoAMarcar.IdTurno);
+
+                if (_turnoActual != null && _turnoActual.IdTurno == turnoAMarcar.IdTurno)
+                {
+                    tmrTiempoTranscurrido.Stop();
+                    _turnoActual = null;
+                    _horaInicioAtencion = null;
+                    LimpiarPanelAtencion();
+                    CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+                }
+
+                MessageBox.Show($"El turno {ident} fue registrado exitosamente con estado 'Ausente'.",
+                    "Paciente Ausente", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                CargarTurnosDesdeBD();
+                RefrescarListado();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo marcar el turno como ausente:\n" + ex.Message,
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Temporizador de refresco automático periódico de la cola de espera del médico.
+        /// </summary>
+        private void tmrRefrescoCola_Tick(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_estadoActual == EstadoPuesto.SinPaciente)
+                {
+                    CargarTurnosDesdeBD();
+                    RefrescarListado();
+                }
+            }
+            catch
+            {
+                // Silencioso en segundo plano para no interrumpir el flujo del usuario
+            }
+        }
+
         private void CambiarEstadoPuesto(EstadoPuesto nuevoEstado)
         {
             _estadoActual = nuevoEstado;
@@ -757,6 +887,7 @@ namespace Gestion_de_Turnos_Medicos
                     btnSiguientePaciente.Enabled = salaDisponible && _turnosVisibles != null && _turnosVisibles.Count > 0;
                     btnIniciarAtencion.Enabled = false;
                     btnTerminarAtencion.Enabled = false;
+                    btnNoSePresento.Enabled = _turnosVisibles != null && _turnosVisibles.Count > 0;
                     cboServicio.Enabled = true;
 
                     if (TieneSalaAbierta() && !salaDisponible)
@@ -774,6 +905,7 @@ namespace Gestion_de_Turnos_Medicos
                     btnSiguientePaciente.Enabled = false;
                     btnIniciarAtencion.Enabled = true;
                     btnTerminarAtencion.Enabled = false;
+                    btnNoSePresento.Enabled = true;
                     cboServicio.Enabled = false;
                     lblAvisoBloqueo.Visible = true;
                     break;
@@ -782,6 +914,7 @@ namespace Gestion_de_Turnos_Medicos
                     btnSiguientePaciente.Enabled = false;
                     btnIniciarAtencion.Enabled = false;
                     btnTerminarAtencion.Enabled = true;
+                    btnNoSePresento.Enabled = false;
                     cboServicio.Enabled = false;
                     lblAvisoBloqueo.Visible = true;
                     break;
@@ -804,7 +937,32 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoDni.Text = $"DNI / Edad / Cobertura: {dni} / {edad} / {cobertura}";
 
             string prioridad = t.Prioridad?.Descripcion ?? "MEDIA";
-            lblInfoMotivo.Text = $"Prioridad: {prioridad}";
+            bool esEmergencia = t.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || t.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                || t.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true;
+
+            string sintomas = string.Empty;
+            if (esEmergencia)
+            {
+                if (t.TurnoSintomas != null && t.TurnoSintomas.Count > 0)
+                {
+                    sintomas = string.Join(", ", t.TurnoSintomas.Select(ts => ts.Sintoma?.Descripcion).Where(d => !string.IsNullOrWhiteSpace(d)));
+                }
+                if (string.IsNullOrWhiteSpace(sintomas))
+                {
+                    sintomas = _turnoBLL.ObtenerSintomasTextoTurno(t.IdTurno);
+                }
+            }
+
+            if (esEmergencia && !string.IsNullOrWhiteSpace(sintomas))
+            {
+                lblInfoMotivo.Text = $"Prioridad: {prioridad} | Síntomas: {sintomas}";
+            }
+            else
+            {
+                lblInfoMotivo.Text = $"Prioridad: {prioridad}";
+            }
+
             lblInfoPrioridadValor.Text = prioridad;
             lblInfoPrioridadValor.ForeColor = ColorSegunTriage(prioridad);
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);

@@ -27,7 +27,8 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("El correo y la contraseña son campos obligatorios.");
             }
 
-            return _usuarioDAL.ValidarLogin(correo, contrasena);
+            string contrasenaHash = Seguridad.HashearContrasenia(contrasena);
+            return _usuarioDAL.ValidarLogin(correo, contrasenaHash);
         }
 
         /// <summary>
@@ -182,7 +183,11 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (idRol <= 0)
                 throw new ArgumentException("Debe seleccionar un rol válido.");
 
-            int nuevoUsuarioId = _usuarioDAL.InsertarUsuario(nombre, apellido, correo, contrasena, dni, telefono, matricula, idRol);
+            string contrasenaHash = !string.IsNullOrWhiteSpace(contrasena)
+                ? Seguridad.HashearContrasenia(contrasena)
+                : string.Empty;
+
+            int nuevoUsuarioId = _usuarioDAL.InsertarUsuario(nombre, apellido, correo, contrasenaHash, dni, telefono, matricula, idRol);
 
             if (especialidadesIds != null && especialidadesIds.Count > 0)
             {

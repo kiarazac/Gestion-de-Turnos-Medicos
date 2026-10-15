@@ -2094,13 +2094,36 @@ BEGIN
                 SET @Monto = 25000.00; -- Particular 100%
         END
 
+        -- Cálculo correlativo de NroOrden para emergencias ('E-xxx') garantizando que no se duplique entre no atendidos
+        DECLARE @Prefijo NVARCHAR(10) = 'E';
+        DECLARE @Secuencia INT;
+
+        SELECT @Secuencia = ISNULL(MAX(
+            TRY_CAST(SUBSTRING(NroOrden, CHARINDEX('-', NroOrden) + 1, LEN(NroOrden)) AS INT)
+        ), 0) + 1
+        FROM Turnos
+        WHERE Activo = 1 
+          AND NroOrden LIKE @Prefijo + '-%'
+          AND CAST(COALESCE(Fecha, FechaCreacion) AS DATE) = CAST(GETDATE() AS DATE);
+
+        SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
+
+        WHILE EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE NroOrden = @NroOrden 
+              AND Activo = 1 
+              AND Estado NOT IN ('Atendido', 'Cancelado')
+        )
+        BEGIN
+            SET @Secuencia = @Secuencia + 1;
+            SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
+        END;
+
         INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
-        VALUES ('TEMP', 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
+        VALUES (@NroOrden, 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
-        
-        SET @NroOrden = CONCAT('E-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
-        UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
 
         -- Devolvemos las columnas requeridas por el DTO
         SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden, @CodigoCancelacion AS CodigoCancelacion;
@@ -2250,36 +2273,38 @@ BEGIN
             THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
         END
 
-        DECLARE @IdTurno INT;
-        DECLARE @NroOrden NVARCHAR(20);
-        DECLARE @InicialEspecialidad CHAR(1);
+        DECLARE @Prefijo NVARCHAR(10) = UPPER(LEFT(@NombreEspecialidad, 1));
+        DECLARE @Secuencia INT;
 
-        -- Obtenemos la primera letra de la especialidad en mayúscula (ej: C de Cardiología)
-        SET @InicialEspecialidad = UPPER(LEFT(@NombreEspecialidad, 1));
+        -- 1. Obtenemos el máximo correlativo emitido en el día para este prefijo
+        SELECT @Secuencia = ISNULL(MAX(
+            TRY_CAST(SUBSTRING(NroOrden, CHARINDEX('-', NroOrden) + 1, LEN(NroOrden)) AS INT)
+        ), 0) + 1
+        FROM Turnos
+        WHERE Activo = 1 
+          AND NroOrden LIKE @Prefijo + '-%'
+          AND CAST(COALESCE(Fecha, FechaCreacion) AS DATE) = @Fecha;
 
-        -- Si no se proveyó un monto explícito, se calcula según si el paciente tiene obra social o es particular
-        IF @Monto IS NULL
+        SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
+
+        -- 2. Garantizamos que el número no esté ocupado por NINGÚN turno no atendido en todo el sistema
+        WHILE EXISTS (
+            SELECT 1 
+            FROM Turnos 
+            WHERE NroOrden = @NroOrden 
+              AND Activo = 1 
+              AND Estado NOT IN ('Atendido', 'Cancelado')
+        )
         BEGIN
-            DECLARE @IdObraSocialPaciente INT;
-            SELECT @IdObraSocialPaciente = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+            SET @Secuencia = @Secuencia + 1;
+            SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
+        END;
 
-            IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocialPaciente AND Nombre NOT LIKE '%Particular%')
-                SET @Monto = 4500.00;  -- 30% con Obra Social
-            ELSE
-                SET @Monto = 15000.00; -- Particular 100%
-        END
-
-        -- Insertamos con un valor temporal
+        -- Insertamos directamente con el NroOrden definitivo
         INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
-        VALUES ('TEMP', @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
+        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
-        
-        -- Formateamos el número de orden usando la inicial de la especialidad (Ej: C-001, P-005)
-        SET @NroOrden = CONCAT(@InicialEspecialidad, '-', RIGHT('000' + CAST(@IdTurno AS VARCHAR(10)), 3));
-        
-        -- Actualizamos el turno con el NroOrden definitivo
-        UPDATE Turnos SET NroOrden = @NroOrden WHERE IdTurno = @IdTurno;
 
         -- Retornamos los datos requeridos por el DTO
         SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
@@ -2724,9 +2749,18 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        IF EXISTS (
+            SELECT 1 FROM Turnos 
+            WHERE NroOrden = @NroOrden 
+              AND Activo = 1 
+              AND Estado NOT IN ('Atendido', 'Cancelado')
+        )
+        BEGIN
+            THROW 50007, 'Ya existe un turno activo sin atender con el mismo número de orden.', 1;
+        END
 
-    INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-    VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
+        VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -2849,7 +2883,16 @@ BEGIN
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
         ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-        ISNULL(s.NombreSala, '') AS NombreSala
+        ISNULL(s.NombreSala, '') AS NombreSala,
+        ISNULL(
+            (
+                SELECT STRING_AGG(s2.Descripcion, ', ')
+                FROM TurnoSintomas ts2
+                INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+                WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1 AND s2.Activo = 1
+            ),
+            ''
+        ) AS Sintomas
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
@@ -2858,7 +2901,87 @@ BEGIN
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.Estado = 'En Espera'
+      AND CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) = CAST(GETDATE() AS DATE)
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ObtenerSintomasPorTurno
+** Sección       : 6.3.2
+** Propósito     : Recupera los síntomas manifestados por un paciente en un turno de guardia/emergencia específico.
+** Entidad/Tablas: `TurnoSintomas`, `Sintomas`, `Prioridades`
+** Invocado por  : `FrmListaTurnosAtencion` (al iniciar la atención médica para visualizar sintomatología de guardia)
+** Estado        : `EN USO`
+** Retorno       : `IdSintoma`, `Descripcion`, `Gravedad`
+** Parámetros   :
+**                `@IdTurno` (`INT`, IN) - ID del turno médico.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ObtenerSintomasPorTurno
+    @IdTurno INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        SELECT 
+            s.IdSintoma,
+            s.Descripcion,
+            ISNULL(p.Descripcion, 'Media') AS Gravedad
+        FROM TurnoSintomas ts
+        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
+        LEFT JOIN Prioridades p ON s.Gravedad = CAST(p.IdPrioridad AS NVARCHAR(10)) OR s.Gravedad = p.Descripcion
+        WHERE ts.IdTurno = @IdTurno
+          AND ts.Activo = 1
+          AND s.Activo = 1
+        ORDER BY s.IdSintoma ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_MarcarTurnoAusente
+** Sección       : 6.3.1
+** Propósito     : Actualiza el estado de un turno a 'Ausente' cuando el paciente llamado o en espera no se presenta a la consulta médica.
+** Entidad/Tablas: `Turnos`
+** Invocado por  : `FrmListaTurnosAtencion` (Botón `btnNoSePresento`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@IdTurno` (`INT`, IN) - ID del turno a marcar como ausente.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_MarcarTurnoAusente
+    @IdTurno INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- 1. Validar que el turno exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1)
+        BEGIN
+            THROW 50086, 'El turno a marcar como ausente no existe o se encuentra inactivo.', 1;
+        END
+
+        -- 2. Marcar el turno como Ausente
+        UPDATE Turnos
+        SET Estado = 'Ausente',
+            FechaModificacion = GETDATE()
+        WHERE IdTurno = @IdTurno AND Activo = 1;
+
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -2899,13 +3022,13 @@ BEGIN
             THROW 50080, 'El turno a llamar no existe o se encuentra inactivo en el sistema.', 1;
         END
 
-        -- 2. Validar que su estado permita ser llamado (no debe estar Atendido)
+        -- 2. Validar el estado de origen (debe ser estrictamente 'En Espera')
         DECLARE @EstadoActual NVARCHAR(50);
-        SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno;
+        SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1;
 
-        IF @EstadoActual = 'Atendido'
+        IF @EstadoActual <> 'En Espera'
         BEGIN
-            THROW 50081, 'El turno no puede ser llamado porque su estado actual es incompatible (ya se encuentra Atendido).', 1;
+            THROW 50081, 'El turno no puede ser llamado porque su estado de origen es incompatible (debe estar en estado ''En Espera'').', 1;
         END
 
         -- 3. Validar si el turno es de Emergencia y el médico tiene especialidad Clínico
@@ -3022,10 +3145,13 @@ BEGIN
             THROW 50082, 'El turno a iniciar atención no existe o se encuentra inactivo.', 1;
         END
 
-        -- 2. Validar que no esté ya finalizado
-        IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Estado = 'Atendido')
+        -- 2. Validar el estado de origen (debe ser estrictamente 'Llamado')
+        DECLARE @EstadoActual NVARCHAR(50);
+        SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        IF @EstadoActual <> 'Llamado'
         BEGIN
-            THROW 50083, 'No se puede iniciar la atención porque el turno ya ha sido finalizado previamente.', 1;
+            THROW 50083, 'No se puede iniciar la atención porque el turno no ha sido llamado previamente (debe estar en estado ''Llamado'').', 1;
         END
 
         DECLARE @IdSala INT = NULL;
@@ -3093,10 +3219,19 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        -- 1. Validar que el turno exista
-        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno)
+        -- 1. Validar que el turno exista y esté activo
+        IF NOT EXISTS (SELECT 1 FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1)
         BEGIN
-            THROW 50084, 'El turno a finalizar no existe en el sistema.', 1;
+            THROW 50084, 'El turno a finalizar no existe o se encuentra inactivo en el sistema.', 1;
+        END
+
+        -- 2. Validar el estado de origen (debe ser estrictamente 'En Consulta')
+        DECLARE @EstadoActual NVARCHAR(50);
+        SELECT @EstadoActual = Estado FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        IF @EstadoActual <> 'En Consulta'
+        BEGIN
+            THROW 50087, 'No se puede finalizar la atención porque el estado de origen es incompatible (debe estar en estado ''En Consulta'').', 1;
         END
 
         DECLARE @IdSala INT = NULL;
@@ -3113,12 +3248,12 @@ BEGIN
 
         BEGIN TRANSACTION;
 
-        -- 2. Marcar el turno como Atendido y registrar la sala
+        -- 3. Marcar el turno como Atendido y registrar la sala
         UPDATE Turnos
         SET Estado = 'Atendido',
             IdSala = COALESCE(@IdSala, IdSala),
             FechaModificacion = GETDATE()
-        WHERE IdTurno = @IdTurno;
+        WHERE IdTurno = @IdTurno AND Activo = 1;
 
         -- 3. Liberar la sala a Disponible
         IF @IdSala IS NOT NULL

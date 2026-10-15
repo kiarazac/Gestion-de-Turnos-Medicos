@@ -42,5 +42,8 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Nombre del consultorio o sala asignada para la consulta.</summary>
         public string NombreSala { get; set; } = string.Empty;
+
+        /// <summary>Síntomas manifestados por el paciente en turnos de guardia/emergencia.</summary>
+        public string Sintomas { get; set; } = string.Empty;
     }
 }

@@ -20,6 +20,7 @@ namespace Gestion_de_Turnos_Medicos
             components = new System.ComponentModel.Container();
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             tmrTiempoTranscurrido = new System.Windows.Forms.Timer(components);
+            tmrRefrescoCola = new System.Windows.Forms.Timer(components);
             pnlHeader = new Panel();
             lblTituloPrincipal = new Label();
             pnlSubHeader = new Panel();
@@ -45,6 +46,7 @@ namespace Gestion_de_Turnos_Medicos
             btnSiguientePaciente = new Button();
             btnIniciarAtencion = new Button();
             btnTerminarAtencion = new Button();
+            btnNoSePresento = new Button();
             lblAvisoBloqueo = new Label();
             lblTrazabilidad = new Label();
             pnlEstado = new Panel();
@@ -61,6 +63,11 @@ namespace Gestion_de_Turnos_Medicos
             // 
             tmrTiempoTranscurrido.Interval = 1000;
             tmrTiempoTranscurrido.Tick += tmrTiempoTranscurrido_Tick;
+            // 
+            // tmrRefrescoCola
+            // 
+            tmrRefrescoCola.Interval = 5000;
+            tmrRefrescoCola.Tick += tmrRefrescoCola_Tick;
             // 
             // pnlHeader
             // 
@@ -114,6 +121,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenido.Controls.Add(btnSiguientePaciente);
             pnlContenido.Controls.Add(btnIniciarAtencion);
             pnlContenido.Controls.Add(btnTerminarAtencion);
+            pnlContenido.Controls.Add(btnNoSePresento);
             pnlContenido.Controls.Add(lblAvisoBloqueo);
             pnlContenido.Controls.Add(lblTrazabilidad);
             pnlContenido.Dock = DockStyle.Fill;
@@ -354,15 +362,28 @@ namespace Gestion_de_Turnos_Medicos
             btnTerminarAtencion.UseVisualStyleBackColor = true;
             btnTerminarAtencion.Click += btnTerminarAtencion_Click;
             // 
+            // btnNoSePresento
+            // 
+            btnNoSePresento.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnNoSePresento.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnNoSePresento.ForeColor = Color.FromArgb(192, 0, 0);
+            btnNoSePresento.Location = new Point(656, 546);
+            btnNoSePresento.Name = "btnNoSePresento";
+            btnNoSePresento.Size = new Size(340, 36);
+            btnNoSePresento.TabIndex = 6;
+            btnNoSePresento.Text = "❌  No se presentó";
+            btnNoSePresento.UseVisualStyleBackColor = true;
+            btnNoSePresento.Click += btnNoSePresento_Click;
+            // 
             // lblAvisoBloqueo
             // 
             lblAvisoBloqueo.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblAvisoBloqueo.Font = new Font("Segoe UI", 8.25F, FontStyle.Italic);
             lblAvisoBloqueo.ForeColor = Color.DimGray;
-            lblAvisoBloqueo.Location = new Point(656, 545);
+            lblAvisoBloqueo.Location = new Point(656, 588);
             lblAvisoBloqueo.Name = "lblAvisoBloqueo";
             lblAvisoBloqueo.Size = new Size(340, 16);
-            lblAvisoBloqueo.TabIndex = 6;
+            lblAvisoBloqueo.TabIndex = 7;
             lblAvisoBloqueo.Text = "Atención en curso, cambio de servicio bloqueado.";
             lblAvisoBloqueo.TextAlign = ContentAlignment.MiddleRight;
             lblAvisoBloqueo.Visible = false;
@@ -372,10 +393,10 @@ namespace Gestion_de_Turnos_Medicos
             lblTrazabilidad.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblTrazabilidad.Font = new Font("Segoe UI", 8.25F, FontStyle.Italic);
             lblTrazabilidad.ForeColor = Color.DimGray;
-            lblTrazabilidad.Location = new Point(656, 563);
+            lblTrazabilidad.Location = new Point(656, 606);
             lblTrazabilidad.Name = "lblTrazabilidad";
             lblTrazabilidad.Size = new Size(340, 16);
-            lblTrazabilidad.TabIndex = 7;
+            lblTrazabilidad.TabIndex = 8;
             lblTrazabilidad.Text = "Trazabilidad: Dr. Juan Pérez | Consultorio 3";
             lblTrazabilidad.TextAlign = ContentAlignment.MiddleRight;
             // 
@@ -428,6 +449,7 @@ namespace Gestion_de_Turnos_Medicos
         #endregion
 
         private System.Windows.Forms.Timer tmrTiempoTranscurrido;
+        private System.Windows.Forms.Timer tmrRefrescoCola;
 
         private System.Windows.Forms.Panel pnlHeader;
         private System.Windows.Forms.Label lblTituloPrincipal;
@@ -458,6 +480,7 @@ namespace Gestion_de_Turnos_Medicos
         private System.Windows.Forms.Button btnSiguientePaciente;
         private System.Windows.Forms.Button btnIniciarAtencion;
         private System.Windows.Forms.Button btnTerminarAtencion;
+        private System.Windows.Forms.Button btnNoSePresento;
         private System.Windows.Forms.Label lblAvisoBloqueo;
         private System.Windows.Forms.Label lblTrazabilidad;
 

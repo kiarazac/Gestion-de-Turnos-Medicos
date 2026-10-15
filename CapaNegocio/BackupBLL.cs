@@ -92,7 +92,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             UsuarioLoginResult? adminLogin = null;
             try
             {
-                adminLogin = _usuarioDAL.ValidarLogin(correoAdmin.Trim(), contrasenaAdmin);
+                adminLogin = _usuarioDAL.ValidarLogin(correoAdmin.Trim(), Seguridad.HashearContrasenia(contrasenaAdmin));
             }
             catch (Exception ex)
             {
@@ -114,7 +114,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             UsuarioLoginResult? gerenteLogin = null;
             try
             {
-                gerenteLogin = _usuarioDAL.ValidarLogin(correoGerente.Trim(), contrasenaGerente);
+                gerenteLogin = _usuarioDAL.ValidarLogin(correoGerente.Trim(), Seguridad.HashearContrasenia(contrasenaGerente));
             }
             catch (Exception ex)
             {

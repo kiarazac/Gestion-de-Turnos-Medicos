@@ -13,6 +13,7 @@ namespace Gestion_de_Turnos_Medicos
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
+        private System.Windows.Forms.Timer? _tmrRefresco;
 
         public FrmListaTurnos()
         {
@@ -23,6 +24,31 @@ namespace Gestion_de_Turnos_Medicos
         {
             CargarTurnosEmergencia();
             CargarEspecialidades();
+
+            // Configuración del temporizador de refresco automático
+            _tmrRefresco = new System.Windows.Forms.Timer();
+            _tmrRefresco.Interval = 5000;
+            _tmrRefresco.Tick += tmrRefresco_Tick;
+            _tmrRefresco.Start();
+
+            this.FormClosing += (s, ev) =>
+            {
+                _tmrRefresco?.Stop();
+                _tmrRefresco?.Dispose();
+            };
+        }
+
+        private void tmrRefresco_Tick(object? sender, EventArgs e)
+        {
+            try
+            {
+                CargarTurnosEmergencia();
+                CargarTurnosEspecialidadSeleccionada();
+            }
+            catch
+            {
+                // Silencioso en background
+            }
         }
 
         /// <summary>
@@ -125,10 +151,19 @@ namespace Gestion_de_Turnos_Medicos
 
         private void cmbEspecialidades_SelectedIndexChanged(object sender, EventArgs e)
         {
-            dgvEspecialidades.Rows.Clear();
+            CargarTurnosEspecialidadSeleccionada();
+        }
 
+        /// <summary>
+        /// Recarga los turnos correspondientes a la especialidad médica actualmente seleccionada en el combo.
+        /// </summary>
+        private void CargarTurnosEspecialidadSeleccionada()
+        {
             if (cmbEspecialidades.SelectedIndex <= 0)
+            {
+                dgvEspecialidades.Rows.Clear();
                 return;
+            }
 
             string especialidadSeleccionada = cmbEspecialidades.SelectedItem?.ToString() ?? string.Empty;
 
@@ -136,6 +171,7 @@ namespace Gestion_de_Turnos_Medicos
             {
                 // BLL delega a TurnoDAL -> sp_ListarTurnosEspecialidad
                 var turnosEsp = _turnoBLL.ListarTurnosEspecialidad(especialidadSeleccionada);
+                dgvEspecialidades.Rows.Clear();
 
                 if (turnosEsp != null)
                 {
@@ -153,8 +189,7 @@ namespace Gestion_de_Turnos_Medicos
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron consultar los turnos de la especialidad:\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                System.Diagnostics.Debug.WriteLine("Error al consultar turnos de especialidad: " + ex.Message);
             }
         }
     }
