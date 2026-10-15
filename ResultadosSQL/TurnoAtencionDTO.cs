@@ -45,5 +45,11 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Síntomas manifestados por el paciente en turnos de guardia/emergencia.</summary>
         public string Sintomas { get; set; } = string.Empty;
+
+        /// <summary>Identificador del médico asignado si el turno está llamado o en atención.</summary>
+        public int? IdUsuario { get; set; }
+
+        /// <summary>Identificador de la sala asignada si el turno está llamado o en atención.</summary>
+        public int? IdSala { get; set; }
     }
 }

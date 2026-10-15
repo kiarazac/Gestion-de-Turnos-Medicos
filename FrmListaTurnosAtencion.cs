@@ -90,8 +90,12 @@ namespace Gestion_de_Turnos_Medicos
             CargarTurnosDesdeBD();
 
             RefrescarListado();
-            LimpiarPanelAtencion();
-            CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+
+            if (_turnoActual == null)
+            {
+                LimpiarPanelAtencion();
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
+            }
 
             if (!tieneSala)
             {
@@ -233,6 +237,26 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Obtiene el catálogo de especialidades disponibles desde la Capa de Negocio (BLL).
+        /// <summary>
+        /// Normaliza texto para comparaciones de especialidades (remueve tildes, minúsculas, recorta espacios).
+        /// </summary>
+        private static string NormalizarTexto(string? texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto)) return string.Empty;
+            string normalizado = texto.Trim().ToLowerInvariant();
+            normalizado = normalizado.Replace("á", "a")
+                                     .Replace("é", "e")
+                                     .Replace("í", "i")
+                                     .Replace("ó", "o")
+                                     .Replace("ú", "u")
+                                     .Replace("ü", "u");
+            if (normalizado.Contains("kinesio"))
+                normalizado = normalizado.Replace("kinesio", "kinesi");
+            return normalizado;
+        }
+
+        /// <summary>
+        /// Obtiene el catálogo de especialidades disponibles desde la Capa de Negocio (BLL).
         /// Restringe el servicio de guardia/emergencia exclusivamente a médicos con especialidad Clínico.
         /// </summary>
         private void CargarServiciosDelMedico()
@@ -248,6 +272,9 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     esClinico = _turnoBLL.PuedeAtenderEmergencias(idUsuario);
                 }
+
+                // Opción principal: Visualizar la totalidad de los turnos en cola asignados a este profesional
+                cboServicio.Items.Add("Todos mis servicios");
 
                 // Regla de Negocio: Solo profesionales médicos con especialidad Clínico pueden atender turnos de emergencia
                 if (esClinico)
@@ -267,6 +294,9 @@ namespace Gestion_de_Turnos_Medicos
                         {
                             if (!string.IsNullOrWhiteSpace(esp.Nombre))
                             {
+                                if (esClinico && esp.Nombre.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+
                                 if (!cboServicio.Items.Contains(esp.Nombre))
                                     cboServicio.Items.Add(esp.Nombre);
                             }
@@ -283,6 +313,9 @@ namespace Gestion_de_Turnos_Medicos
                         {
                             if (!string.IsNullOrWhiteSpace(esp.Nombre))
                             {
+                                if (esp.Nombre.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+
                                 if (!cboServicio.Items.Contains(esp.Nombre))
                                     cboServicio.Items.Add(esp.Nombre);
                             }
@@ -313,11 +346,16 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>
         /// Obtiene los turnos en espera desde la Capa de Negocio (BLL), delegando al SP sp_ListarTurnosAtencion.
+        /// Restaura automáticamente atenciones en curso si el médico o sala ya tenían un paciente llamado o en atención.
         /// </summary>
         private void CargarTurnosDesdeBD()
         {
             _todosLosTurnos = new List<Turno>();
             _historialAtendidos = new List<Turno>();
+
+            int idUsuarioActual = ObtenerIdUsuarioMedico();
+            string miSala = _salaAsignada?.Trim() ?? string.Empty;
+            Turno? turnoActivoDetectado = null;
 
             try
             {
@@ -357,7 +395,41 @@ namespace Gestion_de_Turnos_Medicos
                                 .ToList();
                         }
 
-                        _todosLosTurnos.Add(t);
+                        // Verificar si es un turno activo correspondiente al médico o sala actual
+                        bool esTurnoEnProceso = dto.Estado == "Llamado" || dto.Estado == "En Consulta" || dto.Estado == "En Atención" || dto.Estado == "En Atencion";
+                        bool perteneceAMiPuesto = (idUsuarioActual > 0 && dto.IdUsuario.HasValue && dto.IdUsuario.Value == idUsuarioActual)
+                            || (!string.IsNullOrEmpty(miSala) && !miSala.StartsWith("(") && !string.IsNullOrEmpty(dto.NombreSala) && dto.NombreSala.Equals(miSala, StringComparison.OrdinalIgnoreCase));
+
+                        if (esTurnoEnProceso && perteneceAMiPuesto && turnoActivoDetectado == null)
+                        {
+                            turnoActivoDetectado = t;
+                            continue; // No agregarlo a la lista de espera visual
+                        }
+
+                        if (dto.Estado == "En Espera")
+                        {
+                            _todosLosTurnos.Add(t);
+                        }
+                    }
+                }
+
+                // Si encontramos un turno activo de este médico/sala y no teníamos uno en memoria, restaurarlo
+                if (turnoActivoDetectado != null && _turnoActual == null)
+                {
+                    _turnoActual = turnoActivoDetectado;
+                    LlenarPanelAtencion(_turnoActual);
+                    CargarHistoriaClinicaPrevia(_turnoActual);
+
+                    if (_turnoActual.Estado.Equals("Llamado", StringComparison.OrdinalIgnoreCase))
+                    {
+                        CambiarEstadoPuesto(EstadoPuesto.Llamado);
+                        tmrTiempoTranscurrido.Start();
+                    }
+                    else
+                    {
+                        _horaInicioAtencion = DateTime.Now;
+                        CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
+                        tmrTiempoTranscurrido.Start();
                     }
                 }
             }
@@ -375,23 +447,74 @@ namespace Gestion_de_Turnos_Medicos
         private void RefrescarListado()
         {
             string servicio = cboServicio.SelectedItem?.ToString() ?? string.Empty;
+            bool esTodos = string.IsNullOrWhiteSpace(servicio) ||
+                           servicio.Equals("Todos mis servicios", StringComparison.OrdinalIgnoreCase) ||
+                           servicio.Equals("Todos", StringComparison.OrdinalIgnoreCase);
 
-            // 1. Identificamos si el filtro activo es de Guardia / Emergencias
-            bool esEmergencia = servicio.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase);
+            bool esEmergencia = !esTodos && servicio.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase);
 
-            // 2. Filtramos los turnos en espera: para emergencias admitimos tanto 'Emergencia' como 'Emergencias / Guardia'
+            // Servicios habilitados en el combo (excluyendo la opción 'Todos')
+            var serviciosComboNormalizados = cboServicio.Items.Cast<object>()
+                .Select(item => item?.ToString() ?? string.Empty)
+                .Where(s => !s.Equals("Todos mis servicios", StringComparison.OrdinalIgnoreCase) && !s.Equals("Todos", StringComparison.OrdinalIgnoreCase))
+                .Select(NormalizarTexto)
+                .ToList();
+
+            bool medicoTieneEmergencia = serviciosComboNormalizados.Any(s => s.StartsWith("emergencia"));
+
+            // 2. Filtramos los turnos en espera
             var filtrados = _todosLosTurnos.Where(t =>
-                t.Estado == "En Espera" &&
-                (esEmergencia
-                    ? (t.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true)
-                    : (t.Especialidad?.Nombre ?? string.Empty).Equals(servicio, StringComparison.OrdinalIgnoreCase))
-            );
+            {
+                if (t.Estado != "En Espera") return false;
+
+                string espTurnoNormalizada = NormalizarTexto(t.Especialidad?.Nombre);
+                bool esTurnoEmergencia = t.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                    || espTurnoNormalizada.StartsWith("emergencia")
+                    || (t.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true);
+
+                if (esTodos)
+                {
+                    // Si el combo no tiene servicios configurados, permitir ver todo
+                    if (serviciosComboNormalizados.Count == 0) return true;
+
+                    if (esTurnoEmergencia)
+                        return medicoTieneEmergencia;
+
+                    return serviciosComboNormalizados.Any(s => s == espTurnoNormalizada || s.Contains(espTurnoNormalizada) || espTurnoNormalizada.Contains(s));
+                }
+
+                if (esEmergencia)
+                {
+                    return esTurnoEmergencia;
+                }
+
+                string servicioNormalizado = NormalizarTexto(servicio);
+                return espTurnoNormalizada == servicioNormalizado ||
+                       espTurnoNormalizada.Contains(servicioNormalizado) ||
+                       servicioNormalizado.Contains(espTurnoNormalizada);
+            });
 
             // 3. Ordenamos: emergencias según gravedad de triage y orden de llegada; especialidades según fecha y hora
             IEnumerable<Turno> ordenados;
             if (esEmergencia)
             {
                 ordenados = filtrados.OrderBy(t => PrioridadNumerica(t.Prioridad?.Descripcion ?? "MEDIA")).ThenBy(t => t.Fecha);
+            }
+            else if (esTodos)
+            {
+                ordenados = filtrados.OrderBy(t =>
+                {
+                    bool esEmerg = t.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
+                        || (t.Especialidad?.Nombre?.StartsWith("Emergencia", StringComparison.OrdinalIgnoreCase) == true)
+                        || (t.NroOrden?.StartsWith("E-", StringComparison.OrdinalIgnoreCase) == true);
+
+                    if (esEmerg)
+                    {
+                        int p = PrioridadNumerica(t.Prioridad?.Descripcion ?? "MEDIA");
+                        return p == 1 ? 1 : 2; // Alta prioridad primero
+                    }
+                    return 3;
+                }).ThenBy(t => t.Fecha);
             }
             else
             {
@@ -402,7 +525,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvTurnos.DataSource = _turnosVisibles;
 
             if (dgvTurnos.Columns["colTriage"] != null)
-                dgvTurnos.Columns["colTriage"].Visible = esEmergencia;
+                dgvTurnos.Columns["colTriage"].Visible = esEmergencia || esTodos;
 
             if (_estadoActual == EstadoPuesto.SinPaciente)
                 btnSiguientePaciente.Enabled = _turnosVisibles.Count > 0;
@@ -792,6 +915,7 @@ namespace Gestion_de_Turnos_Medicos
             _turnoActual = null;
 
             LimpiarPanelAtencion();
+            VerificarYActualizarSalaAbierta();
             CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
 
             // Refrescar lista de turnos desde BD
@@ -833,7 +957,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                _turnoBLL.MarcarTurnoAusente(turnoAMarcar.IdTurno);
+                _turnoBLL.MarcarTurnoAusente(turnoAMarcar.IdTurno, _salaAsignada);
 
                 if (_turnoActual != null && _turnoActual.IdTurno == turnoAMarcar.IdTurno)
                 {
@@ -841,8 +965,11 @@ namespace Gestion_de_Turnos_Medicos
                     _turnoActual = null;
                     _horaInicioAtencion = null;
                     LimpiarPanelAtencion();
-                    CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
                 }
+
+                // Sincronizar el estado real de la sala recién liberada en la interfaz
+                VerificarYActualizarSalaAbierta();
+                CambiarEstadoPuesto(EstadoPuesto.SinPaciente);
 
                 MessageBox.Show($"El turno {ident} fue registrado exitosamente con estado 'Ausente'.",
                     "Paciente Ausente", MessageBoxButtons.OK, MessageBoxIcon.Information);

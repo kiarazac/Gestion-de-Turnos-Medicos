@@ -269,7 +269,7 @@ namespace Gestion_de_Turnos_Medicos
             lblObservaciones.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
             lblObservaciones.Location = new Point(16, 142);
             lblObservaciones.Name = "lblObservaciones";
-            lblObservaciones.Size = new Size(224, 15);
+            lblObservaciones.Size = new Size(213, 15);
             lblObservaciones.TabIndex = 7;
             lblObservaciones.Text = "Historia Clínica / Diagnósticos Previos";
             // 
@@ -291,7 +291,7 @@ namespace Gestion_de_Turnos_Medicos
             lblDiagnostico.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
             lblDiagnostico.Location = new Point(16, 225);
             lblDiagnostico.Name = "lblDiagnostico";
-            lblDiagnostico.Size = new Size(125, 15);
+            lblDiagnostico.Size = new Size(124, 15);
             lblDiagnostico.TabIndex = 9;
             lblDiagnostico.Text = "Diagnóstico Médico *";
             // 
@@ -311,7 +311,7 @@ namespace Gestion_de_Turnos_Medicos
             lblReceta.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
             lblReceta.Location = new Point(16, 309);
             lblReceta.Name = "lblReceta";
-            lblReceta.Size = new Size(211, 15);
+            lblReceta.Size = new Size(212, 15);
             lblReceta.TabIndex = 10;
             lblReceta.Text = "Receta / Indicaciones Farmacológicas";
             // 
@@ -430,7 +430,7 @@ namespace Gestion_de_Turnos_Medicos
             Controls.Add(pnlHeader);
             MinimumSize = new Size(1046, 700);
             Name = "FrmListaTurnosAtencion";
-            Text = "Lista Turnos Atencion";
+            Text = " ahi ";
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();
             pnlSubHeader.ResumeLayout(false);

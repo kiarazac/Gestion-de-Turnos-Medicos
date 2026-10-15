@@ -21,7 +21,18 @@ BEGIN
         p.Apellido AS ApellidoPaciente,
         p.Dni AS DniPaciente,
         ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-        ISNULL(s.NombreSala, '') AS NombreSala
+        ISNULL(s.NombreSala, '') AS NombreSala,
+        ISNULL(
+            (
+                SELECT STRING_AGG(s2.Descripcion, ', ')
+                FROM TurnoSintomas ts2
+                INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+                WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1 AND s2.Activo = 1
+            ),
+            ''
+        ) AS Sintomas,
+        t.IdUsuario,
+        t.IdSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
@@ -29,9 +40,12 @@ BEGIN
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
-      AND t.Estado = 'En Espera'
-      AND CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) = CAST(GETDATE() AS DATE)
-    ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+    ORDER BY 
+        CASE WHEN t.Estado IN ('Llamado', 'En Consulta', 'En Atención', 'En Atencion') THEN 0 ELSE 1 END ASC,
+        t.IdPrioridad ASC, 
+        t.FechaCreacion ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -42,7 +56,8 @@ END;
 "@,
 @"
 CREATE OR ALTER PROCEDURE sp_MarcarTurnoAusente
-    @IdTurno INT
+    @IdTurno INT,
+    @SalaAsignada NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -53,11 +68,153 @@ BEGIN
             THROW 50086, 'El turno a marcar como ausente no existe o se encuentra inactivo.', 1;
         END
 
+        DECLARE @IdSala INT = NULL;
+
+        SELECT @IdSala = IdSala FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        IF @IdSala IS NULL AND @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
+            END
+        END
+
+        BEGIN TRANSACTION;
+
         UPDATE Turnos
         SET Estado = 'Ausente',
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno AND Activo = 1;
 
+        IF @IdSala IS NOT NULL
+        BEGIN
+            UPDATE Salas
+            SET EstadoSala = 'Disponible',
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND Activo = 1;
+        END
+
+        COMMIT TRANSACTION;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ListarTurnosEmergencia
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+
+    SELECT 
+        t.IdTurno,
+        t.NroOrden,
+        t.NroOrden AS Turno,
+        ISNULL(p.Descripcion, 'MEDIA') AS Prioridad,
+        ISNULL(p.Descripcion, 'MEDIA') AS Triage,
+        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+        t.Estado,
+        ISNULL(s.NombreSala, '--') AS Sala,
+        t.TipoTurno,
+        t.Fecha,
+        t.IdPrioridad,
+        t.IdPaciente,
+        t.IdEspecialidad,
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
+        CAST(NULL AS INT) AS Edad
+    FROM Turnos t
+    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    WHERE t.Activo = 1 
+      AND t.TipoTurno = 'Emergencia'
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+    ORDER BY 
+        CASE 
+            WHEN t.Estado = 'En Espera' THEN 1 
+            WHEN t.Estado = 'Llamado' THEN 2 
+            WHEN t.Estado IN ('En Consulta', 'En Atención', 'En Atencion') THEN 3 
+            ELSE 4 
+        END ASC,
+        t.IdPrioridad ASC, 
+        t.FechaCreacion ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ListarTurnosGeneralesPantalla
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+
+    SELECT 
+        t.NroOrden AS Turno,
+        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+        CONVERT(VARCHAR(10), t.Fecha, 103) AS Fecha,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        t.Estado,
+        ISNULL(s.NombreSala, '--') AS Sala
+    FROM Turnos t
+    LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    WHERE t.Activo = 1 
+      AND t.TipoTurno = 'Consulta'
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+    ORDER BY t.Fecha ASC, t.Horario ASC;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ListarTurnosEspecialidad
+    @NombreEspecialidad NVARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+
+    SELECT 
+        t.IdTurno,
+        t.NroOrden,
+        t.Estado,
+        t.TipoTurno,
+        CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS Fecha,
+        e.Nombre AS NombreEspecialidad,
+        ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
+        t.IdPrioridad,
+        ISNULL(s.NombreSala, '--') AS NombreSala
+    FROM Turnos t
+    INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
+    LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    WHERE t.Activo = 1 
+      AND t.TipoTurno = 'Consulta'
+      AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+    ORDER BY t.Fecha ASC, t.Horario ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

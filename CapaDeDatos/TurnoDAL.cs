@@ -380,6 +380,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         WHERE t.Activo = 1 
                           AND t.TipoTurno = 'Consulta'
                           AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
+                          AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+                          AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
                         ORDER BY t.Fecha ASC, t.Horario ASC;";
 
                     return context.Database
@@ -483,7 +485,18 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             p.Apellido AS ApellidoPaciente,
                             p.Dni AS DniPaciente,
                             ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-                            ISNULL(s.NombreSala, '') AS NombreSala
+                            ISNULL(s.NombreSala, '') AS NombreSala,
+                            ISNULL(
+                                (
+                                    SELECT STRING_AGG(s2.Descripcion, ', ')
+                                    FROM TurnoSintomas ts2
+                                    INNER JOIN Sintomas s2 ON ts2.IdSintoma = s2.IdSintoma
+                                    WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1 AND s2.Activo = 1
+                                ),
+                                ''
+                            ) AS Sintomas,
+                            t.IdUsuario,
+                            t.IdSala
                         FROM Turnos t
                         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
                         LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
@@ -491,8 +504,12 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
                         LEFT JOIN Salas s ON t.IdSala = s.IdSala
                         WHERE t.Activo = 1 
-                          AND t.Estado = 'En Espera'
-                        ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;";
+                          AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+                          AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+                        ORDER BY 
+                            CASE WHEN t.Estado IN ('Llamado', 'En Consulta', 'En Atención', 'En Atencion') THEN 0 ELSE 1 END ASC,
+                            t.IdPrioridad ASC, 
+                            t.FechaCreacion ASC;";
 
                     return context.Database.SqlQueryRaw<TurnoAtencionDTO>(sql).ToList();
                 }
@@ -540,15 +557,44 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_MarcarTurnoAusente</c> para registrar la no comparecencia del paciente.
+        /// Ejecuta el procedimiento almacenado <c>sp_MarcarTurnoAusente</c> para registrar la no comparecencia del paciente y liberar la sala de atención.
         /// </summary>
         /// <param name="idTurno">ID del turno a marcar como ausente.</param>
-        public void MarcarTurnoAusente(int idTurno)
+        /// <param name="salaAsignada">Nombre de la sala asociada a liberar (opcional).</param>
+        public void MarcarTurnoAusente(int idTurno, string? salaAsignada = null)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pIdTurno = new SqlParameter("@IdTurno", idTurno);
-                context.Database.ExecuteSqlRaw("EXEC sp_MarcarTurnoAusente @IdTurno", pIdTurno);
+                var pSala = new SqlParameter("@SalaAsignada", (object?)salaAsignada ?? DBNull.Value);
+
+                try
+                {
+                    context.Database.ExecuteSqlRaw("EXEC sp_MarcarTurnoAusente @IdTurno, @SalaAsignada", pIdTurno, pSala);
+                }
+                catch (SqlException ex) when (ex.Number == 8144 || ex.Number == 8146) // Too many arguments
+                {
+                    // Fallback para SP anterior con un solo parámetro
+                    context.Database.ExecuteSqlRaw("EXEC sp_MarcarTurnoAusente @IdTurno", pIdTurno);
+
+                    // Liberación defensiva de la sala en fallback
+                    if (!string.IsNullOrWhiteSpace(salaAsignada) && !salaAsignada.Contains("Sin sala"))
+                    {
+                        var pSalaDirecta = new SqlParameter("@Sala", salaAsignada);
+                        context.Database.ExecuteSqlRaw(
+                            "UPDATE Salas SET EstadoSala = 'Disponible', FechaModificacion = GETDATE() WHERE (NombreSala = @Sala OR NombreSala LIKE '%' + @Sala + '%') AND Activo = 1",
+                            pSalaDirecta);
+                    }
+                    else
+                    {
+                        context.Database.ExecuteSqlRaw(
+                            @"UPDATE s SET s.EstadoSala = 'Disponible', s.FechaModificacion = GETDATE()
+                              FROM Salas s
+                              INNER JOIN Turnos t ON t.IdSala = s.IdSala
+                              WHERE t.IdTurno = @IdTurno AND s.Activo = 1",
+                            pIdTurno);
+                    }
+                }
             }
         }
 

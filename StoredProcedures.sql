@@ -2615,13 +2615,13 @@ BEGIN
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Emergencia'
-      AND (t.Estado IN ('En Espera', 'Llamado', 'En Consulta') 
-           OR CAST(t.FechaCreacion AS DATE) = CAST(GETDATE() AS DATE))
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY 
         CASE 
             WHEN t.Estado = 'En Espera' THEN 1 
             WHEN t.Estado = 'Llamado' THEN 2 
-            WHEN t.Estado = 'En Consulta' THEN 3 
+            WHEN t.Estado IN ('En Consulta', 'En Atención', 'En Atencion') THEN 3 
             ELSE 4 
         END ASC,
         t.IdPrioridad ASC, 
@@ -2672,6 +2672,8 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
     END TRY
     BEGIN CATCH
@@ -2712,6 +2714,8 @@ BEGIN
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
     END TRY
     BEGIN CATCH
@@ -2909,7 +2913,9 @@ BEGIN
                 WHERE ts2.IdTurno = t.IdTurno AND ts2.Activo = 1 AND s2.Activo = 1
             ),
             ''
-        ) AS Sintomas
+        ) AS Sintomas,
+        t.IdUsuario,
+        t.IdSala
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
@@ -2917,9 +2923,12 @@ BEGIN
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
-      AND t.Estado = 'En Espera'
-      AND CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) = CAST(GETDATE() AS DATE)
-    ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
+      AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
+      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+    ORDER BY 
+        CASE WHEN t.Estado IN ('Llamado', 'En Consulta', 'En Atención', 'En Atencion') THEN 0 ELSE 1 END ASC,
+        t.IdPrioridad ASC, 
+        t.FechaCreacion ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -2972,16 +2981,18 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_MarcarTurnoAusente
 ** Sección       : 6.3.1
-** Propósito     : Actualiza el estado de un turno a 'Ausente' cuando el paciente llamado o en espera no se presenta a la consulta médica.
-** Entidad/Tablas: `Turnos`
+** Propósito     : Actualiza el estado de un turno a 'Ausente' cuando el paciente llamado o en espera no se presenta a la consulta médica, liberando atómicamente la sala asignada a estado 'Disponible'.
+** Entidad/Tablas: `Turnos`, `Salas`
 ** Invocado por  : `FrmListaTurnosAtencion` (Botón `btnNoSePresento`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
 **                `@IdTurno` (`INT`, IN) - ID del turno a marcar como ausente.
+**                `@SalaAsignada` (`NVARCHAR(100)`, IN, Opcional) - Denominación de la sala a liberar.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_MarcarTurnoAusente
-    @IdTurno INT
+    @IdTurno INT,
+    @SalaAsignada NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2993,11 +3004,39 @@ BEGIN
             THROW 50086, 'El turno a marcar como ausente no existe o se encuentra inactivo.', 1;
         END
 
-        -- 2. Marcar el turno como Ausente
+        DECLARE @IdSala INT = NULL;
+
+        -- 2. Resolver IdSala a partir del turno
+        SELECT @IdSala = IdSala FROM Turnos WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        -- Si el turno no tenía sala asociada pero se pasó la sala asignada por parámetro
+        IF @IdSala IS NULL AND @SalaAsignada IS NOT NULL AND LTRIM(RTRIM(@SalaAsignada)) <> '' AND @SalaAsignada <> '--' AND @SalaAsignada NOT LIKE '%Sin sala abierta%'
+        BEGIN
+            SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE NombreSala = @SalaAsignada AND Activo = 1;
+            IF @IdSala IS NULL
+            BEGIN
+                SELECT TOP 1 @IdSala = IdSala FROM Salas WHERE (NombreSala LIKE '%' + @SalaAsignada + '%' OR @SalaAsignada LIKE '%' + NombreSala + '%') AND Activo = 1;
+            END
+        END
+
+        BEGIN TRANSACTION;
+
+        -- 3. Marcar el turno como Ausente
         UPDATE Turnos
         SET Estado = 'Ausente',
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno AND Activo = 1;
+
+        -- 4. Liberar la sala a Disponible
+        IF @IdSala IS NOT NULL
+        BEGIN
+            UPDATE Salas
+            SET EstadoSala = 'Disponible',
+                FechaModificacion = GETDATE()
+            WHERE IdSala = @IdSala AND Activo = 1;
+        END
+
+        COMMIT TRANSACTION;
 
     END TRY
     BEGIN CATCH
@@ -3006,6 +3045,7 @@ BEGIN
         THROW;
     END CATCH;
 END;
+
 
 GO
 

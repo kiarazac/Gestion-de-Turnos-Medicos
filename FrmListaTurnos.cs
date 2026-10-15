@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
 
@@ -72,6 +73,16 @@ namespace Gestion_de_Turnos_Medicos
                     // 2. Iteramos los turnos de guardia mapeando cada celda con fallbacks defensivos
                     foreach (var t in turnosEmergencia)
                     {
+                        string estadoRaw = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado.Trim() : "En Espera";
+
+                        // Excluir turnos atendidos, ausentes o cancelados
+                        if (estadoRaw.Equals("Atendido", StringComparison.OrdinalIgnoreCase) ||
+                            estadoRaw.Equals("Ausente", StringComparison.OrdinalIgnoreCase) ||
+                            estadoRaw.Equals("Cancelado", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
                         string turno = !string.IsNullOrWhiteSpace(t.Turno) 
                             ? t.Turno 
                             : (!string.IsNullOrWhiteSpace(t.NroOrden) ? t.NroOrden : $"E-{t.IdTurno:D3}");
@@ -81,8 +92,13 @@ namespace Gestion_de_Turnos_Medicos
                             : (!string.IsNullOrWhiteSpace(t.Triage) ? t.Triage : "MEDIA");
 
                         string hora = !string.IsNullOrWhiteSpace(t.Hora) ? t.Hora : "--:--";
-                        string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "En Espera";
                         string sala = !string.IsNullOrWhiteSpace(t.Sala) ? t.Sala : "--";
+
+                        string estado = estadoRaw;
+                        if (estado.Equals("En Consulta", StringComparison.OrdinalIgnoreCase) || estado.Equals("En Atencion", StringComparison.OrdinalIgnoreCase))
+                        {
+                            estado = "En Atención";
+                        }
 
                         // 3. Agregamos la fila a la grilla de recepción
                         dataGridView1.Rows.Add(turno, prioridad, hora, estado, sala);
@@ -96,6 +112,9 @@ namespace Gestion_de_Turnos_Medicos
                             cantBaja++;
                     }
                 }
+
+                // Aplicar colores diferenciados a los estados
+                AplicarColoresEstados(dataGridView1, 3);
             }
             catch (Exception ex)
             {
@@ -177,19 +196,83 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     foreach (var t in turnosEsp)
                     {
+                        string estadoRaw = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado.Trim() : "--";
+
+                        // Excluir turnos atendidos, ausentes o cancelados
+                        if (estadoRaw.Equals("Atendido", StringComparison.OrdinalIgnoreCase) ||
+                            estadoRaw.Equals("Ausente", StringComparison.OrdinalIgnoreCase) ||
+                            estadoRaw.Equals("Cancelado", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
                         string turno = !string.IsNullOrWhiteSpace(t.NroOrden) ? t.NroOrden : t.IdTurno.ToString();
                         string hora = t.Fecha.ToString("HH:mm");
                         string fecha = t.Fecha.ToString("dd/MM/yyyy");
-                        string estado = !string.IsNullOrWhiteSpace(t.Estado) ? t.Estado : "--";
                         string sala = !string.IsNullOrWhiteSpace(t.NombreSala) ? t.NombreSala : "--";
+
+                        string estado = estadoRaw;
+                        if (estado.Equals("En Consulta", StringComparison.OrdinalIgnoreCase) || estado.Equals("En Atencion", StringComparison.OrdinalIgnoreCase))
+                        {
+                            estado = "En Atención";
+                        }
 
                         dgvEspecialidades.Rows.Add(turno, hora, fecha, estado, sala);
                     }
                 }
+
+                // Aplicar colores diferenciados a los estados
+                AplicarColoresEstados(dgvEspecialidades, 3);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Error al consultar turnos de especialidad: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Aplica colores distintivos a la celda de estado para diferenciar visualmente:
+        /// - 'En Espera' (Ámbar / Dorado)
+        /// - 'Llamado' (Azul)
+        /// - 'En Atención' / 'En Consulta' (Verde)
+        /// </summary>
+        private void AplicarColoresEstados(DataGridView grilla, int columnaEstadoIndex)
+        {
+            foreach (DataGridViewRow fila in grilla.Rows)
+            {
+                if (fila.Cells.Count > columnaEstadoIndex)
+                {
+                    var celdaEstado = fila.Cells[columnaEstadoIndex];
+                    string estado = Convert.ToString(celdaEstado.Value)?.Trim() ?? string.Empty;
+
+                    if (estado.Equals("En Espera", StringComparison.OrdinalIgnoreCase))
+                    {
+                        celdaEstado.Style.BackColor = Color.FromArgb(234, 179, 8);
+                        celdaEstado.Style.ForeColor = Color.Black;
+                        celdaEstado.Style.SelectionBackColor = Color.FromArgb(234, 179, 8);
+                        celdaEstado.Style.SelectionForeColor = Color.Black;
+                        celdaEstado.Style.Font = new Font(grilla.Font, FontStyle.Bold);
+                    }
+                    else if (estado.Equals("Llamado", StringComparison.OrdinalIgnoreCase))
+                    {
+                        celdaEstado.Style.BackColor = Color.FromArgb(37, 99, 235);
+                        celdaEstado.Style.ForeColor = Color.White;
+                        celdaEstado.Style.SelectionBackColor = Color.FromArgb(37, 99, 235);
+                        celdaEstado.Style.SelectionForeColor = Color.White;
+                        celdaEstado.Style.Font = new Font(grilla.Font, FontStyle.Bold);
+                    }
+                    else if (estado.Equals("En Atención", StringComparison.OrdinalIgnoreCase) ||
+                             estado.Equals("En Atencion", StringComparison.OrdinalIgnoreCase) ||
+                             estado.Equals("En Consulta", StringComparison.OrdinalIgnoreCase) ||
+                             estado.Equals("EN CURSO", StringComparison.OrdinalIgnoreCase))
+                    {
+                        celdaEstado.Style.BackColor = Color.FromArgb(22, 163, 74);
+                        celdaEstado.Style.ForeColor = Color.White;
+                        celdaEstado.Style.SelectionBackColor = Color.FromArgb(22, 163, 74);
+                        celdaEstado.Style.SelectionForeColor = Color.White;
+                        celdaEstado.Style.Font = new Font(grilla.Font, FontStyle.Bold);
+                    }
+                }
             }
         }
     }

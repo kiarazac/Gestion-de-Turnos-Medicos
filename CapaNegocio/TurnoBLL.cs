@@ -483,16 +483,17 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Registra la inasistencia de un paciente pasando el turno al estado 'Ausente'.
+        /// Registra la inasistencia de un paciente pasando el turno al estado 'Ausente' y liberando la sala asignada.
         /// </summary>
         /// <param name="idTurno">Identificador único del turno.</param>
+        /// <param name="salaAsignada">Nombre de la sala asociada a liberar (opcional).</param>
         /// <exception cref="ArgumentException">Se lanza si el ID del turno es menor o igual a cero.</exception>
-        public void MarcarTurnoAusente(int idTurno)
+        public void MarcarTurnoAusente(int idTurno, string? salaAsignada = null)
         {
             if (idTurno <= 0)
                 throw new ArgumentException("El identificador del turno debe ser válido y mayor a cero.");
 
-            _turnoDAL.MarcarTurnoAusente(idTurno);
+            _turnoDAL.MarcarTurnoAusente(idTurno, salaAsignada);
         }
 
         /// <summary>
