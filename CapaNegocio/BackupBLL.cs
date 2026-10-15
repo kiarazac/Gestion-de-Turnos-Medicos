@@ -127,7 +127,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             }
 
             string rolGerente = gerenteLogin.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
-            if (!rolGerente.Contains("geren") && gerenteLogin.IdRol != 5 && gerenteLogin.IdRol != 21)
+            if (!rolGerente.Contains("geren") && gerenteLogin.IdRol != 5 && gerenteLogin.IdRol != 21 && gerenteLogin.IdRol != 25)
             {
                 throw new UnauthorizedAccessException("El usuario seleccionado como Gerente no cuenta con perfil de Gerente.");
             }
