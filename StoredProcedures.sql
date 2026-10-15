@@ -2809,18 +2809,20 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ObtenerListaTurnos
 ** Sección       : 6.2
-** Propósito     : Consulta dinámica para la grilla general de turnos. Si `@IdEspecialidad` o `@Estado` se envían como `NULL`, se omite dicho filtro.
-** Entidad/Tablas: `Turnos`, `Especialidades`, `Prioridades`
-** Invocado por  : `FrmListaTurnos`, `FrmListaTurnosAtencion` (Carga de grillas de seguimiento)
+** Propósito     : Consulta dinámica para la grilla general de turnos. Si `@IdEspecialidad`, `@Estado` o `@IdTurno` se envían como `NULL`, se omite dicho filtro. Con `@IdTurno` devuelve los datos del comprobante de ese turno.
+** Entidad/Tablas: `Turnos`, `Especialidades`, `Prioridades`, `Salas`, `Pacientes`, `ObrasSociales`
+** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (botón Descargar TXT, vía `TurnoBLL.ObtenerDatosComprobante`)
 ** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
+** Retorno       : Listado de turnos + datos del comprobante (`DatosComprobanteTurno`)
 ** Parámetros   :
 **                `@IdEspecialidad` (`INT = NULL`, IN) - Filtro opcional por especialidad.
 **                `@Estado` (`NVARCHAR(50) = NULL`, IN) - Filtro opcional por estado ('En Espera', 'Llamado', 'Atendido').
+**                `@IdTurno` (`INT = NULL`, IN) - Filtro opcional por un turno puntual (re-descarga del comprobante en FrmTurnoEmergencia / FrmTurnoEspecialidad).
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_ObtenerListaTurnos
     @IdEspecialidad INT = NULL, 
-    @Estado NVARCHAR(50) = NULL  
+    @Estado NVARCHAR(50) = NULL,
+    @IdTurno INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2836,14 +2838,29 @@ BEGIN
         e.Nombre AS NombreEspecialidad,
         pr.Descripcion AS PrioridadTexto,
         t.IdPrioridad,
-        ISNULL(s.NombreSala, '--') AS NombreSala
+        ISNULL(s.NombreSala, '--') AS NombreSala,
+        -- Datos del comprobante del turno (se mapean a DatosComprobanteTurno)
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN 'NORMAL' ELSE ISNULL(pr.Descripcion, 'MEDIA') END AS Prioridad,
+        CASE WHEN t.TipoTurno = 'Emergencia' THEN 'Emergencia' ELSE ISNULL(e.Nombre, '') END AS Seccion,
+        t.FechaCreacion AS FechaEmision,
+        ISNULL(pac.Apellido + ', ' + pac.Nombre, '') AS NombrePaciente,
+        ISNULL(pac.Dni, '') AS DniPaciente,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN CONVERT(VARCHAR(10), t.Fecha, 103) END AS FechaTurnoProgramado,
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN LEFT(CONVERT(VARCHAR(8), t.Horario, 108), 5) END AS HorarioTurnoProgramado,
+        t.CodigoCancelacion,
+        t.Monto AS MontoCobrado,
+        CAST(NULL AS NVARCHAR(100)) AS DetalleArancel
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
     WHERE t.Activo = 1
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
+      AND (@IdTurno IS NULL OR t.IdTurno = @IdTurno)
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
     END TRY
     BEGIN CATCH

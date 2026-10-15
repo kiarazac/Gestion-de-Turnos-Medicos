@@ -45,6 +45,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Detalle de la condición arancelaria (ej. 'Particular (100% Arancel Completo)' o 'Copago 30% (Obra Social)').</summary>
         public string? DetalleArancel { get; set; }
 
+        /// <summary>Estado actual del turno (solo se completa al re-descargar el comprobante desde la base).</summary>
+        public string? Estado { get; set; }
+
         /// <summary>
         /// Genera el contenido formateado del comprobante médico en texto plano.
         /// </summary>

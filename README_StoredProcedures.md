@@ -3191,11 +3191,11 @@ GO
 ---
 
 ### 6.2 `sp_ObtenerListaTurnos`
-- **Descripción:** Consulta dinámica para la grilla general de turnos. Si `@IdEspecialidad` o `@Estado` se envían como `NULL`, se omite dicho filtro.
+- **Descripción:** Consulta dinámica para la grilla general de turnos. Si `@IdEspecialidad`, `@Estado` o `@IdTurno` se envían como `NULL`, se omite dicho filtro. Con `@IdTurno` devuelve un solo turno con los datos de su comprobante, para que recepción lo vuelva a descargar desde `FrmTurnoEmergencia` y `FrmTurnoEspecialidad` (botón "Descargar TXT") mientras el turno siga 'En Espera' o 'Llamado' (validado en `TurnoBLL.ObtenerDatosComprobante`).
 - **Entidad:** Turno / Especialidad / Prioridad
 - **Operación:** Listado Dinámico
-- **Tablas:** `Turnos`, `Especialidades`, `Prioridades`
-- **Forms que lo utilizan:** `FrmListaTurnos`, `FrmListaTurnosAtencion`
+- **Tablas:** `Turnos`, `Especialidades`, `Prioridades`, `Salas`, `Pacientes`, `ObrasSociales`
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (botón "Descargar TXT", vía `TurnoBLL.ObtenerDatosComprobante`)
 - **Acción:** Carga de grillas de seguimiento
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -3203,12 +3203,14 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@IdEspecialidad` | `INT = NULL` | IN | Filtro opcional por especialidad. |
   | `@Estado` | `NVARCHAR(50) = NULL` | IN | Filtro opcional por estado ('En Espera', 'Llamado', 'Atendido'). |
-- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`, `NombreSala`.
+  | `@IdTurno` | `INT = NULL` | IN | Filtro opcional por un turno puntual (comprobante). |
+- **Devuelve:** `IdTurno`, `NroOrden`, `Estado`, `TipoTurno`, `Fecha`, `NombreEspecialidad`, `PrioridadTexto`, `IdPrioridad`, `NombreSala` y, para el comprobante (`DatosComprobanteTurno`): `Prioridad`, `Seccion`, `FechaEmision`, `NombrePaciente`, `DniPaciente`, `ObraSocial`, `FechaTurnoProgramado`, `HorarioTurnoProgramado`, `CodigoCancelacion`, `MontoCobrado`, `DetalleArancel` (siempre `NULL`, lo completa la BLL).
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ObtenerListaTurnos
     @IdEspecialidad INT = NULL, 
-    @Estado NVARCHAR(50) = NULL  
+    @Estado NVARCHAR(50) = NULL,
+    @IdTurno INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -3224,14 +3226,29 @@ BEGIN
         e.Nombre AS NombreEspecialidad,
         pr.Descripcion AS PrioridadTexto,
         t.IdPrioridad,
-        ISNULL(s.NombreSala, '--') AS NombreSala
+        ISNULL(s.NombreSala, '--') AS NombreSala,
+        -- Datos del comprobante del turno (se mapean a DatosComprobanteTurno)
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN 'NORMAL' ELSE ISNULL(pr.Descripcion, 'MEDIA') END AS Prioridad,
+        CASE WHEN t.TipoTurno = 'Emergencia' THEN 'Emergencia' ELSE ISNULL(e.Nombre, '') END AS Seccion,
+        t.FechaCreacion AS FechaEmision,
+        ISNULL(pac.Apellido + ', ' + pac.Nombre, '') AS NombrePaciente,
+        ISNULL(pac.Dni, '') AS DniPaciente,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN CONVERT(VARCHAR(10), t.Fecha, 103) END AS FechaTurnoProgramado,
+        CASE WHEN t.TipoTurno = 'Especialidad' THEN LEFT(CONVERT(VARCHAR(8), t.Horario, 108), 5) END AS HorarioTurnoProgramado,
+        t.CodigoCancelacion,
+        t.Monto AS MontoCobrado,
+        CAST(NULL AS NVARCHAR(100)) AS DetalleArancel
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
     WHERE t.Activo = 1
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
+      AND (@IdTurno IS NULL OR t.IdTurno = @IdTurno)
     ORDER BY t.IdPrioridad ASC, t.FechaCreacion ASC;
     END TRY
     BEGIN CATCH
@@ -4505,7 +4522,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 37 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
 | 38 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
 | 39 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
-| 40 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
+| 40 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Listado filtrado y datos para re-descargar el comprobante de un turno | `EN USO` |
 | 41 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente y síntomas (Filtro hoy) | `EN USO` |
 | 41.1 | `sp_MarcarTurnoAusente`| Turno | Inasistencia | `FrmListaTurnosAtencion` | Botón `btnNoSePresento` ("❌ No se presentó") | `EN USO` |
 | 41.2 | `sp_ObtenerSintomasPorTurno`| TurnoSintoma / Sintoma | Consulta Síntomas | `FrmListaTurnosAtencion` | `btnIniciarAtencion` / Panel (Visualizar sintomatología de guardia) | `EN USO` |

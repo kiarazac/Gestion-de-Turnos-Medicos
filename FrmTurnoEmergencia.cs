@@ -380,6 +380,7 @@ namespace Gestion_de_Turnos_Medicos
                 if (turno != null)
                 {
                     _turnoACancelar = turno;
+                    btnDescargarTxt.Enabled = true;
                     lblTurnoInfoPaciente.Text = $"Paciente: {turno.PacienteCompleto} (DNI: {turno.Dni})";
                     lblTurnoInfoTriage.Text = $"Turno: #{turno.NroOrden} | Triage: {turno.Prioridad} | Estado: {turno.Estado}";
                     txtClaveCancelacionEmergencia.Clear();
@@ -388,6 +389,7 @@ namespace Gestion_de_Turnos_Medicos
                 else
                 {
                     _turnoACancelar = null;
+                    btnDescargarTxt.Enabled = _ultimoTurnoEmitido != null;
                     lblTurnoInfoPaciente.Text = "Paciente: No se encontró ningún turno activo";
                     lblTurnoInfoTriage.Text = "Triage: -- | Estado: --";
                     txtClaveCancelacionEmergencia.Clear();
@@ -485,7 +487,21 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void BtnDescargarTxt_Click(object? sender, EventArgs e)
         {
-            if (_ultimoTurnoEmitido == null)
+            DatosComprobanteTurno? datos;
+            try
+            {
+                // Turno localizado en el panel de cancelación: se reconstruye el comprobante desde la base
+                datos = _turnoACancelar != null
+                    ? _turnoBLL.ObtenerDatosComprobante(_turnoACancelar.IdTurno)
+                    : _ultimoTurnoEmitido;
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (datos == null)
             {
                 MessageBox.Show("No hay ningún turno emitido recientemente para descargar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -496,12 +512,12 @@ namespace Gestion_de_Turnos_Medicos
                 using (SaveFileDialog sfd = new SaveFileDialog())
                 {
                     sfd.Filter = "Archivo de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*";
-                    sfd.FileName = $"Turno_{_ultimoTurnoEmitido.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    sfd.FileName = $"Turno_{datos.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                     sfd.Title = "Guardar Comprobante de Turno de Emergencia";
 
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
-                        System.IO.File.WriteAllText(sfd.FileName, _ultimoTurnoEmitido.GenerarContenidoTxt());
+                        System.IO.File.WriteAllText(sfd.FileName, datos.GenerarContenidoTxt());
                         MessageBox.Show("¡Comprobante de turno generado y guardado exitosamente!", "Descarga Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }

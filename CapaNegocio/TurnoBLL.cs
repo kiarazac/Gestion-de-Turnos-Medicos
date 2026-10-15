@@ -2,6 +2,7 @@ using Gestion_de_Turnos_Medicos.CapaDeDatos;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace Gestion_de_Turnos_Medicos.Negocio
@@ -413,6 +414,33 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         public List<TurnoListadoDTO> ObtenerListaTurnos(int? idEspecialidad = null, string? estado = null)
         {
             return _turnoDAL.ObtenerListaTurnos(idEspecialidad, estado);
+        }
+
+        /// <summary>
+        /// Obtiene los datos para volver a descargar el comprobante de un turno.
+        /// Solo se permite mientras el turno siga 'En Espera' o 'Llamado', y si su fecha es hoy o posterior.
+        /// </summary>
+        /// <param name="idTurno">ID del turno.</param>
+        /// <returns>Datos del comprobante listos para <see cref="DatosComprobanteTurno.GenerarContenidoTxt"/>.</returns>
+        public DatosComprobanteTurno ObtenerDatosComprobante(int idTurno)
+        {
+            var datos = _turnoDAL.ObtenerDatosComprobante(idTurno)
+                ?? throw new InvalidOperationException("El turno no existe o fue dado de baja.");
+
+            if (datos.Estado != "En Espera" && datos.Estado != "Llamado")
+                throw new InvalidOperationException($"El turno {datos.NroOrden} está '{datos.Estado}'. Solo se puede descargar el comprobante de turnos En Espera o Llamados.");
+
+            // Especialidad: fecha programada. Emergencia: no tiene fecha programada, así que vale la fecha de emisión (mismo día que el turno)
+            DateTime fechaTurno = datos.FechaEmision.Date;
+            if (!string.IsNullOrEmpty(datos.FechaTurnoProgramado)
+                && DateTime.TryParseExact(datos.FechaTurnoProgramado, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime fechaProgramada))
+                fechaTurno = fechaProgramada;
+
+            if (fechaTurno.Date < DateTime.Today)
+                throw new InvalidOperationException($"El turno {datos.NroOrden} es del {fechaTurno:dd/MM/yyyy}. Solo se puede descargar el comprobante de turnos de hoy en adelante.");
+
+            datos.DetalleArancel = ObtenerCondicionCobroTexto(datos.ObraSocial);
+            return datos;
         }
 
         /// <summary>

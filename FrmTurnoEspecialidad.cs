@@ -284,6 +284,7 @@ namespace Gestion_de_Turnos_Medicos
             {
                 gbDetalleTurno.Visible = false;
                 button1.Enabled = true;
+                btnDescargarTxt.Enabled = _ultimoTurnoEmitido != null;
                 return;
             }
 
@@ -292,6 +293,7 @@ namespace Gestion_de_Turnos_Medicos
                 // Horario libre para reservar
                 gbDetalleTurno.Visible = false;
                 button1.Enabled = true;
+                btnDescargarTxt.Enabled = _ultimoTurnoEmitido != null;
                 txtClaveCancelacion.Clear();
             }
             else
@@ -302,6 +304,7 @@ namespace Gestion_de_Turnos_Medicos
                 lblDetallePaciente.Text = $"Paciente: {slot.Paciente ?? "--"}";
                 lblDetalleDni.Text = $"DNI: {slot.Dni ?? "--"} | O.S.: {slot.ObraSocial ?? "--"}";
                 lblDetalleTurnoNro.Text = $"Turno: #{slot.NroOrden ?? "--"} | Estado: {slot.Estado ?? "En Espera"}";
+                btnDescargarTxt.Enabled = slot.Estado == "En Espera" || slot.Estado == "Llamado";
                 txtClaveCancelacion.Clear();
             }
         }
@@ -488,7 +491,21 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void BtnDescargarTxt_Click(object? sender, EventArgs e)
         {
-            if (_ultimoTurnoEmitido == null)
+            DatosComprobanteTurno? datos;
+            try
+            {
+                // Turno ocupado seleccionado: se reconstruye el comprobante desde la base (sirve aunque se haya reabierto la ventana)
+                datos = cmbHorarios.SelectedItem is HorarioDisponibleDTO slot && !slot.EstaDisponible && slot.IdTurno.HasValue
+                    ? _turnoBLL.ObtenerDatosComprobante(slot.IdTurno.Value)
+                    : _ultimoTurnoEmitido;
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (datos == null)
             {
                 MessageBox.Show("No hay ningún turno emitido recientemente para descargar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -499,12 +516,12 @@ namespace Gestion_de_Turnos_Medicos
                 using (SaveFileDialog sfd = new SaveFileDialog())
                 {
                     sfd.Filter = "Archivo de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*";
-                    sfd.FileName = $"Turno_{_ultimoTurnoEmitido.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    sfd.FileName = $"Turno_{datos.NroOrden}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                     sfd.Title = "Guardar Comprobante de Turno de Especialidad";
 
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
-                        System.IO.File.WriteAllText(sfd.FileName, _ultimoTurnoEmitido.GenerarContenidoTxt());
+                        System.IO.File.WriteAllText(sfd.FileName, datos.GenerarContenidoTxt());
                         MessageBox.Show("¡Comprobante de turno generado y guardado exitosamente!", "Descarga Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }

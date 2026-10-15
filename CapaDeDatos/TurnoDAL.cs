@@ -438,6 +438,26 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
+        /// Ejecuta <c>sp_ObtenerListaTurnos</c> filtrando por <c>@IdTurno</c> para recuperar los datos del comprobante de un turno.
+        /// </summary>
+        /// <param name="idTurno">ID del turno.</param>
+        /// <returns>Datos del comprobante, o <c>null</c> si el turno no existe o está inactivo.</returns>
+        public DatosComprobanteTurno? ObtenerDatosComprobante(int idTurno)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", DBNull.Value);
+                var pEstado = new SqlParameter("@Estado", DBNull.Value);
+                var pIdTurno = new SqlParameter("@IdTurno", idTurno);
+
+                return context.Database
+                    .SqlQueryRaw<DatosComprobanteTurno>("EXEC sp_ObtenerListaTurnos @IdEspecialidad, @Estado, @IdTurno", pIdEspecialidad, pEstado, pIdTurno)
+                    .ToList()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ListarTurnosAtencion</c> para obtener la cola de turnos en proceso de atención.
         /// </summary>
         /// <returns>Lista de <see cref="TurnoAtencionDTO"/>.</returns>
