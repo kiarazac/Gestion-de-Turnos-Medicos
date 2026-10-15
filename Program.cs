@@ -79,6 +79,17 @@ namespace Gestion_de_Turnos_Medicos
                 Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialPdf, ingresos, coberturas, demanda, desde, hasta, gerente);
                 Console.WriteLine($"[OK] PDF Gerencial generado exitosamente ({new FileInfo(pathGerencialPdf).Length} bytes): {pathGerencialPdf}");
 
+                // 3.1 Verificar Nuevos Reportes de Auditoría de Emisión y Ranking de Médicos
+                var resumenAudit = reporteBLL.ObtenerAuditoriaRecaudacionResumen(DateTime.Today, DateTime.Today);
+                var detalleAudit = reporteBLL.ObtenerAuditoriaRecaudacionDetalle(DateTime.Today, DateTime.Today);
+                var rankingMedicos = reporteBLL.ObtenerRankingMedicos(DateTime.Today, DateTime.Today);
+                Console.WriteLine($"[OK] Reporte Auditoría Emisión: {resumenAudit.TotalTurnos} tickets emitidos, ${resumenAudit.TotalRecaudado:N2} recaudados. Filas detalle: {detalleAudit.Count}.");
+                Console.WriteLine($"[OK] Reporte Ranking Médicos: {rankingMedicos.Count} profesionales clasificados. Líder: {rankingMedicos.FirstOrDefault()?.NombreMedico} ({rankingMedicos.FirstOrDefault()?.AtencionesRealizadas} atenciones).");
+
+                string pathGerencialAuditadoPdf = Path.Combine(testDir, "Test_ReporteGerencial_Auditado.pdf");
+                Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialAuditadoPdf, resumenAudit, detalleAudit, rankingMedicos, DateTime.Today, DateTime.Today, gerente);
+                Console.WriteLine($"[OK] PDF Gerencial Auditado generado exitosamente ({new FileInfo(pathGerencialAuditadoPdf).Length} bytes): {pathGerencialAuditadoPdf}");
+
                 // 4. Verificar Reporte Médico y Triage de Atenciones
                 var historiaBLL = new Negocio.HistoriaClinicaBLL();
                 var turnoBLL = new Negocio.TurnoBLL();

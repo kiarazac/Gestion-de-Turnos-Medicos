@@ -12,18 +12,19 @@ using Gestion_de_Turnos_Medicos.Servicios;
 namespace Gestion_de_Turnos_Medicos
 {
     /// <summary>
-    /// Formulario de panel de control y reportería estratégica para el perfil Gerente / Dueño de Negocio.
-    /// Centraliza la auditoría financiera: facturación por médico, obras sociales vs particulares,
-    /// ranking de demanda y exportación exclusiva a formato PDF oficial inmutable.
+    /// Formulario de panel de control y auditoría estratégica exclusiva para el perfil Gerente / Dueño de Negocio.
+    /// Centraliza exactamente dos reportes fundamentales:
+    /// 1. Recaudación del día / Auditoría de recepcionistas (por fecha de emisión, tipo de turno y coberturas).
+    /// 2. Ranking oficial de médicos por atenciones y consultas efectivamente realizadas.
     /// </summary>
     public partial class FrmReportesGerente : Form
     {
         private readonly ReporteBLL _reporteBLL = new ReporteBLL();
         private readonly UsuarioLoginResult? _usuarioActual;
 
-        private List<ReporteIngresoMedicoDTO> _ingresos = new List<ReporteIngresoMedicoDTO>();
-        private List<ReporteObraSocialVsParticularDTO> _coberturas = new List<ReporteObraSocialVsParticularDTO>();
-        private List<ReporteDemandaMedicoRankingDTO> _demanda = new List<ReporteDemandaMedicoRankingDTO>();
+        private ReporteRecaudacionAuditoriaResumenDTO _resumen = new ReporteRecaudacionAuditoriaResumenDTO();
+        private List<ReporteRecaudacionAuditoriaDetalleDTO> _detalles = new List<ReporteRecaudacionAuditoriaDetalleDTO>();
+        private List<ReporteRankingMedicoDTO> _ranking = new List<ReporteRankingMedicoDTO>();
 
         public FrmReportesGerente() : this(null)
         {
@@ -43,196 +44,167 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmReportesGerente_Load(object? sender, EventArgs e)
         {
             ConfigurarGrillas();
-            cmbPeriodo.SelectedIndex = 2; // "Mes actual"
+            cmbPeriodo.SelectedIndex = 0; // "Hoy" por defecto para auditar la recaudación del día
             CargarDatos();
         }
 
         private void ConfigurarGrillas()
         {
-            // 1. Grilla de Ingresos por Médico
-            dgvIngresos.AutoGenerateColumns = false;
-            dgvIngresos.Columns.Clear();
-            dgvIngresos.RowHeadersVisible = false;
-            dgvIngresos.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvIngresos.ReadOnly = true;
-            dgvIngresos.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+            // 1. Grilla de Recaudación y Auditoría de Recepción (Emisión en Caja)
+            dgvRecaudacionAuditoria.AutoGenerateColumns = false;
+            dgvRecaudacionAuditoria.Columns.Clear();
+            dgvRecaudacionAuditoria.RowHeadersVisible = false;
+            dgvRecaudacionAuditoria.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRecaudacionAuditoria.ReadOnly = true;
+            dgvRecaudacionAuditoria.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
 
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colMedico",
-                HeaderText = "Profesional Médico",
-                DataPropertyName = "NombreMedico",
-                Width = 190
+                Name = "colNroOrden",
+                HeaderText = "N° Orden",
+                DataPropertyName = "NroOrden",
+                Width = 75,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9F, FontStyle.Bold) }
             });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colFechaEmision",
+                HeaderText = "Fecha / Hora Emisión",
+                DataPropertyName = "FechaEmision",
+                Width = 145,
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "dd/MM/yyyy HH:mm", Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colPaciente",
+                HeaderText = "Paciente",
+                DataPropertyName = "Paciente",
+                Width = 160
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colDni",
+                HeaderText = "DNI",
+                DataPropertyName = "DniPaciente",
+                Width = 85,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colTipoTurno",
+                HeaderText = "Tipo Turno",
+                DataPropertyName = "TipoTurno",
+                Width = 100,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colEspecialidad",
                 HeaderText = "Especialidad",
                 DataPropertyName = "Especialidad",
-                Width = 140
+                Width = 130
             });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colObraSocial",
+                HeaderText = "Obra Social / Prepaga",
+                DataPropertyName = "ObraSocial",
+                Width = 150
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colTipoCobertura",
+                HeaderText = "Cobertura",
+                DataPropertyName = "TipoCobertura",
+                Width = 105,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colMonto",
+                HeaderText = "Monto Cobrado",
+                DataPropertyName = "MontoCobrado",
+                Width = 115,
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight, Font = new Font("Segoe UI", 9F, FontStyle.Bold), ForeColor = Color.FromArgb(22, 101, 52) }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colEstado",
+                HeaderText = "Estado Turno",
+                DataPropertyName = "EstadoTurno",
+                Width = 100,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvRecaudacionAuditoria.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colMedicoAsignado",
+                HeaderText = "Médico Tratante",
+                DataPropertyName = "MedicoAsignado",
+                Width = 150
+            });
+
+            // 2. Grilla de Ranking de Médicos por Atenciones Realizadas
+            dgvRankingMedicos.AutoGenerateColumns = false;
+            dgvRankingMedicos.Columns.Clear();
+            dgvRankingMedicos.RowHeadersVisible = false;
+            dgvRankingMedicos.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvRankingMedicos.ReadOnly = true;
+            dgvRankingMedicos.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colPosicion",
+                HeaderText = "# Posición",
+                DataPropertyName = "Posicion",
+                Width = 80,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), ForeColor = Color.FromArgb(15, 118, 110) }
+            });
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colNombreMedico",
+                HeaderText = "Profesional Médico",
+                DataPropertyName = "NombreMedico",
+                Width = 220,
+                DefaultCellStyle = new DataGridViewCellStyle { Font = new Font("Segoe UI", 9F, FontStyle.Bold) }
+            });
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "colEspecialidadRanking",
+                HeaderText = "Especialidades Asignadas",
+                DataPropertyName = "Especialidad",
+                Width = 200
+            });
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colMatricula",
                 HeaderText = "Matrícula",
                 DataPropertyName = "Matricula",
-                Width = 90
-            });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colConsultas",
-                HeaderText = "Consultas",
-                DataPropertyName = "ConsultasAtendidas",
-                Width = 85,
+                Width = 95,
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colFacturacion",
-                HeaderText = "Facturación Total",
-                DataPropertyName = "IngresosTotales",
-                Width = 130,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight }
+                Name = "colAtenciones",
+                HeaderText = "Atenciones Realizadas",
+                DataPropertyName = "AtencionesRealizadas",
+                Width = 145,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = Color.FromArgb(15, 118, 110) }
             });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colTicket",
-                HeaderText = "Ticket Promedio",
-                DataPropertyName = "TicketPromedio",
-                Width = 120,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight }
-            });
-            dgvIngresos.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colAporte",
-                HeaderText = "% Aporte",
-                DataPropertyName = "PorcentajeAporte",
-                Width = 85,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
-            });
-
-            // 2. Grilla de Obras Sociales vs Particulares
-            dgvCoberturas.AutoGenerateColumns = false;
-            dgvCoberturas.Columns.Clear();
-            dgvCoberturas.RowHeadersVisible = false;
-            dgvCoberturas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvCoberturas.ReadOnly = true;
-            dgvCoberturas.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
-
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colCobertura",
-                HeaderText = "Obra Social / Cobertura",
-                DataPropertyName = "NombreCobertura",
-                Width = 220
-            });
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colTipoCobertura",
-                HeaderText = "Tipo Cobertura",
-                DataPropertyName = "TipoCobertura",
-                Width = 140
-            });
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colCantTurnos",
-                HeaderText = "Turnos",
-                DataPropertyName = "CantidadTurnos",
-                Width = 90,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colTotalRecaudado",
-                HeaderText = "Total Recaudado",
+                HeaderText = "Facturación Total",
                 DataPropertyName = "TotalRecaudado",
-                Width = 140,
+                Width = 135,
                 DefaultCellStyle = new DataGridViewCellStyle { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight }
             });
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
+            dgvRankingMedicos.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colTicketCob",
-                HeaderText = "Ticket Promedio",
-                DataPropertyName = "TicketPromedio",
-                Width = 120,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight }
-            });
-            dgvCoberturas.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colPorcFact",
-                HeaderText = "% Facturación",
-                DataPropertyName = "PorcentajeFacturacion",
-                Width = 100,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
-            });
-
-            // 3. Grilla de Demanda de Médicos
-            dgvDemanda.AutoGenerateColumns = false;
-            dgvDemanda.Columns.Clear();
-            dgvDemanda.RowHeadersVisible = false;
-            dgvDemanda.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvDemanda.ReadOnly = true;
-            dgvDemanda.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
-
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colRank",
-                HeaderText = "#",
-                Width = 45,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colDemandaMedico",
-                HeaderText = "Profesional Médico",
-                DataPropertyName = "NombreMedico",
-                Width = 190
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colDemandaEsp",
-                HeaderText = "Especialidad",
-                DataPropertyName = "Especialidad",
-                Width = 140
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colAsignados",
-                HeaderText = "Asignados",
-                DataPropertyName = "TotalTurnosAsignados",
-                Width = 85,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colAtendidos",
-                HeaderText = "Atendidos",
-                DataPropertyName = "TurnosAtendidos",
-                Width = 85,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colEspera",
-                HeaderText = "En Espera",
-                DataPropertyName = "TurnosEnEspera",
-                Width = 85,
-                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colResolucion",
-                HeaderText = "% Resolutividad",
-                DataPropertyName = "TasaResolucion",
+                Name = "colPorcentaje",
+                HeaderText = "% Participación",
+                DataPropertyName = "PorcentajeParticipacion",
                 Width = 110,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight }
-            });
-            dgvDemanda.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colCategoria",
-                HeaderText = "Categoría Demanda",
-                DataPropertyName = "CategoriaDemanda",
-                Width = 140
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "N1", Alignment = DataGridViewContentAlignment.MiddleRight, Font = new Font("Segoe UI", 9F, FontStyle.Bold) }
             });
         }
 
@@ -287,32 +259,26 @@ namespace Gestion_de_Turnos_Medicos
             {
                 Cursor = Cursors.WaitCursor;
 
-                _ingresos = _reporteBLL.ObtenerIngresosPorMedico(desde, hasta);
-                _coberturas = _reporteBLL.ObtenerObrasSocialesVsParticulares(desde, hasta);
-                _demanda = _reporteBLL.ObtenerDemandaMedicosRanking(desde, hasta);
+                // 1. Auditoría de Recaudación en base al día de emisión del turno (Caja / Recepcionistas)
+                _resumen = _reporteBLL.ObtenerAuditoriaRecaudacionResumen(desde, hasta);
+                _detalles = _reporteBLL.ObtenerAuditoriaRecaudacionDetalle(desde, hasta);
+
+                // 2. Ranking de Médicos en base a las atenciones efectivamente realizadas
+                _ranking = _reporteBLL.ObtenerRankingMedicos(desde, hasta);
 
                 // Enlazar grillas
-                dgvIngresos.DataSource = null;
-                dgvIngresos.DataSource = _ingresos;
+                dgvRecaudacionAuditoria.DataSource = null;
+                dgvRecaudacionAuditoria.DataSource = _detalles;
 
-                dgvCoberturas.DataSource = null;
-                dgvCoberturas.DataSource = _coberturas;
+                dgvRankingMedicos.DataSource = null;
+                dgvRankingMedicos.DataSource = _ranking;
 
-                dgvDemanda.DataSource = null;
-                dgvDemanda.DataSource = _demanda;
-
-                // Asignar números de orden correlativos al ranking de demanda
-                for (int i = 0; i < dgvDemanda.Rows.Count; i++)
-                {
-                    dgvDemanda.Rows[i].Cells["colRank"].Value = (i + 1).ToString();
-                }
-
-                // Actualizar KPIs
+                // Actualizar tarjetas superiores de KPI
                 ActualizarKpis();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al cargar la información gerencial:\n" + ex.Message,
+                MessageBox.Show("Ocurrió un error al cargar la información de auditoría:\n" + ex.Message,
                     "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -323,22 +289,17 @@ namespace Gestion_de_Turnos_Medicos
 
         private void ActualizarKpis()
         {
-            int totalConsultas = _ingresos.Sum(i => i.ConsultasAtendidas);
-            decimal totalFacturado = _ingresos.Sum(i => i.IngresosTotales);
-            decimal totalParticulares = _coberturas.Where(c => c.TipoCobertura.Equals("Particular", StringComparison.OrdinalIgnoreCase)).Sum(c => c.TotalRecaudado);
-            decimal totalObrasSociales = _coberturas.Where(c => !c.TipoCobertura.Equals("Particular", StringComparison.OrdinalIgnoreCase)).Sum(c => c.TotalRecaudado);
-
-            lblKpiConsultas.Text = totalConsultas.ToString("N0");
-            lblKpiFacturacion.Text = $"$ {totalFacturado:N2}";
-            lblKpiParticulares.Text = $"$ {totalParticulares:N2}";
-            lblKpiObrasSociales.Text = $"$ {totalObrasSociales:N2}";
+            lblKpiConsultas.Text = $"{_resumen.TotalTurnos} tickets";
+            lblKpiFacturacion.Text = $"$ {_resumen.TotalRecaudado:N2}";
+            lblKpiObrasSociales.Text = $"OS: ${_resumen.MontoObraSocial:N0} | Part: ${_resumen.MontoParticulares:N0}";
+            lblKpiParticulares.Text = $"Emg: ${_resumen.MontoEmergencia:N0} | Esp: ${_resumen.MontoEspecialidad:N0}";
         }
 
         private void BtnExportar_Click(object? sender, EventArgs e)
         {
-            if (_ingresos.Count == 0 && _coberturas.Count == 0 && _demanda.Count == 0)
+            if (_detalles.Count == 0 && _ranking.Count == 0)
             {
-                MessageBox.Show("No hay datos disponibles para exportar en el rango seleccionado.",
+                MessageBox.Show("No hay datos disponibles para exportar en el rango de fechas seleccionado.",
                     "Exportar Reporte", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -348,7 +309,7 @@ namespace Gestion_de_Turnos_Medicos
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmm");
                 sfd.Filter = "Documento Oficial PDF (*.pdf)|*.pdf";
                 sfd.FilterIndex = 1;
-                sfd.FileName = $"Reporte_Gerencial_Facturacion_{timestamp}.pdf";
+                sfd.FileName = $"Reporte_Gerencial_Recaudacion_y_Ranking_{timestamp}.pdf";
 
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
@@ -358,15 +319,15 @@ namespace Gestion_de_Turnos_Medicos
 
                         ExportadorPdf.ExportarReporteGerencial(
                             sfd.FileName,
-                            _ingresos,
-                            _coberturas,
-                            _demanda,
+                            _resumen,
+                            _detalles,
+                            _ranking,
                             dtpDesde.Value.Date,
                             dtpHasta.Value.Date,
                             _usuarioActual);
 
                         var resp = MessageBox.Show(
-                            $"Reporte oficial generado con éxito en:\n{sfd.FileName}\n\n¿Desea abrir el documento PDF ahora?",
+                            $"Reporte oficial gerencial generado con éxito en:\n{sfd.FileName}\n\n¿Desea abrir el documento PDF ahora?",
                             "Reporte Gerencial Emitido",
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Information);
@@ -379,7 +340,7 @@ namespace Gestion_de_Turnos_Medicos
                             }
                             catch
                             {
-                                // Si el visor predeterminado no pudo abrirse directamente
+                                // Si el visor predeterminado no pudo abrirse automáticamente
                             }
                         }
                     }

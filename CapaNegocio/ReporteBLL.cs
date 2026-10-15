@@ -128,5 +128,44 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 
             return _reporteDAL.ObtenerRankingDiagnosticosMedico(idUsuario, fechaDesde, fechaHasta);
         }
+
+        /// <summary>
+        /// Obtiene los totales consolidados de recaudación financiera y tickets emitidos para la auditoría de recepcionistas.
+        /// </summary>
+        public ReporteRecaudacionAuditoriaResumenDTO ObtenerAuditoriaRecaudacionResumen(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerAuditoriaRecaudacionResumen(fechaDesde, fechaHasta);
+        }
+
+        /// <summary>
+        /// Obtiene el detalle auditado de turnos emitidos y cobrados por recepción en el período seleccionado.
+        /// </summary>
+        public List<ReporteRecaudacionAuditoriaDetalleDTO> ObtenerAuditoriaRecaudacionDetalle(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerAuditoriaRecaudacionDetalle(fechaDesde, fechaHasta);
+        }
+
+        /// <summary>
+        /// Obtiene el ranking oficial de médicos en base a la cantidad de consultas efectivamente atendidas en el rango seleccionado.
+        /// </summary>
+        public List<ReporteRankingMedicoDTO> ObtenerRankingMedicos(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            {
+                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
+            }
+
+            return _reporteDAL.ObtenerRankingMedicos(fechaDesde, fechaHasta);
+        }
     }
 }

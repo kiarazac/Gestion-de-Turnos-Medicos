@@ -43,12 +43,10 @@ namespace Gestion_de_Turnos_Medicos
             lblKpiConsultas = new Label();
             lblTituloCons = new Label();
             tabReportes = new TabControl();
-            tabIngresos = new TabPage();
-            dgvIngresos = new DataGridView();
-            tabCoberturas = new TabPage();
-            dgvCoberturas = new DataGridView();
-            tabDemanda = new TabPage();
-            dgvDemanda = new DataGridView();
+            tabRecaudacionAuditoria = new TabPage();
+            dgvRecaudacionAuditoria = new DataGridView();
+            tabRankingMedicos = new TabPage();
+            dgvRankingMedicos = new DataGridView();
             pnlHeader.SuspendLayout();
             pnlFiltros.SuspendLayout();
             pnlKpis.SuspendLayout();
@@ -57,12 +55,10 @@ namespace Gestion_de_Turnos_Medicos
             pnlKpiFact.SuspendLayout();
             pnlKpiCons.SuspendLayout();
             tabReportes.SuspendLayout();
-            tabIngresos.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dgvIngresos).BeginInit();
-            tabCoberturas.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dgvCoberturas).BeginInit();
-            tabDemanda.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dgvDemanda).BeginInit();
+            tabRecaudacionAuditoria.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRecaudacionAuditoria).BeginInit();
+            tabRankingMedicos.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRankingMedicos).BeginInit();
             SuspendLayout();
             // 
             // pnlHeader
@@ -83,9 +79,9 @@ namespace Gestion_de_Turnos_Medicos
             lblSubtitulo.ForeColor = Color.FromArgb(204, 251, 241);
             lblSubtitulo.Location = new Point(20, 36);
             lblSubtitulo.Name = "lblSubtitulo";
-            lblSubtitulo.Size = new Size(495, 17);
+            lblSubtitulo.Size = new Size(590, 17);
             lblSubtitulo.TabIndex = 1;
-            lblSubtitulo.Text = "Facturación por médico, distribución de obras sociales y análisis de demanda";
+            lblSubtitulo.Text = "Auditoría de recaudación de recepcionistas por emisión y ranking de médicos por atenciones realizadas";
             // 
             // lblTitulo
             // 
@@ -94,9 +90,9 @@ namespace Gestion_de_Turnos_Medicos
             lblTitulo.ForeColor = Color.White;
             lblTitulo.Location = new Point(18, 9);
             lblTitulo.Name = "lblTitulo";
-            lblTitulo.Size = new Size(405, 25);
+            lblTitulo.Size = new Size(460, 25);
             lblTitulo.TabIndex = 0;
-            lblTitulo.Text = "Panel Gerencial de Facturación y Demanda";
+            lblTitulo.Text = "Panel Gerencial de Recaudación y Ranking Médico";
             // 
             // pnlFiltros
             // 
@@ -228,11 +224,11 @@ namespace Gestion_de_Turnos_Medicos
             // lblKpiParticulares
             // 
             lblKpiParticulares.AutoSize = true;
-            lblKpiParticulares.Font = new Font("Segoe UI", 12.5F, FontStyle.Bold);
+            lblKpiParticulares.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
             lblKpiParticulares.ForeColor = Color.FromArgb(71, 85, 105);
-            lblKpiParticulares.Location = new Point(12, 26);
+            lblKpiParticulares.Location = new Point(10, 27);
             lblKpiParticulares.Name = "lblKpiParticulares";
-            lblKpiParticulares.Size = new Size(59, 23);
+            lblKpiParticulares.Size = new Size(52, 20);
             lblKpiParticulares.TabIndex = 1;
             lblKpiParticulares.Text = "$ 0,00";
             // 
@@ -241,11 +237,11 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloParticulares.AutoSize = true;
             lblTituloParticulares.Font = new Font("Segoe UI", 7.5F, FontStyle.Bold);
             lblTituloParticulares.ForeColor = Color.FromArgb(100, 116, 139);
-            lblTituloParticulares.Location = new Point(12, 8);
+            lblTituloParticulares.Location = new Point(10, 8);
             lblTituloParticulares.Name = "lblTituloParticulares";
-            lblTituloParticulares.Size = new Size(125, 12);
+            lblTituloParticulares.Size = new Size(168, 12);
             lblTituloParticulares.TabIndex = 0;
-            lblTituloParticulares.Text = "PARTICULARES (100%)";
+            lblTituloParticulares.Text = "EMERGENCIA VS ESPECIALIDAD";
             // 
             // pnlKpiOS
             // 
@@ -261,11 +257,11 @@ namespace Gestion_de_Turnos_Medicos
             // lblKpiObrasSociales
             // 
             lblKpiObrasSociales.AutoSize = true;
-            lblKpiObrasSociales.Font = new Font("Segoe UI", 12.5F, FontStyle.Bold);
+            lblKpiObrasSociales.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
             lblKpiObrasSociales.ForeColor = Color.FromArgb(3, 105, 161);
-            lblKpiObrasSociales.Location = new Point(12, 26);
+            lblKpiObrasSociales.Location = new Point(10, 27);
             lblKpiObrasSociales.Name = "lblKpiObrasSociales";
-            lblKpiObrasSociales.Size = new Size(59, 23);
+            lblKpiObrasSociales.Size = new Size(52, 20);
             lblKpiObrasSociales.TabIndex = 1;
             lblKpiObrasSociales.Text = "$ 0,00";
             // 
@@ -274,11 +270,11 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloOS.AutoSize = true;
             lblTituloOS.Font = new Font("Segoe UI", 7.5F, FontStyle.Bold);
             lblTituloOS.ForeColor = Color.FromArgb(100, 116, 139);
-            lblTituloOS.Location = new Point(12, 8);
+            lblTituloOS.Location = new Point(10, 8);
             lblTituloOS.Name = "lblTituloOS";
-            lblTituloOS.Size = new Size(130, 12);
+            lblTituloOS.Size = new Size(147, 12);
             lblTituloOS.TabIndex = 0;
-            lblTituloOS.Text = "OBRAS SOCIALES (TOTAL)";
+            lblTituloOS.Text = "OBRAS SOCIALES VS PART.";
             // 
             // pnlKpiFact
             // 
@@ -309,9 +305,9 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloFact.ForeColor = Color.FromArgb(100, 116, 139);
             lblTituloFact.Location = new Point(12, 8);
             lblTituloFact.Name = "lblTituloFact";
-            lblTituloFact.Size = new Size(142, 12);
+            lblTituloFact.Size = new Size(168, 12);
             lblTituloFact.TabIndex = 0;
-            lblTituloFact.Text = "FACTURACIÓN GLOBAL BRUTA";
+            lblTituloFact.Text = "RECAUDACIÓN TOTAL AUDITADA";
             // 
             // pnlKpiCons
             // 
@@ -344,13 +340,12 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloCons.Name = "lblTituloCons";
             lblTituloCons.Size = new Size(130, 12);
             lblTituloCons.TabIndex = 0;
-            lblTituloCons.Text = "CONSULTAS ATENDIDAS";
+            lblTituloCons.Text = "TOTAL TICKETS EMITIDOS";
             // 
             // tabReportes
             // 
-            tabReportes.Controls.Add(tabIngresos);
-            tabReportes.Controls.Add(tabCoberturas);
-            tabReportes.Controls.Add(tabDemanda);
+            tabReportes.Controls.Add(tabRecaudacionAuditoria);
+            tabReportes.Controls.Add(tabRankingMedicos);
             tabReportes.Dock = DockStyle.Fill;
             tabReportes.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             tabReportes.Location = new Point(0, 192);
@@ -359,71 +354,49 @@ namespace Gestion_de_Turnos_Medicos
             tabReportes.Size = new Size(1008, 488);
             tabReportes.TabIndex = 3;
             // 
-            // tabIngresos
+            // tabRecaudacionAuditoria
             // 
-            tabIngresos.Controls.Add(dgvIngresos);
-            tabIngresos.Location = new Point(4, 25);
-            tabIngresos.Name = "tabIngresos";
-            tabIngresos.Padding = new Padding(5);
-            tabIngresos.Size = new Size(1000, 459);
-            tabIngresos.TabIndex = 0;
-            tabIngresos.Text = "  💰 Ingresos por Médico  ";
-            tabIngresos.UseVisualStyleBackColor = true;
+            tabRecaudacionAuditoria.Controls.Add(dgvRecaudacionAuditoria);
+            tabRecaudacionAuditoria.Location = new Point(4, 25);
+            tabRecaudacionAuditoria.Name = "tabRecaudacionAuditoria";
+            tabRecaudacionAuditoria.Padding = new Padding(5);
+            tabRecaudacionAuditoria.Size = new Size(1000, 459);
+            tabRecaudacionAuditoria.TabIndex = 0;
+            tabRecaudacionAuditoria.Text = "  💰 Recaudación del Día y Auditoría de Recepción  ";
+            tabRecaudacionAuditoria.UseVisualStyleBackColor = true;
             // 
-            // dgvIngresos
+            // dgvRecaudacionAuditoria
             // 
-            dgvIngresos.BackgroundColor = Color.White;
-            dgvIngresos.BorderStyle = BorderStyle.None;
-            dgvIngresos.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvIngresos.Dock = DockStyle.Fill;
-            dgvIngresos.Location = new Point(5, 5);
-            dgvIngresos.Name = "dgvIngresos";
-            dgvIngresos.Size = new Size(990, 449);
-            dgvIngresos.TabIndex = 0;
+            dgvRecaudacionAuditoria.BackgroundColor = Color.White;
+            dgvRecaudacionAuditoria.BorderStyle = BorderStyle.None;
+            dgvRecaudacionAuditoria.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvRecaudacionAuditoria.Dock = DockStyle.Fill;
+            dgvRecaudacionAuditoria.Location = new Point(5, 5);
+            dgvRecaudacionAuditoria.Name = "dgvRecaudacionAuditoria";
+            dgvRecaudacionAuditoria.Size = new Size(990, 449);
+            dgvRecaudacionAuditoria.TabIndex = 0;
             // 
-            // tabCoberturas
+            // tabRankingMedicos
             // 
-            tabCoberturas.Controls.Add(dgvCoberturas);
-            tabCoberturas.Location = new Point(4, 25);
-            tabCoberturas.Name = "tabCoberturas";
-            tabCoberturas.Padding = new Padding(5);
-            tabCoberturas.Size = new Size(1000, 459);
-            tabCoberturas.TabIndex = 1;
-            tabCoberturas.Text = "  🏥 Obras Sociales vs. Particulares  ";
-            tabCoberturas.UseVisualStyleBackColor = true;
+            tabRankingMedicos.Controls.Add(dgvRankingMedicos);
+            tabRankingMedicos.Location = new Point(4, 25);
+            tabRankingMedicos.Name = "tabRankingMedicos";
+            tabRankingMedicos.Padding = new Padding(5);
+            tabRankingMedicos.Size = new Size(1000, 459);
+            tabRankingMedicos.TabIndex = 1;
+            tabRankingMedicos.Text = "  🏆 Ranking de Médicos por Atenciones Realizadas  ";
+            tabRankingMedicos.UseVisualStyleBackColor = true;
             // 
-            // dgvCoberturas
+            // dgvRankingMedicos
             // 
-            dgvCoberturas.BackgroundColor = Color.White;
-            dgvCoberturas.BorderStyle = BorderStyle.None;
-            dgvCoberturas.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvCoberturas.Dock = DockStyle.Fill;
-            dgvCoberturas.Location = new Point(5, 5);
-            dgvCoberturas.Name = "dgvCoberturas";
-            dgvCoberturas.Size = new Size(990, 449);
-            dgvCoberturas.TabIndex = 0;
-            // 
-            // tabDemanda
-            // 
-            tabDemanda.Controls.Add(dgvDemanda);
-            tabDemanda.Location = new Point(4, 25);
-            tabDemanda.Name = "tabDemanda";
-            tabDemanda.Padding = new Padding(5);
-            tabDemanda.Size = new Size(1000, 459);
-            tabDemanda.TabIndex = 2;
-            tabDemanda.Text = "  📊 Ranking de Demanda  ";
-            tabDemanda.UseVisualStyleBackColor = true;
-            // 
-            // dgvDemanda
-            // 
-            dgvDemanda.BackgroundColor = Color.White;
-            dgvDemanda.BorderStyle = BorderStyle.None;
-            dgvDemanda.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvDemanda.Dock = DockStyle.Fill;
-            dgvDemanda.Location = new Point(5, 5);
-            dgvDemanda.Name = "dgvDemanda";
-            dgvDemanda.Size = new Size(990, 449);
-            dgvDemanda.TabIndex = 0;
+            dgvRankingMedicos.BackgroundColor = Color.White;
+            dgvRankingMedicos.BorderStyle = BorderStyle.None;
+            dgvRankingMedicos.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvRankingMedicos.Dock = DockStyle.Fill;
+            dgvRankingMedicos.Location = new Point(5, 5);
+            dgvRankingMedicos.Name = "dgvRankingMedicos";
+            dgvRankingMedicos.Size = new Size(990, 449);
+            dgvRankingMedicos.TabIndex = 0;
             // 
             // FrmReportesGerente
             // 
@@ -436,7 +409,7 @@ namespace Gestion_de_Turnos_Medicos
             Controls.Add(pnlFiltros);
             Controls.Add(pnlHeader);
             Name = "FrmReportesGerente";
-            Text = "Panel Gerencial de Facturación y Demanda Médica";
+            Text = "Panel Gerencial de Recaudación y Ranking Médico";
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();
             pnlFiltros.ResumeLayout(false);
@@ -451,12 +424,10 @@ namespace Gestion_de_Turnos_Medicos
             pnlKpiCons.ResumeLayout(false);
             pnlKpiCons.PerformLayout();
             tabReportes.ResumeLayout(false);
-            tabIngresos.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)dgvIngresos).EndInit();
-            tabCoberturas.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)dgvCoberturas).EndInit();
-            tabDemanda.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)dgvDemanda).EndInit();
+            tabRecaudacionAuditoria.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvRecaudacionAuditoria).EndInit();
+            tabRankingMedicos.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvRankingMedicos).EndInit();
             ResumeLayout(false);
         }
 
@@ -488,11 +459,9 @@ namespace Gestion_de_Turnos_Medicos
         private Label lblTituloParticulares;
         private Label lblKpiParticulares;
         private TabControl tabReportes;
-        private TabPage tabIngresos;
-        private DataGridView dgvIngresos;
-        private TabPage tabCoberturas;
-        private DataGridView dgvCoberturas;
-        private TabPage tabDemanda;
-        private DataGridView dgvDemanda;
+        private TabPage tabRecaudacionAuditoria;
+        private DataGridView dgvRecaudacionAuditoria;
+        private TabPage tabRankingMedicos;
+        private DataGridView dgvRankingMedicos;
     }
 }

@@ -22,7 +22,6 @@ namespace Gestion_de_Turnos_Medicos
 
             this.Load += FrmGerente_Load;
             this.btnReportes.Click += BtnReportes_Click;
-            this.btnGuardia.Click += BtnGuardia_Click;
             this.btnSalir.Click += BtnSalir_Click;
         }
 
@@ -61,11 +60,6 @@ namespace Gestion_de_Turnos_Medicos
         private void BtnReportes_Click(object? sender, EventArgs e)
         {
             AbrirFormularioHijo(new FrmReportesGerente(_usuarioActual));
-        }
-
-        private void BtnGuardia_Click(object? sender, EventArgs e)
-        {
-            AbrirFormularioHijo(new FrmReporteGuardiaAdmin(_usuarioActual));
         }
 
         private void BtnSalir_Click(object? sender, EventArgs e)

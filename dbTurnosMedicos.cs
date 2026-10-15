@@ -61,7 +61,7 @@ namespace Gestion_de_Turnos_Medicos
             if (!optionsBuilder.IsConfigured)
             {
                 // Conexión por defecto a la instancia local SQL Server
-                optionsBuilder.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dbGestionTurnos;Integrated Security=True;TrustServerCertificate=True;");
+                optionsBuilder.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dbGestionTurnos;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=30;");
             }
         }
 

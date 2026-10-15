@@ -236,5 +236,67 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                     .ToList();
             }
         }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRecaudacionAuditoriaResumen</c>
+        /// para obtener los totales consolidados de emisión, modalidades y coberturas para auditoría de recepcionistas.
+        /// </summary>
+        public ReporteRecaudacionAuditoriaResumenDTO ObtenerAuditoriaRecaudacionResumen(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteRecaudacionAuditoriaResumenDTO>(
+                        "EXEC sp_ReporteGerencialRecaudacionAuditoriaResumen @FechaDesde, @FechaHasta",
+                        pFechaDesde, pFechaHasta)
+                    .AsEnumerable()
+                    .FirstOrDefault() ?? new ReporteRecaudacionAuditoriaResumenDTO
+                    {
+                        FechaDesde = fechaDesde?.Date ?? DateTime.Today,
+                        FechaHasta = fechaHasta?.Date ?? DateTime.Today
+                    };
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRecaudacionAuditoriaDetalle</c>
+        /// para obtener el listado detallado de turnos emitidos y cobrados en recepción en el período seleccionado.
+        /// </summary>
+        public List<ReporteRecaudacionAuditoriaDetalleDTO> ObtenerAuditoriaRecaudacionDetalle(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteRecaudacionAuditoriaDetalleDTO>(
+                        "EXEC sp_ReporteGerencialRecaudacionAuditoriaDetalle @FechaDesde, @FechaHasta",
+                        pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRankingMedicos</c>
+        /// para clasificar a los profesionales médicos según la cantidad de consultas efectivamente atendidas.
+        /// </summary>
+        public List<ReporteRankingMedicoDTO> ObtenerRankingMedicos(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
+                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+
+                return context.Database
+                    .SqlQueryRaw<ReporteRankingMedicoDTO>(
+                        "EXEC sp_ReporteGerencialRankingMedicos @FechaDesde, @FechaHasta",
+                        pFechaDesde, pFechaHasta)
+                    .ToList();
+            }
+        }
     }
 }

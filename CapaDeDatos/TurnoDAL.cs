@@ -542,7 +542,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="diagnostico">Conclusiones diagnósticas emitidas por el médico.</param>
         /// <param name="nombreMedico">Nombre del médico tratante.</param>
         /// <param name="salaAsignada">Consultorio donde se prestó la atención.</param>
-        public void FinalizarAtencionTurno(int idTurno, string diagnostico, string nombreMedico, string salaAsignada)
+        /// <param name="idUsuario">ID del médico actuante autenticado (opcional).</param>
+        public void FinalizarAtencionTurno(int idTurno, string diagnostico, string nombreMedico, string salaAsignada, int? idUsuario = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -550,9 +551,10 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pDiagnostico = new SqlParameter("@Diagnostico", diagnostico);
                 var pNombreMedico = new SqlParameter("@NombreMedico", nombreMedico);
                 var pSalaAsignada = new SqlParameter("@SalaAsignada", salaAsignada);
+                var pIdUsuario = new SqlParameter("@IdUsuario", (object?)idUsuario ?? DBNull.Value);
 
-                context.Database.ExecuteSqlRaw("EXEC sp_FinalizarAtencionTurno @IdTurno, @Diagnostico, @NombreMedico, @SalaAsignada",
-                    pIdTurno, pDiagnostico, pNombreMedico, pSalaAsignada);
+                context.Database.ExecuteSqlRaw("EXEC sp_FinalizarAtencionTurno @IdTurno, @Diagnostico, @NombreMedico, @SalaAsignada, @IdUsuario",
+                    pIdTurno, pDiagnostico, pNombreMedico, pSalaAsignada, pIdUsuario);
             }
         }
 

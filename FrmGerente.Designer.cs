@@ -20,7 +20,6 @@ namespace Gestion_de_Turnos_Medicos
             panel1 = new Panel();
             pnlNav = new Panel();
             btnReportes = new Button();
-            btnGuardia = new Button();
             pnlFooterSidebar = new Panel();
             btnSalir = new Button();
             pnlHeaderSidebar = new Panel();
@@ -53,7 +52,6 @@ namespace Gestion_de_Turnos_Medicos
             pnlNav.AutoScroll = true;
             pnlNav.BackColor = Color.Transparent;
             pnlNav.Controls.Add(btnReportes);
-            pnlNav.Controls.Add(btnGuardia);
             pnlNav.Dock = DockStyle.Fill;
             pnlNav.Location = new Point(0, 105);
             pnlNav.Name = "pnlNav";
@@ -75,28 +73,9 @@ namespace Gestion_de_Turnos_Medicos
             btnReportes.Padding = new Padding(12, 0, 0, 0);
             btnReportes.Size = new Size(210, 46);
             btnReportes.TabIndex = 0;
-            btnReportes.Text = "📊  Reportes y Finanzas";
+            btnReportes.Text = "📊  Auditoría y Reportes";
             btnReportes.TextAlign = ContentAlignment.MiddleLeft;
             btnReportes.UseVisualStyleBackColor = false;
-            // 
-            // btnGuardia
-            // 
-            btnGuardia.BackColor = Color.FromArgb(19, 56, 52);
-            btnGuardia.Cursor = Cursors.Hand;
-            btnGuardia.FlatAppearance.BorderSize = 0;
-            btnGuardia.FlatAppearance.MouseDownBackColor = Color.FromArgb(13, 148, 136);
-            btnGuardia.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 118, 110);
-            btnGuardia.FlatStyle = FlatStyle.Flat;
-            btnGuardia.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
-            btnGuardia.ForeColor = Color.White;
-            btnGuardia.Location = new Point(15, 66);
-            btnGuardia.Name = "btnGuardia";
-            btnGuardia.Padding = new Padding(12, 0, 0, 0);
-            btnGuardia.Size = new Size(210, 46);
-            btnGuardia.TabIndex = 1;
-            btnGuardia.Text = "🚨  Auditoría de Triage";
-            btnGuardia.TextAlign = ContentAlignment.MiddleLeft;
-            btnGuardia.UseVisualStyleBackColor = false;
             // 
             // pnlFooterSidebar
             // 
@@ -219,7 +198,6 @@ namespace Gestion_de_Turnos_Medicos
         private Panel pnlSeparador;
         private Panel pnlNav;
         private Button btnReportes;
-        private Button btnGuardia;
         private Panel pnlFooterSidebar;
         private Button btnSalir;
         private Panel pnlContenedor;

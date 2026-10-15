@@ -127,7 +127,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlContenido.Dock = DockStyle.Fill;
             pnlContenido.Location = new Point(0, 106);
             pnlContenido.Name = "pnlContenido";
-            pnlContenido.Size = new Size(1030, 568);
+            pnlContenido.Size = new Size(1030, 567);
             pnlContenido.TabIndex = 2;
             // 
             // lblServicio
@@ -166,7 +166,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvTurnos.Location = new Point(20, 48);
             dgvTurnos.Name = "dgvTurnos";
             dgvTurnos.RowTemplate.Height = 26;
-            dgvTurnos.Size = new Size(616, 430);
+            dgvTurnos.Size = new Size(576, 492);
             dgvTurnos.TabIndex = 1;
             dgvTurnos.CellFormatting += dgvTurnos_CellFormatting;
             // 
@@ -188,9 +188,9 @@ namespace Gestion_de_Turnos_Medicos
             pnlAtencionActual.Controls.Add(txtDiagnostico);
             pnlAtencionActual.Controls.Add(lblReceta);
             pnlAtencionActual.Controls.Add(txtReceta);
-            pnlAtencionActual.Location = new Point(656, 10);
+            pnlAtencionActual.Location = new Point(615, 12);
             pnlAtencionActual.Name = "pnlAtencionActual";
-            pnlAtencionActual.Size = new Size(340, 405);
+            pnlAtencionActual.Size = new Size(415, 405);
             pnlAtencionActual.TabIndex = 2;
             // 
             // lblPanelTitulo
@@ -282,7 +282,7 @@ namespace Gestion_de_Turnos_Medicos
             txtHistoriaPrevia.Name = "txtHistoriaPrevia";
             txtHistoriaPrevia.ReadOnly = true;
             txtHistoriaPrevia.ScrollBars = ScrollBars.Vertical;
-            txtHistoriaPrevia.Size = new Size(308, 62);
+            txtHistoriaPrevia.Size = new Size(386, 62);
             txtHistoriaPrevia.TabIndex = 8;
             // 
             // lblDiagnostico
@@ -302,7 +302,7 @@ namespace Gestion_de_Turnos_Medicos
             txtDiagnostico.Multiline = true;
             txtDiagnostico.Name = "txtDiagnostico";
             txtDiagnostico.ScrollBars = ScrollBars.Vertical;
-            txtDiagnostico.Size = new Size(308, 62);
+            txtDiagnostico.Size = new Size(386, 62);
             txtDiagnostico.TabIndex = 1;
             // 
             // lblReceta
@@ -322,7 +322,7 @@ namespace Gestion_de_Turnos_Medicos
             txtReceta.Multiline = true;
             txtReceta.Name = "txtReceta";
             txtReceta.ScrollBars = ScrollBars.Vertical;
-            txtReceta.Size = new Size(308, 64);
+            txtReceta.Size = new Size(386, 64);
             txtReceta.TabIndex = 2;
             // 
             // btnSiguientePaciente
@@ -342,9 +342,9 @@ namespace Gestion_de_Turnos_Medicos
             btnIniciarAtencion.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnIniciarAtencion.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             btnIniciarAtencion.ForeColor = Color.FromArgb(21, 101, 178);
-            btnIniciarAtencion.Location = new Point(656, 464);
+            btnIniciarAtencion.Location = new Point(632, 465);
             btnIniciarAtencion.Name = "btnIniciarAtencion";
-            btnIniciarAtencion.Size = new Size(340, 36);
+            btnIniciarAtencion.Size = new Size(189, 36);
             btnIniciarAtencion.TabIndex = 4;
             btnIniciarAtencion.Text = "🕐  Iniciar Atención";
             btnIniciarAtencion.UseVisualStyleBackColor = true;
@@ -367,9 +367,9 @@ namespace Gestion_de_Turnos_Medicos
             btnNoSePresento.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnNoSePresento.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             btnNoSePresento.ForeColor = Color.FromArgb(192, 0, 0);
-            btnNoSePresento.Location = new Point(656, 546);
+            btnNoSePresento.Location = new Point(827, 465);
             btnNoSePresento.Name = "btnNoSePresento";
-            btnNoSePresento.Size = new Size(340, 36);
+            btnNoSePresento.Size = new Size(191, 36);
             btnNoSePresento.TabIndex = 6;
             btnNoSePresento.Text = "❌  No se presentó";
             btnNoSePresento.UseVisualStyleBackColor = true;
@@ -405,9 +405,9 @@ namespace Gestion_de_Turnos_Medicos
             pnlEstado.BackColor = Color.FromArgb(230, 230, 230);
             pnlEstado.Controls.Add(lblEstadoInferior);
             pnlEstado.Dock = DockStyle.Bottom;
-            pnlEstado.Location = new Point(0, 674);
+            pnlEstado.Location = new Point(0, 673);
             pnlEstado.Name = "pnlEstado";
-            pnlEstado.Size = new Size(1030, 26);
+            pnlEstado.Size = new Size(1030, 27);
             pnlEstado.TabIndex = 3;
             // 
             // lblEstadoInferior

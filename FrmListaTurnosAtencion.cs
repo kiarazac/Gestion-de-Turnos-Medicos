@@ -881,8 +881,8 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                // 1. BLL delega a TurnoDAL y ejecuta sp_FinalizarAtencionTurno
-                _turnoBLL.FinalizarAtencionTurno(_turnoActual.IdTurno, _diagnosticoRapido, _medicoQueAtendio, _salaDeAtencion);
+                // 1. BLL delega a TurnoDAL y ejecuta sp_FinalizarAtencionTurno persistiendo el médico tratante
+                _turnoBLL.FinalizarAtencionTurno(_turnoActual.IdTurno, _diagnosticoRapido, _medicoQueAtendio, _salaDeAtencion, idUsuario);
 
                 // 2. Registrar la evolución en la Historia Clínica del paciente
                 if (idPaciente > 0 && idUsuario > 0)

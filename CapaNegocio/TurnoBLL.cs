@@ -473,13 +473,14 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="diagnostico">Diagnóstico o conclusiones médicas.</param>
         /// <param name="nombreMedico">Nombre del profesional que atendió.</param>
         /// <param name="salaAsignada">Sala en la que se realizó la atención.</param>
+        /// <param name="idUsuario">ID de usuario del médico autenticado (opcional).</param>
         /// <exception cref="ArgumentException">Se lanza si falta información requerida para el cierre de la atención.</exception>
-        public void FinalizarAtencionTurno(int idTurno, string diagnostico, string nombreMedico, string salaAsignada)
+        public void FinalizarAtencionTurno(int idTurno, string diagnostico, string nombreMedico, string salaAsignada, int? idUsuario = null)
         {
             if (idTurno <= 0 || string.IsNullOrWhiteSpace(diagnostico) || string.IsNullOrWhiteSpace(nombreMedico) || string.IsNullOrWhiteSpace(salaAsignada))
                 throw new ArgumentException("Faltan datos obligatorios para finalizar la atención.");
 
-            _turnoDAL.FinalizarAtencionTurno(idTurno, diagnostico, nombreMedico, salaAsignada);
+            _turnoDAL.FinalizarAtencionTurno(idTurno, diagnostico, nombreMedico, salaAsignada, idUsuario);
         }
 
         /// <summary>
