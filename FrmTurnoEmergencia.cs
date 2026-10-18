@@ -297,16 +297,8 @@ namespace Gestion_de_Turnos_Medicos
                 btnDescargarTxt.Enabled = true;
 
                 // Precargamos los datos del turno en el panel de cancelación directa por si se emitió por error
-                _turnoACancelar = new TurnoEmergenciaCancelacionDTO
-                {
-                    NroOrden = nroOrden,
-                    Apellido = apellido,
-                    Nombre = nombre,
-                    Dni = dni,
-                    Prioridad = prioridadTexto,
-                    Estado = "En Espera",
-                    CodigoCancelacion = codigoCancelacion
-                };
+                // Se busca en BD para obtener el IdTurno real (requerido por sp_CancelarTurnoEmergencia)
+                _turnoACancelar = _turnoBLL.BuscarTurnoActivoEmergencia(nroOrden);
                 txtBuscarTurnoCancelacion.Text = nroOrden;
                 lblTurnoInfoPaciente.Text = $"Paciente: {apellido}, {nombre} (DNI: {dni})";
                 lblTurnoInfoTriage.Text = $"Triage: {prioridadTexto} | Estado: En Espera";
