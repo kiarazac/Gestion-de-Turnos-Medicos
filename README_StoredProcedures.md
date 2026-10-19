@@ -4944,3 +4944,16 @@ BEGIN
 END;
 GO
 ```
+
+
+---
+
+## Scripts de mantenimiento de datos (no son SP)
+
+Están en la carpeta `Scripts/`. Se corren a mano, una sola vez, y **no** están en `StoredProcedures.sql`: ese archivo se vuelve a ejecutar entero y no tiene que repetir parches de datos.
+
+| Script | Qué hace | Cuándo correrlo |
+|---|---|---|
+| `Scripts/ActualizarTurnosParticularesHistoricos.sql` | Corrige `Turnos.Monto` de los pacientes particulares (sin obra social o `IdObraSocial = 1`) que quedaron con el copago o vacíos: Especialidad 4500/0/NULL → **15000**, Emergencia 7500/0/NULL → **25000**. Corre dentro de `BEGIN TRAN` / `TRY…CATCH` con `ROLLBACK`. | Una sola vez sobre una base con datos anteriores a la regla "particular = 100%". Si se corre de nuevo no cambia nada (solo toca esos montos). |
+| `Scripts/ActualizarSPsEnBD.ps1` | Ejecuta `CREATE OR ALTER` de SPs puntuales contra `localhost\SQLEXPRESS`. | Para actualizar SPs rápido sin abrir SSMS. |
+| `Scripts/MigrarHashesContrasenas.ps1` | Pasa a SHA-256 las contraseñas de `Usuarios` que todavía estén en texto plano. | Una sola vez, al migrar una base con contraseñas viejas. |
