@@ -313,6 +313,116 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
+        /// Obtiene el turno de emergencia activo (sin atender) de un paciente si existe.
+        /// Se consideran turnos sin atender aquellos con TipoTurno 'Emergencia' y Estado distinto de 'Atendido', 'Ausente' y 'Cancelado'.
+        /// </summary>
+        /// <param name="idPaciente">Identificador del paciente.</param>
+        /// <returns>Objeto <see cref="TurnoEmergenciaCancelacionDTO"/> con la información del turno activo o <c>null</c> si no tiene.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoEmergenciaActivoPorPaciente(int idPaciente)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
+                string sql = @"
+                    SELECT TOP 1
+                        t.IdTurno,
+                        t.NroOrden,
+                        pac.Apellido,
+                        pac.Nombre,
+                        pac.Dni,
+                        ISNULL(pr.Descripcion, 'MEDIA') AS Prioridad,
+                        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+                        t.Estado,
+                        ISNULL(t.CodigoCancelacion, '') AS CodigoCancelacion
+                    FROM Turnos t
+                    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+                    LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                    WHERE t.TipoTurno = 'Emergencia'
+                      AND t.Activo = 1
+                      AND t.IdPaciente = @IdPaciente
+                      AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
+                    ORDER BY t.IdTurno DESC;";
+
+                return context.Database
+                    .SqlQueryRaw<TurnoEmergenciaCancelacionDTO>(sql, pIdPaciente)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el turno actualmente en atención médica ('En Consulta', 'En Atención', 'En Atencion') asignado a un profesional médico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>Objeto <see cref="TurnoEmergenciaCancelacionDTO"/> con la información del turno en consulta o <c>null</c> si no tiene.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoEnConsultaPorMedico(int idUsuario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                string sql = @"
+                    SELECT TOP 1
+                        t.IdTurno,
+                        t.NroOrden,
+                        pac.Apellido,
+                        pac.Nombre,
+                        pac.Dni,
+                        ISNULL(pr.Descripcion, 'MEDIA') AS Prioridad,
+                        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+                        t.Estado,
+                        ISNULL(t.CodigoCancelacion, '') AS CodigoCancelacion
+                    FROM Turnos t
+                    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+                    LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                    WHERE t.IdUsuario = @IdUsuario
+                      AND t.Activo = 1
+                      AND t.Estado IN ('En Consulta', 'En Atención', 'En Atencion')
+                    ORDER BY t.IdTurno DESC;";
+
+                return context.Database
+                    .SqlQueryRaw<TurnoEmergenciaCancelacionDTO>(sql, pIdUsuario)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el turno que se encuentra actualmente en estado 'Llamado' asignado a un profesional médico.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del usuario médico.</param>
+        /// <returns>Objeto <see cref="TurnoEmergenciaCancelacionDTO"/> con la información del turno llamado o <c>null</c> si no tiene.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoLlamadoPorMedico(int idUsuario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
+                string sql = @"
+                    SELECT TOP 1
+                        t.IdTurno,
+                        t.NroOrden,
+                        pac.Apellido,
+                        pac.Nombre,
+                        pac.Dni,
+                        ISNULL(pr.Descripcion, 'MEDIA') AS Prioridad,
+                        LEFT(CAST(t.Horario AS VARCHAR(10)), 5) AS Hora,
+                        t.Estado,
+                        ISNULL(t.CodigoCancelacion, '') AS CodigoCancelacion
+                    FROM Turnos t
+                    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+                    LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
+                    WHERE t.IdUsuario = @IdUsuario
+                      AND t.Activo = 1
+                      AND t.Estado = 'Llamado'
+                    ORDER BY t.IdTurno DESC;";
+
+                return context.Database
+                    .SqlQueryRaw<TurnoEmergenciaCancelacionDTO>(sql, pIdUsuario)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_CancelarTurnoEmergencia</c> para cancelar un turno de guardia
         /// mediante validación estricta de doble factor (2FA) con la palabra clave alfanumérica del ticket.
         /// </summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos
@@ -11,6 +12,8 @@ namespace Gestion_de_Turnos_Medicos
     public partial class Pantalla_Principal_PERSONAL_MEDICO : Form
     {
         private readonly UsuarioLoginResult _usuarioActual;
+        private readonly TurnoBLL _turnoBLL = new TurnoBLL();
+        private readonly SalaBLL _salaBLL = new SalaBLL();
         private Form? formularioActivo = null;
 
         /// <summary>
@@ -22,6 +25,7 @@ namespace Gestion_de_Turnos_Medicos
             InitializeComponent();
             _usuarioActual = usuario;
             this.Load += Pantalla_Principal_PERSONAL_MEDICO_Load;
+            this.FormClosing += Pantalla_Principal_PERSONAL_MEDICO_FormClosing;
         }
 
         private void Pantalla_Principal_PERSONAL_MEDICO_Load(object? sender, EventArgs e)
@@ -32,6 +36,80 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Valida si el profesional médico está en condiciones de cerrar la sesión.
+        /// Exige estrictamente haber finalizado cualquier turno iniciado ('En Consulta')
+        /// y haber cerrado el consultorio o sala asignada.
+        /// </summary>
+        /// <param name="motivoBloqueo">Mensaje descriptivo que explica la causa del bloqueo si no puede cerrar sesión.</param>
+        /// <returns><c>true</c> si puede cerrar sesión; <c>false</c> si tiene atenciones pendientes o sala abierta.</returns>
+        private bool PuedeCerrarSesion(out string motivoBloqueo)
+        {
+            motivoBloqueo = string.Empty;
+            int idUsuario = _usuarioActual?.IdUsuario ?? 0;
+
+            // 1. Validar si el médico tiene un turno en atención médica iniciada sin terminar ('En Consulta')
+            if (formularioActivo is FrmListaTurnosAtencion frmAtencion && frmAtencion.TieneAtencionIniciada)
+            {
+                string nroOrden = frmAtencion.TurnoActual?.NroOrden ?? "en curso";
+                motivoBloqueo = $"No puede cerrar sesión: Tiene una atención médica iniciada en curso (Turno #{nroOrden}).\n\nDebe finalizar la atención del paciente y registrar el diagnóstico correspondiente antes de salir.";
+                return false;
+            }
+
+            if (idUsuario > 0)
+            {
+                var turnoEnConsulta = _turnoBLL.ObtenerTurnoEnConsultaPorMedico(idUsuario);
+                if (turnoEnConsulta != null)
+                {
+                    motivoBloqueo = $"No puede cerrar sesión: Tiene una atención médica iniciada sin finalizar (Turno #{turnoEnConsulta.NroOrden} - Paciente: {turnoEnConsulta.PacienteCompleto}).\n\nDebe concluir la atención y registrar el diagnóstico antes de salir.";
+                    return false;
+                }
+
+                // Validar si el médico tiene un turno llamado pendiente de ingresar a consulta o de marcar como ausente
+                if (formularioActivo is FrmListaTurnosAtencion frmAtencionLlamado && frmAtencionLlamado.TieneTurnoLlamado)
+                {
+                    string nroOrden = frmAtencionLlamado.TurnoActual?.NroOrden ?? "llamado";
+                    motivoBloqueo = $"No puede cerrar sesión: Tiene el turno #{nroOrden} en estado 'Llamado'.\n\nDebe iniciar y concluir la atención, o marcarlo como 'No se presentó' antes de cerrar la sesión.";
+                    return false;
+                }
+
+                var turnoLlamado = _turnoBLL.ObtenerTurnoLlamadoPorMedico(idUsuario);
+                if (turnoLlamado != null)
+                {
+                    motivoBloqueo = $"No puede cerrar sesión: Tiene un paciente llamado a consultorio (Turno #{turnoLlamado.NroOrden} - Paciente: {turnoLlamado.PacienteCompleto}).\n\nDebe iniciar y concluir la atención, o marcarlo como 'No se presentó' antes de cerrar la sesión.";
+                    return false;
+                }
+
+                // 2. Validar si el médico tiene su sala o consultorio aún abierto ('Disponible', 'Libre', 'Ocupada')
+                var salaAbierta = _salaBLL.ObtenerSalaAbiertaPorMedico(idUsuario);
+                if (salaAbierta != null)
+                {
+                    motivoBloqueo = $"No puede cerrar sesión: La sala '{salaAbierta.NombreSala}' continúa abierta (Estado: '{salaAbierta.EstadoSala}').\n\nDebe ingresar al módulo 'Mis Salas' y cerrar el consultorio antes de cerrar la sesión.";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void Pantalla_Principal_PERSONAL_MEDICO_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                if (!PuedeCerrarSesion(out string motivo))
+                {
+                    MessageBox.Show(motivo, "Cierre de Sesión Denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    e.Cancel = true;
+                    return;
+                }
+
+                var frmLogin = Application.OpenForms["FrmLogin"];
+                if (frmLogin != null && !frmLogin.Visible)
+                {
+                    frmLogin.Show();
+                }
+            }
+        }
 
         /// <summary>
         /// Embebe un formulario hijo dentro del panel central (<c>panelContenedor</c>), cerrando la vista previa.
@@ -39,6 +117,13 @@ namespace Gestion_de_Turnos_Medicos
         /// <param name="formHijo">Instancia del formulario hijo a incrustar.</param>
         private void AbrirFormularioHijo(Form formHijo)
         {
+            if (formularioActivo is FrmListaTurnosAtencion frmAtencion && frmAtencion.TieneAtencionIniciada)
+            {
+                MessageBox.Show("Tiene una atención médica iniciada en curso. Debe finalizar la consulta antes de cambiar de módulo.",
+                    "Atención en Curso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             if (formularioActivo != null)
             {
                 formularioActivo.Close();
@@ -84,6 +169,12 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void salir_Click(object sender, EventArgs e)
         {
+            if (!PuedeCerrarSesion(out string motivo))
+            {
+                MessageBox.Show(motivo, "Cierre de Sesión Denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             var frmLogin = Application.OpenForms["FrmLogin"];
             if (frmLogin != null)
             {

@@ -162,6 +162,24 @@ namespace Gestion_de_Turnos_Medicos
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
                     cmbObraSocial.Enabled = true;
+
+                    // Validación preventiva de turno activo sin atender en Emergencia
+                    var turnoActivo = _turnoBLL.ObtenerTurnoEmergenciaActivo(paciente.IdPaciente);
+                    if (turnoActivo != null)
+                    {
+                        MessageBox.Show(
+                            $"El paciente {paciente.Apellido}, {paciente.Nombre} (DNI: {dniBuscado}) ya posee un turno de emergencia en curso:\n\n" +
+                            $"• Número de Turno: #{turnoActivo.NroOrden}\n" +
+                            $"• Estado: {turnoActivo.Estado}\n" +
+                            $"• Hora: {turnoActivo.Hora} hs\n" +
+                            $"• Prioridad: {turnoActivo.Prioridad}\n\n" +
+                            "No se pueden registrar dos turnos de emergencia simultáneos sin atender para el mismo paciente.\n" +
+                            "El turno actual debe ser atendido, cancelado o marcado como ausente antes de generar uno nuevo.",
+                            "Turno Activo en Emergencia",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning
+                        );
+                    }
                 }
                 else
                 {
@@ -205,6 +223,21 @@ namespace Gestion_de_Turnos_Medicos
                 // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
                 idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
                 idPacienteActual = idPacienteFinal;
+
+                // Validación de Regla de Negocio: No permitir más de un turno sin atender para el mismo paciente en emergencia
+                var turnoActivoPrevio = _turnoBLL.ObtenerTurnoEmergenciaActivo(idPacienteFinal);
+                if (turnoActivoPrevio != null)
+                {
+                    MessageBox.Show(
+                        $"Acción denegada: El paciente {apellido}, {nombre} ya cuenta con el turno de emergencia #{turnoActivoPrevio.NroOrden} en estado '{turnoActivoPrevio.Estado}'.\n\n" +
+                        "No se pueden registrar dos turnos sin atender de un mismo paciente en emergencia.\n" +
+                        "Espere a que sea atendido o proceda a cancelar dicho turno antes de solicitar uno nuevo.",
+                        "Turno Duplicado no Permitido",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    return;
+                }
 
                 bool esOtro = checkBoxBaja.Checked;
                 List<int> sintomasSeleccionados = new List<int>();
@@ -323,6 +356,10 @@ namespace Gestion_de_Turnos_Medicos
                 );
 
                 LimpiarFormulario();
+            }
+            catch (InvalidOperationException invEx)
+            {
+                MessageBox.Show(invEx.Message, "Turno No Permitido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {

@@ -51,6 +51,15 @@ namespace Gestion_de_Turnos_Medicos
         private Turno? _turnoActual;
         private EstadoPuesto _estadoActual = EstadoPuesto.SinPaciente;
 
+        /// <summary>Indica si el médico tiene una atención médica iniciada en curso ('En Consulta').</summary>
+        public bool TieneAtencionIniciada => _estadoActual == EstadoPuesto.EnConsulta && _turnoActual != null;
+
+        /// <summary>Indica si el médico tiene un paciente llamado esperando ingresar al consultorio ('Llamado').</summary>
+        public bool TieneTurnoLlamado => _estadoActual == EstadoPuesto.Llamado && _turnoActual != null;
+
+        /// <summary>Turno médico actualmente en gestión (llamado o en consulta).</summary>
+        public Turno? TurnoActual => _turnoActual;
+
         private int _indiceServicioAnterior = 0;
         private bool _bloqueandoCombo = false;
 
@@ -929,22 +938,14 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void btnNoSePresento_Click(object? sender, EventArgs e)
         {
-            Turno? turnoAMarcar = null;
-
-            if (_turnoActual != null)
+            if (_estadoActual != EstadoPuesto.Llamado || _turnoActual == null)
             {
-                turnoAMarcar = _turnoActual;
-            }
-            else if (dgvTurnos.CurrentRow?.DataBoundItem is Turno turnoSeleccionado)
-            {
-                turnoAMarcar = turnoSeleccionado;
-            }
-
-            if (turnoAMarcar == null)
-            {
-                MessageBox.Show("No hay ningún turno seleccionado ni llamado actualmente.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("El botón 'No se presentó' solo se habilita cuando se llama a un turno y aún no se ha iniciado su atención médica.",
+                    "Acción no permitida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            Turno turnoAMarcar = _turnoActual;
 
             string ident = !string.IsNullOrWhiteSpace(turnoAMarcar.NroOrden) ? turnoAMarcar.NroOrden : turnoAMarcar.IdTurno.ToString();
             string paciente = turnoAMarcar.Paciente != null ? $"{turnoAMarcar.Paciente.Apellido}, {turnoAMarcar.Paciente.Nombre}" : "el paciente";
@@ -1014,7 +1015,7 @@ namespace Gestion_de_Turnos_Medicos
                     btnSiguientePaciente.Enabled = salaDisponible && _turnosVisibles != null && _turnosVisibles.Count > 0;
                     btnIniciarAtencion.Enabled = false;
                     btnTerminarAtencion.Enabled = false;
-                    btnNoSePresento.Enabled = _turnosVisibles != null && _turnosVisibles.Count > 0;
+                    btnNoSePresento.Enabled = false;
                     cboServicio.Enabled = true;
 
                     if (TieneSalaAbierta() && !salaDisponible)

@@ -126,6 +126,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (idPaciente <= 0)
                 throw new ArgumentException("El ID del paciente es inválido o no ha sido registrado/cargado.");
 
+            // Regla de Negocio: No pueden haber 2 turnos sin atender de un mismo paciente en emergencia
+            var turnoActivoExistente = _turnoDAL.ObtenerTurnoEmergenciaActivoPorPaciente(idPaciente);
+            if (turnoActivoExistente != null)
+            {
+                throw new InvalidOperationException($"El paciente ya posee un turno de emergencia pendiente de atención (#{turnoActivoExistente.NroOrden} - Estado: '{turnoActivoExistente.Estado}'). Debe finalizar, cancelar o atender dicho turno antes de generar uno nuevo.");
+            }
+
             bool tieneSintomas = idsSintomas != null && idsSintomas.Count > 0;
 
             // Validación: Debe existir al menos un síntoma seleccionado o haberse marcado la casilla "Otro"
@@ -294,6 +301,12 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
                 throw new ArgumentException("Todos los datos del turno programado son obligatorios.");
 
+            // Regla de Negocio: No se permite sacar turnos programados en Emergencia
+            if (nombreEspecialidad.Trim().Equals("Emergencia", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("No se pueden programar turnos para la especialidad de Emergencia. Los turnos de emergencia se emiten por demanda espontánea a través del módulo de Guardia.");
+            }
+
             if (fecha.Date < DateTime.Now.Date)
                 throw new ArgumentException("No se pueden registrar turnos en fechas pasadas.");
 
@@ -335,6 +348,39 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("Debe ingresar la palabra clave / código 2FA para cancelar el turno.");
 
             _turnoDAL.CancelarTurnoEspecialidad(idTurno, codigoCancelacion.Trim());
+        }
+
+        /// <summary>
+        /// Consulta si un paciente posee un turno de emergencia activo (sin atender).
+        /// </summary>
+        /// <param name="idPaciente">Identificador único del paciente.</param>
+        /// <returns>Detalle del turno activo o <c>null</c> si no posee turnos pendientes.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoEmergenciaActivo(int idPaciente)
+        {
+            if (idPaciente <= 0) return null;
+            return _turnoDAL.ObtenerTurnoEmergenciaActivoPorPaciente(idPaciente);
+        }
+
+        /// <summary>
+        /// Obtiene el turno en atención médica ('En Consulta') asignado al médico especificado.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del profesional médico.</param>
+        /// <returns>Detalle del turno en consulta o <c>null</c> si no tiene ninguno.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoEnConsultaPorMedico(int idUsuario)
+        {
+            if (idUsuario <= 0) return null;
+            return _turnoDAL.ObtenerTurnoEnConsultaPorMedico(idUsuario);
+        }
+
+        /// <summary>
+        /// Obtiene el turno que se encuentra actualmente en estado 'Llamado' asignado al médico especificado.
+        /// </summary>
+        /// <param name="idUsuario">Identificador único del profesional médico.</param>
+        /// <returns>Detalle del turno llamado o <c>null</c> si no tiene ninguno.</returns>
+        public TurnoEmergenciaCancelacionDTO? ObtenerTurnoLlamadoPorMedico(int idUsuario)
+        {
+            if (idUsuario <= 0) return null;
+            return _turnoDAL.ObtenerTurnoLlamadoPorMedico(idUsuario);
         }
 
         /// <summary>

@@ -141,7 +141,8 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     foreach (var esp in especialidades)
                     {
-                        if (!string.IsNullOrWhiteSpace(esp.Nombre))
+                        // Regla de Negocio: La guardia/emergencia no se programa por consultorio externo
+                        if (!string.IsNullOrWhiteSpace(esp.Nombre) && !esp.Nombre.Trim().Equals("Emergencia", StringComparison.OrdinalIgnoreCase))
                             cmbEspecialidad.Items.Add(esp.Nombre);
                     }
                 }
@@ -567,6 +568,14 @@ namespace Gestion_de_Turnos_Medicos
             if (cmbEspecialidad.SelectedIndex <= 0)
             {
                 MessageBox.Show("Por favor, seleccione una especialidad.", "Falta especialidad", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                cmbEspecialidad.Focus();
+                return false;
+            }
+
+            string especialidadSeleccionada = cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty;
+            if (especialidadSeleccionada.Trim().Equals("Emergencia", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("No está permitido programar turnos para la especialidad de Emergencia.\nLos turnos de guardia deben emitirse exclusivamente desde el módulo de Turnos de Emergencia.", "Acción Denegada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cmbEspecialidad.Focus();
                 return false;
             }
