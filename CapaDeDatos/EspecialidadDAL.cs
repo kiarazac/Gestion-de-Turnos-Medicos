@@ -149,9 +149,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             e.Activo
                         FROM Especialidades e
                         INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
-                        WHERE me.IdUsuario = @IdUsuario 
-                          AND me.Activo = 1 
-                          AND e.Activo = 1
+                        WHERE me.IdUsuario = @IdUsuario
+                          AND me.Activo = 1
                         ORDER BY e.Nombre ASC;";
 
                     return context.Database

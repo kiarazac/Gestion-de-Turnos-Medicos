@@ -92,7 +92,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene la lista de especialidades asociadas y habilitadas para un profesional médico específico.
+        /// Obtiene la lista de especialidades asociadas a un profesional médico, incluidas las inactivas (ver <see cref="EspecialidadDTO.Activo"/>).
         /// </summary>
         /// <param name="idUsuario">Identificador único del usuario médico.</param>
         /// <returns>Lista de <see cref="EspecialidadDTO"/> asociadas al médico.</returns>

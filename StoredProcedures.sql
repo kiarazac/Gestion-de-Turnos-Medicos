@@ -1305,8 +1305,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_EliminarEspecialidad
 ** Sección       : 3.4
-** Propósito     : Realiza el borrado lógico de una especialidad médica (`Activo = 0`) previa validación de que no posea turnos pendientes o en atención en curso, y desactiva en cascada sus asignaciones médicas en `MedicosEspecialidades`.
-** Entidad/Tablas: `Especialidades`, `MedicosEspecialidades`, `Turnos`
+** Propósito     : Realiza el borrado lógico de una especialidad médica (`Activo = 0`). Conserva los turnos pendientes (el médico puede atenderlos) y los vínculos en `MedicosEspecialidades`; impide nuevos turnos al quedar inactiva.
+** Entidad/Tablas: `Especialidades`
 ** Invocado por  : `FrmGestionEspecialidades` (Botón `btnDesactivar`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
@@ -1326,33 +1326,13 @@ BEGIN
             THROW 50052, 'La especialidad a desactivar no existe o ya se encuentra inactiva.', 1;
         END
 
-        -- 2. Validar que no posea turnos pendientes de atención
-        IF EXISTS (
-            SELECT 1 
-            FROM Turnos 
-            WHERE IdEspecialidad = @IdEspecialidad 
-              AND Estado IN ('En Espera', 'Llamado', 'En Consulta') 
-              AND Activo = 1
-        )
-        BEGIN
-            THROW 50053, 'No se puede dar de baja la especialidad porque posee turnos pendientes de atención (En Espera, Llamado o En Consulta).', 1;
-        END
-
-        BEGIN TRANSACTION;
-
-        -- 3. Baja lógica de la especialidad
+        -- 2. Baja lógica de la especialidad.
+        -- Los turnos pendientes y los vínculos en MedicosEspecialidades se conservan:
+        -- el médico sigue atendiendo lo ya registrado y no se agendan turnos nuevos (Especialidades.Activo = 0).
         UPDATE Especialidades
         SET Activo = 0,
             FechaBaja = GETDATE()
         WHERE IdEspecialidad = @IdEspecialidad;
-
-        -- 4. Baja lógica en cascada en MedicosEspecialidades
-        UPDATE MedicosEspecialidades
-        SET Activo = 0,
-            FechaBaja = GETDATE()
-        WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1;
-
-        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1432,7 +1412,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ObtenerEspecialidadesPorMedico
 ** Sección       : 3.6
-** Propósito     : Obtiene las especialidades activas asignadas a un médico en particular a través de la tabla intermedia `MedicosEspecialidades`.
+** Propósito     : Obtiene las especialidades (activas e inactivas, columna `Activo`) asignadas a un médico a través de `MedicosEspecialidades`. Las inactivas se incluyen para que el médico atienda sus turnos preexistentes y reciba el aviso al iniciar sesión.
 ** Entidad/Tablas: `Especialidades`, `MedicosEspecialidades`
 ** Invocado por  : `FrmGestionUsuarios2`, `FrmListaTurnosAtencion` (Carga de especialidades vinculadas al profesional (`CargarServiciosDelMedico` y precarga en `FrmGestionUsuarios2`))
 ** Estado        : `EN USO`
@@ -1454,9 +1434,8 @@ BEGIN
         e.Activo
     FROM Especialidades e
     INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
-    WHERE me.IdUsuario = @IdUsuario 
-      AND me.Activo = 1 
-      AND e.Activo = 1
+    WHERE me.IdUsuario = @IdUsuario
+      AND me.Activo = 1
     ORDER BY e.Nombre ASC;
     END TRY
     BEGIN CATCH
@@ -2779,6 +2758,11 @@ BEGIN
         )
         BEGIN
             THROW 50007, 'Ya existe un turno activo sin atender con el mismo número de orden.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50009, 'La especialidad seleccionada se encuentra inactiva. No se pueden registrar nuevos turnos.', 1;
         END
 
         INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)

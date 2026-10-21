@@ -1508,10 +1508,10 @@ GO
 ---
 
 ### 3.4 `sp_EliminarEspecialidad` (Baja Lógica)
-- **Descripción:** Realiza el borrado lógico de una especialidad médica (`Activo = 0`) previa validación de que no posea turnos pendientes o en atención en curso, y desactiva en cascada sus asignaciones médicas en `MedicosEspecialidades`.
-- **Entidad:** Especialidad / MedicoEspecialidad
-- **Operación:** Baja lógica transaccional en cascada
-- **Tablas:** `Especialidades`, `MedicosEspecialidades`, `Turnos`
+- **Descripción:** Realiza el borrado lógico de una especialidad médica (`Activo = 0`). Conserva los turnos pendientes (el médico asignado puede atenderlos) y los vínculos en `MedicosEspecialidades`; al quedar inactiva no se pueden registrar turnos nuevos. Al iniciar sesión, el médico recibe un aviso con el correo de un gerente.
+- **Entidad:** Especialidad
+- **Operación:** Baja lógica
+- **Tablas:** `Especialidades`
 - **Forms que lo utilizan:** `FrmGestionEspecialidades`
 - **Acción:** Botón `btnDesactivar`
 - **Estado:** `EN USO`
@@ -1523,7 +1523,6 @@ GO
   | Código | Mensaje al Operador | Condición de Disparo |
   | :--- | :--- | :--- |
   | `50052` | *La especialidad a desactivar no existe o ya se encuentra inactiva.* | `@IdEspecialidad` no existe o tiene `Activo = 0`. |
-  | `50053` | *No se puede dar de baja la especialidad porque posee turnos pendientes de atención (En Espera, Llamado o En Consulta).* | Existen turnos activos en dichos estados para la especialidad. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_EliminarEspecialidad
@@ -1539,33 +1538,13 @@ BEGIN
             THROW 50052, 'La especialidad a desactivar no existe o ya se encuentra inactiva.', 1;
         END
 
-        -- 2. Validar que no posea turnos pendientes de atención
-        IF EXISTS (
-            SELECT 1 
-            FROM Turnos 
-            WHERE IdEspecialidad = @IdEspecialidad 
-              AND Estado IN ('En Espera', 'Llamado', 'En Consulta') 
-              AND Activo = 1
-        )
-        BEGIN
-            THROW 50053, 'No se puede dar de baja la especialidad porque posee turnos pendientes de atención (En Espera, Llamado o En Consulta).', 1;
-        END
-
-        BEGIN TRANSACTION;
-
-        -- 3. Baja lógica de la especialidad
+        -- 2. Baja lógica de la especialidad.
+        -- Los turnos pendientes y los vínculos en MedicosEspecialidades se conservan:
+        -- el médico sigue atendiendo lo ya registrado y no se agendan turnos nuevos (Especialidades.Activo = 0).
         UPDATE Especialidades
         SET Activo = 0,
             FechaBaja = GETDATE()
         WHERE IdEspecialidad = @IdEspecialidad;
-
-        -- 4. Baja lógica en cascada en MedicosEspecialidades
-        UPDATE MedicosEspecialidades
-        SET Activo = 0,
-            FechaBaja = GETDATE()
-        WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1;
-
-        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1655,7 +1634,7 @@ GO
 ---
 
 ### 3.6 `sp_ObtenerEspecialidadesPorMedico`
-- **Descripción:** Obtiene las especialidades activas asignadas a un médico en particular a través de la tabla intermedia `MedicosEspecialidades`.
+- **Descripción:** Obtiene las especialidades (activas e inactivas, columna `Activo`) asignadas a un médico a través de `MedicosEspecialidades`. Las inactivas se incluyen para que el médico atienda sus turnos preexistentes y reciba el aviso al iniciar sesión (`Pantalla_Principal_PERSONAL_MEDICO`).
 - **Entidad:** Especialidad / MedicoEspecialidad
 - **Operación:** Consulta por Médico
 - **Tablas:** `Especialidades`, `MedicosEspecialidades`
@@ -1684,8 +1663,7 @@ BEGIN
     FROM Especialidades e
     INNER JOIN MedicosEspecialidades me ON e.IdEspecialidad = me.IdEspecialidad
     WHERE me.IdUsuario = @IdUsuario 
-      AND me.Activo = 1 
-      AND e.Activo = 1
+      AND me.Activo = 1
     ORDER BY e.Nombre ASC;
     END TRY
     BEGIN CATCH
@@ -3137,6 +3115,11 @@ GO
   | `@IdPrioridad` | `INT` | IN | Nivel de prioridad. |
   | `@IdPaciente` | `INT` | IN | ID del paciente. |
   | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
+- **Excepciones y Códigos de Error:**
+  | Código | Mensaje al Operador | Condición de Disparo |
+  | :--- | :--- | :--- |
+  | `50007` | *Ya existe un turno activo sin atender con el mismo número de orden.* | `@NroOrden` duplicado en un turno pendiente. |
+  | `50009` | *La especialidad seleccionada se encuentra inactiva. No se pueden registrar nuevos turnos.* | `@IdEspecialidad` tiene `Activo = 0`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarTurno
@@ -3158,6 +3141,11 @@ BEGIN
         )
         BEGIN
             THROW 50007, 'Ya existe un turno activo sin atender con el mismo número de orden.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
+        BEGIN
+            THROW 50009, 'La especialidad seleccionada se encuentra inactiva. No se pueden registrar nuevos turnos.', 1;
         END
 
         INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
@@ -4612,7 +4600,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_ListarEspecialidades` → Carga y refresco de la grilla de especialidades (`CargarEspecialidadesDesdeBD`). Admite parámetro `@IncluirInactivas` mediante el selector `chkMostrarInactivas`.
 - `sp_InsertarEspecialidad` → Botón "Guardar Especialidad" (`btnGuardar_Click`). Registra una nueva especialidad médica en el catálogo.
 - `sp_ModificarEspecialidad` → Botón "Modificar Especialidad" (`btnModificar_Click`). Permite actualizar la denominación de la especialidad seleccionada con validaciones de unicidad.
-- `sp_EliminarEspecialidad` → Botón "Desactivar Especialidad" (`btnDesactivar_Click`). Ejecuta la baja lógica validando que no posea turnos activos y desactivando asignaciones médicas en cascada.
+- `sp_EliminarEspecialidad` → Botón "Desactivar Especialidad" (`btnDesactivar_Click`). Ejecuta la baja lógica conservando los turnos pendientes y las asignaciones médicas (el médico atiende lo ya registrado; no se agendan turnos nuevos).
 - `sp_ReactivarEspecialidad` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Restituye lógicamente una especialidad inactiva y reactiva en cascada sus asignaciones profesionales.
 
 ### `FrmGestionObrasSociales`

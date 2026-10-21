@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
@@ -14,6 +15,8 @@ namespace Gestion_de_Turnos_Medicos
         private readonly UsuarioLoginResult _usuarioActual;
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly SalaBLL _salaBLL = new SalaBLL();
+        private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
+        private readonly BackupBLL _backupBLL = new BackupBLL();
         private Form? formularioActivo = null;
 
         /// <summary>
@@ -33,6 +36,43 @@ namespace Gestion_de_Turnos_Medicos
             if (_usuarioActual != null && !string.IsNullOrWhiteSpace(_usuarioActual.Nombre))
             {
                 lblUsuarioMedico.Text = $"Dr./a. {_usuarioActual.Nombre} {_usuarioActual.Apellido}".Trim();
+            }
+
+            AvisarEspecialidadInactiva();
+        }
+
+        /// <summary>
+        /// Si el médico tiene alguna especialidad inactiva, le informa que solo podrá atender los turnos
+        /// ya registrados y le muestra el correo de un gerente activo para contactarse.
+        /// </summary>
+        private void AvisarEspecialidadInactiva()
+        {
+            int idUsuario = _usuarioActual?.IdUsuario ?? 0;
+            if (idUsuario <= 0)
+                return;
+
+            try
+            {
+                var inactivas = _especialidadBLL.ObtenerEspecialidadesPorMedico(idUsuario)
+                    .Where(esp => !esp.Activo)
+                    .Select(esp => esp.Nombre)
+                    .ToList();
+
+                if (inactivas.Count == 0)
+                    return;
+
+                string correoGerente = _backupBLL.ObtenerGerentesActivos().FirstOrDefault()?.Correo
+                    ?? "No hay gerentes activos registrados";
+
+                MessageBox.Show(
+                    $"Su especialidad '{string.Join(", ", inactivas)}' se encuentra inactiva en el sistema.\n\n" +
+                    "Podrá atender los turnos que ya tenía registrados, pero no se asignarán turnos nuevos.\n\n" +
+                    $"Por favor, póngase en contacto con el gerente: {correoGerente}",
+                    "Especialidad Inactiva", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception)
+            {
+                // El aviso es informativo: si falla la consulta no se bloquea el ingreso del médico
             }
         }
 
