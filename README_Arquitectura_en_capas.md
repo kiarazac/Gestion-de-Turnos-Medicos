@@ -32,7 +32,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │                        CAPA DE PRESENTACIÓN (UI)                       │
 │  Namespace: Gestion_de_Turnos_Medicos                                  │
 │  Archivos: FrmLogin, FrmGestionUsuarios2 (Gestor Oficial Usuarios),    │
-│            FrmSalasAdmin, FrmGestionEspecialidades,                    │
+│            FrmSalasGerente, FrmGestionEspecialidades,                    │
 │            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
 │            FrmListaTurnosAtencion, MisSalas_PM, FrmMisAtenciones,      │
 │            FrmAdmin, FrmBackupRestore, FrmReporteGuardiaAdmin, etc.    │
@@ -130,7 +130,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.4 `MedicoDTO`
-- **Uso**: Retorno de `sp_ListarPersonalMedico` para el selector de asignación en `FrmSalasAdmin`.
+- **Uso**: Retorno de `sp_ListarPersonalMedico` para el selector de asignación en `FrmSalasGerente`.
 - **Propiedades**:
   ```csharp
   public int IdUsuario { get; set; }
@@ -545,7 +545,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `UsuarioBLL.EliminarUsuario` | `UsuarioDAL.EliminarUsuario` | `sp_EliminarUsuario` |
 | | `UsuarioBLL.ReactivarUsuario` | `UsuarioDAL.ReactivarUsuario` | `sp_ReactivarUsuario` |
 | | `UsuarioBLL.ObtenerUsuarioPorDni` | `UsuarioDAL.ObtenerUsuarioPorDni` | Consulta atómica por DNI (activos e inactivos) |
-| **`FrmSalasAdmin`** | `UsuarioBLL.ObtenerMedicos` | `UsuarioDAL.ListarPersonalMedico` | `sp_ListarPersonalMedico` |
+| **`FrmSalasGerente`** | `UsuarioBLL.ObtenerMedicos` | `UsuarioDAL.ListarPersonalMedico` | `sp_ListarPersonalMedico` |
 | | `SalaBLL.ObtenerSalas` | `SalaDAL.ObtenerSalas` | `sp_ObtenerSalas` (`@IdUsuario`, `@IncluirInactivas`) |
 | | `SalaBLL.RegistrarSala` | `SalaDAL.InsertarSala` | `sp_InsertarSala` |
 | | | `SalaDAL.AsignarSalaMedico` | `sp_AsignarSalaMedico` |

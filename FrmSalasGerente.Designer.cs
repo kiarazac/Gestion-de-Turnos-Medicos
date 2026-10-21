@@ -1,6 +1,6 @@
 namespace Gestion_de_Turnos_Medicos
 {
-    partial class FrmSalasAdmin
+    partial class FrmSalasGerente
     {
         /// <summary>
         /// Variable necesaria para el diseñador.
@@ -347,14 +347,14 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloDatos.TabIndex = 0;
             lblTituloDatos.Text = "🏢 Configuración del Consultorio / Sala";
             // 
-            // FrmSalasAdmin
+            // FrmSalasGerente
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1133, 501);
             Controls.Add(pnlContenedorPrincipal);
             Controls.Add(pnlHeader);
-            Name = "FrmSalasAdmin";
+            Name = "FrmSalasGerente";
             Text = "Gestión de Consultorios y Salas";
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();

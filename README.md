@@ -37,7 +37,7 @@ El sistema implementa una separación rigurosa de responsabilidades:
 - **Asignación Múltiple Atómica:** Permite seleccionar y reasignar múltiples salas (`DetallesSalas`) y especialidades médicas (`MedicosEspecialidades`) sin alterar los Stored Procedures originales de la base de datos.
 - **Actualización de Claves:** Permite blanquear o modificar la contraseña del usuario con hasheo seguro (`Seguridad.HashearContrasenia`), o conservarla intacta si el campo se deja vacío.
 
-### 2. Gestión de Salas y Consultorios (`FrmSalasAdmin`)
+### 2. Gestión de Salas y Consultorios (`FrmSalasGerente`)
 - **Administración Operativa:** Alta, baja lógica y modificación de consultorios físicos.
 - **Edición Interactiva y por Formulario:** Admite edición directa sobre las celdas del DataGrid (`CellEndEdit`) y mediante selección interactiva (`CellClick` / `SelectionChanged`).
 - **Estados Operativos Soportados:** `Disponible`, `Libre`, `Ocupada`, `En Mantenimiento` y `Cerrada`.

@@ -31,7 +31,6 @@ namespace Gestion_de_Turnos_Medicos
             panel1 = new Panel();
             pnlNav = new Panel();
             btnPersonalMedico = new Button();
-            btnSalas = new Button();
             btnEspecialidades = new Button();
             btnObrasSociales = new Button();
             btnBackup = new Button();
@@ -67,7 +66,6 @@ namespace Gestion_de_Turnos_Medicos
             pnlNav.AutoScroll = true;
             pnlNav.BackColor = Color.Transparent;
             pnlNav.Controls.Add(btnPersonalMedico);
-            pnlNav.Controls.Add(btnSalas);
             pnlNav.Controls.Add(btnEspecialidades);
             pnlNav.Controls.Add(btnObrasSociales);
             pnlNav.Controls.Add(btnBackup);
@@ -97,26 +95,6 @@ namespace Gestion_de_Turnos_Medicos
             btnPersonalMedico.UseVisualStyleBackColor = false;
             btnPersonalMedico.Click += btnPersonalMedico_Click;
             // 
-            // btnSalas
-            // 
-            btnSalas.BackColor = Color.FromArgb(30, 41, 59);
-            btnSalas.Cursor = Cursors.Hand;
-            btnSalas.FlatAppearance.BorderSize = 0;
-            btnSalas.FlatAppearance.MouseDownBackColor = Color.FromArgb(37, 99, 235);
-            btnSalas.FlatAppearance.MouseOverBackColor = Color.FromArgb(51, 65, 85);
-            btnSalas.FlatStyle = FlatStyle.Flat;
-            btnSalas.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
-            btnSalas.ForeColor = Color.White;
-            btnSalas.Location = new Point(15, 66);
-            btnSalas.Name = "btnSalas";
-            btnSalas.Padding = new Padding(12, 0, 0, 0);
-            btnSalas.Size = new Size(210, 46);
-            btnSalas.TabIndex = 1;
-            btnSalas.Text = "🏥  Salas y Consultorios";
-            btnSalas.TextAlign = ContentAlignment.MiddleLeft;
-            btnSalas.UseVisualStyleBackColor = false;
-            btnSalas.Click += btnSalas_Click;
-            // 
             // btnEspecialidades
             // 
             btnEspecialidades.BackColor = Color.FromArgb(30, 41, 59);
@@ -127,7 +105,7 @@ namespace Gestion_de_Turnos_Medicos
             btnEspecialidades.FlatStyle = FlatStyle.Flat;
             btnEspecialidades.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             btnEspecialidades.ForeColor = Color.White;
-            btnEspecialidades.Location = new Point(15, 120);
+            btnEspecialidades.Location = new Point(15, 66);
             btnEspecialidades.Name = "btnEspecialidades";
             btnEspecialidades.Padding = new Padding(12, 0, 0, 0);
             btnEspecialidades.Size = new Size(210, 46);
@@ -147,7 +125,7 @@ namespace Gestion_de_Turnos_Medicos
             btnObrasSociales.FlatStyle = FlatStyle.Flat;
             btnObrasSociales.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             btnObrasSociales.ForeColor = Color.White;
-            btnObrasSociales.Location = new Point(15, 174);
+            btnObrasSociales.Location = new Point(15, 120);
             btnObrasSociales.Name = "btnObrasSociales";
             btnObrasSociales.Padding = new Padding(12, 0, 0, 0);
             btnObrasSociales.Size = new Size(210, 46);
@@ -167,7 +145,7 @@ namespace Gestion_de_Turnos_Medicos
             btnBackup.FlatStyle = FlatStyle.Flat;
             btnBackup.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             btnBackup.ForeColor = Color.White;
-            btnBackup.Location = new Point(15, 228);
+            btnBackup.Location = new Point(15, 174);
             btnBackup.Name = "btnBackup";
             btnBackup.Padding = new Padding(12, 0, 0, 0);
             btnBackup.Size = new Size(210, 46);
@@ -299,7 +277,6 @@ namespace Gestion_de_Turnos_Medicos
         private Panel pnlSeparador;
         private Panel pnlNav;
         private Button btnPersonalMedico;
-        private Button btnSalas;
         private Button btnEspecialidades;
         private Button btnObrasSociales;
         private Button btnBackup;

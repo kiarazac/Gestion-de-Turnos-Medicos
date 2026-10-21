@@ -114,6 +114,13 @@ namespace Gestion_de_Turnos_Medicos
                     btnAbrirSala.Enabled = false;
                     btnCerrarSala.Enabled = true;
                 }
+                else if (estado.Equals("En Mantenimiento", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Solo el Gerente puede sacar la sala de mantenimiento
+                    LestadoSala.ForeColor = SystemColors.GrayText;
+                    btnAbrirSala.Enabled = false;
+                    btnCerrarSala.Enabled = false;
+                }
                 else
                 {
                     LestadoSala.ForeColor = Color.DarkOrange;

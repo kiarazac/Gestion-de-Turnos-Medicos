@@ -542,7 +542,7 @@ GO
 ** Sección       : 1.9
 ** Propósito     : Obtiene los usuarios activos con rol de "Personal médico" para la asignación de profesionales a consultorios y salas.
 ** Entidad/Tablas: `Usuarios`, `Roles`
-** Invocado por  : `FrmSalasAdmin` (Evento `Load` / `CargarPersonalMedicoDesdeBD`), `FrmListaTurnosAtencion`
+** Invocado por  : `FrmSalasGerente` (Evento `Load` / `CargarPersonalMedicoDesdeBD`), `FrmListaTurnosAtencion`
 ** Estado        : `EN USO`
 ** Retorno       : `IdUsuario` (INT), `NombreCompleto` (NVARCHAR)
 ** Parámetros   : Ninguno.
@@ -644,7 +644,7 @@ GO
 ** Sección       : 2.1
 ** Propósito     : Registra un nuevo consultorio o sala física en el catálogo de `Salas`, con validación de nombre único y estado operativo válido.
 ** Entidad/Tablas: `Salas`
-** Invocado por  : `FrmSalasAdmin` (Botón `btnGuardar`)
+** Invocado por  : `FrmSalasGerente` (Botón `btnGuardar`)
 ** Estado        : `EN USO`
 ** Retorno       : `IdNuevaSala` (`SCOPE_IDENTITY()`).
 ** Parámetros   :
@@ -697,7 +697,7 @@ GO
 ** Sección       : 2.2
 ** Propósito     : Actualiza el nombre identificatorio de una sala de atención médica en la tabla `Salas`.
 ** Entidad/Tablas: `Salas`
-** Invocado por  : `FrmSalasAdmin` (Botón `btnModificar` y edición interactiva en grilla DataGridView)
+** Invocado por  : `FrmSalasGerente` (Botón `btnModificar` y edición interactiva en grilla DataGridView)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
@@ -762,7 +762,7 @@ GO
 ** Sección       : 2.3
 ** Propósito     : Realiza la baja lógica de la sala (`Activo = 0`), verificando que no esté ocupada con atención médica activa y dando de baja en cascada las asignaciones de médicos en `DetallesSalas`.
 ** Entidad/Tablas: `Salas`, `DetallesSalas`
-** Invocado por  : `FrmSalasAdmin` (Botón `btnEliminar`)
+** Invocado por  : `FrmSalasGerente` (Botón `btnEliminar`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
@@ -815,9 +815,9 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ObtenerSalas
 ** Sección       : 2.4
-** Propósito     : Lista las salas de atención médica. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar salas dadas de baja lógica en `FrmSalasAdmin`.
+** Propósito     : Lista las salas de atención médica. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar salas dadas de baja lógica en `FrmSalasGerente`.
 ** Entidad/Tablas: `Salas`, `DetallesSalas`, `Usuarios`
-** Invocado por  : `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` (Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`, `chkMostrarInactivas_CheckedChanged`))
+** Invocado por  : `FrmSalasGerente`, `FrmGestionUsuarios2`, `MisSalas_PM` (Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`, `chkMostrarInactivas_CheckedChanged`))
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
@@ -863,7 +863,7 @@ GO
 ** Sección       : 2.5
 ** Propósito     : Vincula un médico a un consultorio en la tabla `DetallesSalas`, validando existencia y rol médico, y previniendo duplicados activos.
 ** Entidad/Tablas: `DetallesSalas`, `Salas`, `Usuarios`
-** Invocado por  : `FrmGestionUsuarios2`, `FrmSalasAdmin` (Botón `btnGuardar` / `btnModificar`)
+** Invocado por  : `FrmGestionUsuarios2`, `FrmSalasGerente` (Botón `btnGuardar` / `btnModificar`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
@@ -985,6 +985,15 @@ BEGIN
         THROW 50004, 'La sala seleccionada ya se encuentra abierta.', 1;
     END
 
+    IF EXISTS (
+        SELECT 1
+        FROM Salas
+        WHERE IdSala = @IdSala AND EstadoSala = 'En Mantenimiento' AND Activo = 1
+    )
+    BEGIN
+        THROW 50006, 'La sala se encuentra en mantenimiento y no puede abrirse hasta que el Gerente la habilite.', 1;
+    END
+
     UPDATE Salas
     SET EstadoSala = 'Disponible',
         FechaModificacion = GETDATE()
@@ -1002,7 +1011,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_CerrarSala
 ** Sección       : 2.7
-** Propósito     : Cambia el estado de la sala a `'Cerrada'` / `'En Mantenimiento'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`).
+** Propósito     : Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`) o en `'En Mantenimiento'` (estado que solo administra el Gerente).
 ** Entidad/Tablas: `Salas`
 ** Invocado por  : `MisSalas_PM` (Botón `btnCerrarSala`)
 ** Estado        : `EN USO`
@@ -1027,8 +1036,17 @@ BEGIN
         THROW 50001, 'No se puede cerrar la sala porque hay un paciente siendo atendido actualmente.', 1;
     END
 
+    IF EXISTS (
+        SELECT 1
+        FROM Salas
+        WHERE IdSala = @IdSala AND EstadoSala = 'En Mantenimiento' AND Activo = 1
+    )
+    BEGIN
+        THROW 50008, 'La sala se encuentra en mantenimiento. Solo el Gerente puede modificar su estado.', 1;
+    END
+
     UPDATE Salas
-    SET EstadoSala = 'En Mantenimiento',
+    SET EstadoSala = 'Cerrada',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
     END TRY
@@ -1090,7 +1108,7 @@ GO
 ** Sección       : 2.9
 ** Propósito     : Reactiva lógicamente una sala dada de baja previamente (`Activo = 1`, `FechaBaja = NULL`), restaura sus asignaciones históricas en `DetallesSalas` y valida existencia y estado actual.
 ** Entidad/Tablas: `Salas`, `DetallesSalas`
-** Invocado por  : `FrmSalasAdmin` (Botón `btnReactivar` ("♻ Re-dar de Alta Sala"))
+** Invocado por  : `FrmSalasGerente` (Botón `btnReactivar` ("♻ Re-dar de Alta Sala"))
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :

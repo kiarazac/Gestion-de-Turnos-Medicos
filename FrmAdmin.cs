@@ -64,14 +64,6 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Abre el módulo de administración de salas y consultorios físicos.
-        /// </summary>
-        private void btnSalas_Click(object sender, EventArgs e)
-        {
-            AbrirFormularioHijo(new FrmSalasAdmin());
-        }
-
-        /// <summary>
         /// Abre el módulo de administración de especialidades médicas.
         /// </summary>
         private void btnEspecialidades_Click(object sender, EventArgs e)

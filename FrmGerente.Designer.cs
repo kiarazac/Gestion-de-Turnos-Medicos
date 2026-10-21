@@ -20,6 +20,7 @@ namespace Gestion_de_Turnos_Medicos
             panel1 = new Panel();
             pnlNav = new Panel();
             btnReportes = new Button();
+            btnSalas = new Button();
             pnlFooterSidebar = new Panel();
             btnSalir = new Button();
             pnlHeaderSidebar = new Panel();
@@ -52,6 +53,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlNav.AutoScroll = true;
             pnlNav.BackColor = Color.Transparent;
             pnlNav.Controls.Add(btnReportes);
+            pnlNav.Controls.Add(btnSalas);
             pnlNav.Dock = DockStyle.Fill;
             pnlNav.Location = new Point(0, 105);
             pnlNav.Name = "pnlNav";
@@ -76,6 +78,25 @@ namespace Gestion_de_Turnos_Medicos
             btnReportes.Text = "📊  Auditoría y Reportes";
             btnReportes.TextAlign = ContentAlignment.MiddleLeft;
             btnReportes.UseVisualStyleBackColor = false;
+            //
+            // btnSalas
+            //
+            btnSalas.BackColor = Color.FromArgb(19, 56, 52);
+            btnSalas.Cursor = Cursors.Hand;
+            btnSalas.FlatAppearance.BorderSize = 0;
+            btnSalas.FlatAppearance.MouseDownBackColor = Color.FromArgb(13, 148, 136);
+            btnSalas.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 118, 110);
+            btnSalas.FlatStyle = FlatStyle.Flat;
+            btnSalas.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnSalas.ForeColor = Color.White;
+            btnSalas.Location = new Point(15, 66);
+            btnSalas.Name = "btnSalas";
+            btnSalas.Padding = new Padding(12, 0, 0, 0);
+            btnSalas.Size = new Size(210, 46);
+            btnSalas.TabIndex = 1;
+            btnSalas.Text = "🏥  Salas y Consultorios";
+            btnSalas.TextAlign = ContentAlignment.MiddleLeft;
+            btnSalas.UseVisualStyleBackColor = false;
             // 
             // pnlFooterSidebar
             // 
@@ -198,6 +219,7 @@ namespace Gestion_de_Turnos_Medicos
         private Panel pnlSeparador;
         private Panel pnlNav;
         private Button btnReportes;
+        private Button btnSalas;
         private Panel pnlFooterSidebar;
         private Button btnSalir;
         private Panel pnlContenedor;

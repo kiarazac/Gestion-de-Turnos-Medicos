@@ -617,7 +617,7 @@ GO
 - **Entidad:** Usuario / Rol
 - **Operación:** Listado / Selector
 - **Tablas:** `Usuarios`, `Roles`
-- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmListaTurnosAtencion`
+- **Forms que lo utilizan:** `FrmSalasGerente`, `FrmListaTurnosAtencion`
 - **Acción:** Evento `Load` / `CargarPersonalMedicoDesdeBD`
 - **Estado:** `EN USO`
 - **Parámetros:** Ninguno.
@@ -732,7 +732,7 @@ GO
 - **Entidad:** Sala
 - **Operación:** Alta
 - **Tablas:** `Salas`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasGerente`
 - **Acción:** Botón `btnGuardar`
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -797,7 +797,7 @@ GO
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Modificación / Reasignación de Personal
 - **Tablas:** `Salas`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasGerente`
 - **Acción:** Botón `btnModificar` y edición interactiva en grilla DataGridView
 - **Estado:** `EN USO`
 - **Parámetros del SP en Base de Datos (dbGestionTurnos):**
@@ -874,7 +874,7 @@ GO
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Baja lógica / Desactivación en cascada
 - **Tablas:** `Salas`, `DetallesSalas`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasGerente`
 - **Acción:** Botón `btnEliminar`
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -935,11 +935,11 @@ GO
 ---
 
 ### 2.4 `sp_ObtenerSalas`
-- **Descripción:** Lista las salas de atención médica. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar salas dadas de baja lógica en `FrmSalasAdmin`.
+- **Descripción:** Lista las salas de atención médica. Si `@IdUsuario` es `NULL`, devuelve todas las salas (vista administrativa); si se provee un médico, retorna exclusivamente las salas asignadas a su perfil. Admite el parámetro opcional `@IncluirInactivas` para visualizar y reactivar salas dadas de baja lógica en `FrmSalasGerente`.
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Listado / Consulta
 - **Tablas:** `Salas`, `DetallesSalas`, `Usuarios`
-- **Forms que lo utilizan:** `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM`
+- **Forms que lo utilizan:** `FrmSalasGerente`, `FrmGestionUsuarios2`, `MisSalas_PM`
 - **Acción:** Carga de grilla de salas (`CargarSalasDesdeBD`, `CargarMisSalas`, `chkMostrarInactivas_CheckedChanged`)
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -991,7 +991,7 @@ GO
 - **Entidad:** DetalleSala
 - **Operación:** Asignación
 - **Tablas:** `DetallesSalas`, `Salas`, `Usuarios`
-- **Forms que lo utilizan:** `FrmGestionUsuarios2`, `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`, `FrmSalasGerente`
 - **Acción:** Botón `btnGuardar` / `btnModificar`
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -1083,6 +1083,10 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala a abrir. |
   | `@IdUsuario` | `INT` | IN | ID del médico autenticado. |
+- **Errores controlados:**
+  | Código | Mensaje | Causa |
+  | :--- | :--- | :--- |
+  | `50006` | *La sala se encuentra en mantenimiento y no puede abrirse hasta que el Gerente la habilite.* | La sala está en `'En Mantenimiento'` (estado que solo administra el Gerente). |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_AbrirSala
@@ -1126,6 +1130,15 @@ BEGIN
         THROW 50004, 'La sala seleccionada ya se encuentra abierta.', 1;
     END
 
+    IF EXISTS (
+        SELECT 1 
+        FROM Salas 
+        WHERE IdSala = @IdSala AND EstadoSala = 'En Mantenimiento' AND Activo = 1
+    )
+    BEGIN
+        THROW 50006, 'La sala se encuentra en mantenimiento y no puede abrirse hasta que el Gerente la habilite.', 1;
+    END
+
     UPDATE Salas
     SET EstadoSala = 'Disponible',
         FechaModificacion = GETDATE()
@@ -1143,7 +1156,7 @@ GO
 ---
 
 ### 2.7 `sp_CerrarSala`
-- **Descripción:** Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`).
+- **Descripción:** Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`) o en `'En Mantenimiento'` (estado que solo administra el Gerente).
 - **Entidad:** Sala
 - **Operación:** Cambio de Estado / Validación de Negocio
 - **Tablas:** `Salas`
@@ -1154,6 +1167,10 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IdSala` | `INT` | IN | ID de la sala a cerrar. |
+- **Errores controlados:**
+  | Código | Mensaje | Causa |
+  | :--- | :--- | :--- |
+  | `50008` | *La sala se encuentra en mantenimiento. Solo el Gerente puede modificar su estado.* | La sala está en `'En Mantenimiento'`; el médico no puede cerrarla. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_CerrarSala
@@ -1173,8 +1190,17 @@ BEGIN
         THROW 50001, 'No se puede cerrar la sala porque hay un paciente siendo atendido actualmente.', 1;
     END
 
+    IF EXISTS (
+        SELECT 1 
+        FROM Salas 
+        WHERE IdSala = @IdSala AND EstadoSala = 'En Mantenimiento' AND Activo = 1
+    )
+    BEGIN
+        THROW 50008, 'La sala se encuentra en mantenimiento. Solo el Gerente puede modificar su estado.', 1;
+    END
+
     UPDATE Salas
-    SET EstadoSala = 'En Mantenimiento',
+    SET EstadoSala = 'Cerrada',
         FechaModificacion = GETDATE()
     WHERE IdSala = @IdSala AND Activo = 1;
     END TRY
@@ -1248,7 +1274,7 @@ GO
 - **Entidad:** Sala / DetalleSala
 - **Operación:** Reactivación / Alta lógica
 - **Tablas:** `Salas`, `DetallesSalas`
-- **Forms que lo utilizan:** `FrmSalasAdmin`
+- **Forms que lo utilizan:** `FrmSalasGerente`
 - **Acción:** Botón `btnReactivar` ("♻ Re-dar de Alta Sala")
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -4484,14 +4510,14 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 6 | `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios2` | Botón `btnModificar` (Actualizar datos) | `EN USO` |
 | 7 | `sp_EliminarUsuario` | Usuario | Baja lógica | `FrmGestionUsuarios2` | Botón `btnEliminar` (Desactivar) | `EN USO` |
 | 8 | `sp_ReactivarUsuario` | Usuario | Reactivación / Alta | `FrmGestionUsuarios2` | Botón `btnReactivar` (Re-dar de Alta) | `EN USO` |
-| 9 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasAdmin` | Cargar lista de médicos asignables | `EN USO` |
+| 9 | `sp_ListarPersonalMedico`| Usuario | Selector | `FrmSalasGerente` | Cargar lista de médicos asignables | `EN USO` |
 | 10 | `sp_ObtenerUsuarioPorDni` | Usuario | Búsqueda / Consulta | `FrmGestionUsuarios2` | Búsqueda por DNI y precarga de ficha | `EN USO` |
-| 10 | `sp_InsertarSala` | Sala | Alta | `FrmSalasAdmin` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
-| 11 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasAdmin` | Botón `btnModificar` y edición interactiva | `EN USO` |
-| 12 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasAdmin` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
-| 13 | `sp_ReactivarSala` | Sala | Reactivación / Alta | `FrmSalasAdmin` | Botón `btnReactivar` (Re-dar de Alta Sala) | `EN USO` |
-| 14 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasAdmin`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios (con soporte de inactivas) | `EN USO` |
-| 15 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasAdmin` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
+| 10 | `sp_InsertarSala` | Sala | Alta | `FrmSalasGerente` | Botón `btnGuardar` (Nueva sala) | `EN USO` |
+| 11 | `sp_ModificarSala` | Sala | Modificación | `FrmSalasGerente` | Botón `btnModificar` y edición interactiva | `EN USO` |
+| 12 | `sp_EliminarSala` | Sala | Baja lógica | `FrmSalasGerente` | Botón `btnEliminar` (Desactivar sala) | `EN USO` |
+| 13 | `sp_ReactivarSala` | Sala | Reactivación / Alta | `FrmSalasGerente` | Botón `btnReactivar` (Re-dar de Alta Sala) | `EN USO` |
+| 14 | `sp_ObtenerSalas` | Sala | Listado | `FrmSalasGerente`, `FrmGestionUsuarios2`, `MisSalas_PM` | Cargar grillas de consultorios (con soporte de inactivas) | `EN USO` |
+| 15 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasGerente` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 16 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
 | 17 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
 | 18 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
@@ -4573,7 +4599,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 - `sp_EliminarUsuario` → Botón "Desactivar Usuario" (`btnEliminar_Click`). Ejecuta la baja lógica del usuario protegiendo con inmunidad a `admin@gmail.com` y preservando íntegramente las salas y especialidades asignadas.
 - `sp_ReactivarUsuario` → Botón "Re-dar de Alta" (`btnReactivar_Click`). Reactiva lógicamente a un usuario inactivo (`Activo = 1`, `FechaBaja = NULL`), restaurando sus asignaciones y permitiendo actualizar sus datos en la misma acción.
 
-### `FrmSalasAdmin`
+### `FrmSalasGerente`
 - `sp_ListarPersonalMedico` → Carga del listado de médicos asignables a consultorios (`CargarPersonalMedicoDesdeBD`).
 - `sp_ObtenerSalas` → Carga y refresco de la grilla de salas (`CargarSalasDesdeBD`). Admite parámetro `@IncluirInactivas` según el estado del selector `chkMostrarInactivas`.
 - `sp_InsertarSala` → Botón "Guardar" (`btnGuardar_Click`). Registra la nueva sala con control de duplicados y estado válido.
@@ -4629,11 +4655,15 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 
 ### `MisSalas_PM`
 - `sp_ObtenerSalas` (`@IdUsuario = médico`) → Carga de la grilla de salas asignadas al médico logueado (`CargarMisSalas`).
-- `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando que el médico no tenga otra abierta.
-- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa.
+- `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando que el médico no tenga otra abierta y que la sala no esté 'En Mantenimiento'.
+- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa ni 'En Mantenimiento'.
+- Si la sala está 'En Mantenimiento' ambos botones quedan deshabilitados: solo el Gerente (`FrmSalasGerente`) puede cambiar ese estado.
 
 ### `FrmAdmin`
-- Contenedor MDI administrativo técnico y operativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmSalasAdmin`, `FrmGestionEspecialidades`, `FrmGestionObrasSociales` y `FrmBackupRestore`. No posee funciones ni formularios de reportería clínica ni gerencial.
+- Contenedor MDI administrativo técnico y operativo. Gestiona navegación a `FrmGestionUsuarios2` (formulario oficial activo), `FrmGestionEspecialidades`, `FrmGestionObrasSociales` y `FrmBackupRestore`. No posee funciones ni formularios de reportería clínica ni gerencial, ni la gestión de salas (movida a `FrmGerente`).
+
+### `FrmGerente`
+- Contenedor MDI gerencial. Gestiona navegación a `FrmReportesGerente` y `FrmSalasGerente` (alta/modificación de salas y único rol que puede poner o quitar el estado 'En Mantenimiento').
 
 ### `Pantalla_Principal_PERSONAL_MEDICO` (`FrmPersonalMedico`)
 - Contenedor MDI médico. Transfiere el contexto de `_usuarioActual` hacia `MisSalas_PM`, `FrmListaTurnosAtencion` y `FrmMisAtenciones`.
@@ -4659,7 +4689,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 A partir de la revisión técnica del flujo de modificación de entidades se detectaron y corrigieron los siguientes comportamientos en SQL Server y la Capa DAL/UI:
 
 ### 1. Desfase de Identificador de Rol en `sp_AsignarSalaMedico` (Error 50061)
-- **Problema detectado:** `sp_AsignarSalaMedico` contenía una condición fija `AND IdRol = 2`. Sin embargo, en el esquema real de `dbGestionTurnos`, `IdRol = 1` corresponde a `Personal médico` y `IdRol = 2` a `Recepcionista`. Al intentar modificar una sala asignando médicos (`FrmSalasAdmin`) o al modificar un usuario médico reasignándole salas (`FrmGestionUsuarios2`), la base de datos abortaba la operación arrojando:
+- **Problema detectado:** `sp_AsignarSalaMedico` contenía una condición fija `AND IdRol = 2`. Sin embargo, en el esquema real de `dbGestionTurnos`, `IdRol = 1` corresponde a `Personal médico` y `IdRol = 2` a `Recepcionista`. Al intentar modificar una sala asignando médicos (`FrmSalasGerente`) o al modificar un usuario médico reasignándole salas (`FrmGestionUsuarios2`), la base de datos abortaba la operación arrojando:
   > `THROW 50061, 'El usuario asignado no existe, está inactivo o no pertenece al rol de Personal Médico.', 1;`
 - **Solución implementada:** Se modificó `sp_AsignarSalaMedico` vinculando dinámicamente con la tabla `Roles` mediante `INNER JOIN Roles r ON u.IdRol = r.IdRol`, permitiendo `(u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')`. Esto desacopla el procedimiento de IDs estáticos y garantiza la asignación para cualquier profesional médico.
 - **Manejo de borrado lógico:** Se incorporó reactivación automática de registros previos: si en `DetallesSalas` existía una vinculación con `Activo = 0` (por haber sido desasignada previamente), se reactiva con `Activo = 1, FechaBaja = NULL` y se actualiza su descripción, impidiendo duplicidad de registros y errores de clave.
@@ -4678,7 +4708,7 @@ A partir de la revisión técnica del flujo de modificación de entidades se det
 
 ### 6. Habilitación de Modificación y Re-dar de Alta en Salas y Especialidades
 - **Mejora aplicada:**
-  - En **Salas (`FrmSalasAdmin`)**: Se añadió el botón `btnReactivar` y el filtro `chkMostrarInactivas` para listar salas inactivas con estilo visual diferenciado tenue y reactivarlas mediante `sp_ReactivarSala`. Se habilitó la modificación completa mediante `sp_ModificarSala` y `ReasignarMedicosASala`.
+  - En **Salas (`FrmSalasGerente`)**: Se añadió el botón `btnReactivar` y el filtro `chkMostrarInactivas` para listar salas inactivas con estilo visual diferenciado tenue y reactivarlas mediante `sp_ReactivarSala`. Se habilitó la modificación completa mediante `sp_ModificarSala` y `ReasignarMedicosASala`.
   - En **Especialidades (`FrmGestionEspecialidades`)**: Se activó `sp_ModificarEspecialidad` vinculado al nuevo botón `btnModificar`, se incorporó `sp_ReactivarEspecialidad` con el botón `btnReactivar`, se agregó la columna "Estado" y el filtro `chkMostrarInactivas` para auditar e interactuar con especialidades inactivas.
 
 ---

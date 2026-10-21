@@ -22,6 +22,7 @@ namespace Gestion_de_Turnos_Medicos
 
             this.Load += FrmGerente_Load;
             this.btnReportes.Click += BtnReportes_Click;
+            this.btnSalas.Click += (s, e) => AbrirFormularioHijo(new FrmSalasGerente());
             this.btnSalir.Click += BtnSalir_Click;
         }
 

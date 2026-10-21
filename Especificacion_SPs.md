@@ -166,7 +166,7 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 
 ---
 
-## FrmSalasAdmin
+## FrmSalasGerente
 
 ### 1. `sp_ListarSalas`
 - **Descripción**: Obtiene todas las salas activas con su estado actual y el personal que tienen asignado.

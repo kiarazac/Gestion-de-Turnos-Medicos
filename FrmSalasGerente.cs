@@ -8,10 +8,10 @@ using Gestion_de_Turnos_Medicos.ResultadosSQL;
 namespace Gestion_de_Turnos_Medicos
 {
     /// <summary>
-    /// Formulario de administración de consultorios y salas médicas para el administrador.
+    /// Formulario de administración de consultorios y salas médicas para el gerente.
     /// Permite crear salas, cambiar estados operativos, asignar médicos a salas, dar bajas lógicas y reactivarlas.
     /// </summary>
-    public partial class FrmSalasAdmin : Form
+    public partial class FrmSalasGerente : Form
     {
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly SalaBLL _salaBLL = new SalaBLL();
@@ -30,16 +30,16 @@ namespace Gestion_de_Turnos_Medicos
             public override string ToString() => NombreCompleto;
         }
 
-        public FrmSalasAdmin()
+        public FrmSalasGerente()
         {
             InitializeComponent();
-            this.Load += FrmSalasAdmin_Load;
+            this.Load += FrmSalasGerente_Load;
             this.dgvSalas.SelectionChanged += DgvSalas_SelectionChanged;
             this.dgvSalas.CellClick += (s, e) => DgvSalas_SelectionChanged(s, e);
             this.dgvSalas.CellEndEdit += DgvSalas_CellEndEdit;
         }
 
-        private void FrmSalasAdmin_Load(object? sender, EventArgs e)
+        private void FrmSalasGerente_Load(object? sender, EventArgs e)
         {
             ConfigurarDataGrid();
             CargarEstados();
