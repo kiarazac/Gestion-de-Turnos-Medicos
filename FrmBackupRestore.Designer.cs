@@ -60,6 +60,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlAdminAuth = new Panel();
             lblPasswordAdmin = new Label();
             txtPasswordAdmin = new TextBox();
+            btnVerificarAdmin = new Button();
             lblAdminActual = new Label();
             txtAdminInfo = new TextBox();
             lblTituloAdmin = new Label();
@@ -350,6 +351,7 @@ namespace Gestion_de_Turnos_Medicos
             btnIniciarRestauracion.TabIndex = 3;
             btnIniciarRestauracion.Text = "⚠️ Iniciar Restauración de Base de Datos";
             btnIniciarRestauracion.UseVisualStyleBackColor = false;
+            btnIniciarRestauracion.Enabled = false;
             // 
             // gbDobleAutorizacion
             // 
@@ -379,6 +381,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlGerenteAuth.Padding = new Padding(12);
             pnlGerenteAuth.Size = new Size(420, 135);
             pnlGerenteAuth.TabIndex = 1;
+            pnlGerenteAuth.Visible = false;
             // 
             // lblPasswordGerente
             // 
@@ -438,6 +441,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlAdminAuth.BorderStyle = BorderStyle.FixedSingle;
             pnlAdminAuth.Controls.Add(lblPasswordAdmin);
             pnlAdminAuth.Controls.Add(txtPasswordAdmin);
+            pnlAdminAuth.Controls.Add(btnVerificarAdmin);
             pnlAdminAuth.Controls.Add(lblAdminActual);
             pnlAdminAuth.Controls.Add(txtAdminInfo);
             pnlAdminAuth.Controls.Add(lblTituloAdmin);
@@ -464,8 +468,23 @@ namespace Gestion_de_Turnos_Medicos
             txtPasswordAdmin.Location = new Point(12, 97);
             txtPasswordAdmin.Name = "txtPasswordAdmin";
             txtPasswordAdmin.PasswordChar = '●';
-            txtPasswordAdmin.Size = new Size(390, 24);
+            txtPasswordAdmin.Size = new Size(280, 24);
             txtPasswordAdmin.TabIndex = 3;
+            //
+            // btnVerificarAdmin
+            //
+            btnVerificarAdmin.BackColor = Color.FromArgb(15, 118, 110);
+            btnVerificarAdmin.Cursor = Cursors.Hand;
+            btnVerificarAdmin.FlatAppearance.BorderSize = 0;
+            btnVerificarAdmin.FlatStyle = FlatStyle.Flat;
+            btnVerificarAdmin.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnVerificarAdmin.ForeColor = Color.White;
+            btnVerificarAdmin.Location = new Point(300, 96);
+            btnVerificarAdmin.Name = "btnVerificarAdmin";
+            btnVerificarAdmin.Size = new Size(102, 26);
+            btnVerificarAdmin.TabIndex = 5;
+            btnVerificarAdmin.Text = "Verificar";
+            btnVerificarAdmin.UseVisualStyleBackColor = false;
             // 
             // lblAdminActual
             // 
@@ -639,6 +658,7 @@ namespace Gestion_de_Turnos_Medicos
         private Label lblAdminActual;
         private Label lblPasswordAdmin;
         private TextBox txtPasswordAdmin;
+        private Button btnVerificarAdmin;
         private Panel pnlGerenteAuth;
         private Label lblTituloGerente;
         private Label lblSeleccionarGerente;

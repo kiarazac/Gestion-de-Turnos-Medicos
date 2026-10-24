@@ -31,6 +31,57 @@ namespace Gestion_de_Turnos_Medicos
             this.btnExaminarRestore.Click += BtnExaminarRestore_Click;
             this.btnIniciarRestauracion.Click += BtnIniciarRestauracion_Click;
             this.tabContenedor.SelectedIndexChanged += TabContenedor_SelectedIndexChanged;
+            this.btnVerificarAdmin.Click += BtnVerificarAdmin_Click;
+            this.txtPasswordAdmin.TextChanged += (s, e) => MostrarAutorizacionGerente(false);
+            this.txtPasswordAdmin.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    BtnVerificarAdmin_Click(s, e);
+                }
+            };
+        }
+
+        /// <summary>
+        /// Muestra u oculta la segunda autorización (Gerente): solo aparece tras verificar al Administrador.
+        /// </summary>
+        private void MostrarAutorizacionGerente(bool visible)
+        {
+            pnlGerenteAuth.Visible = visible;
+            btnIniciarRestauracion.Enabled = visible;
+            if (!visible)
+            {
+                txtPasswordGerente.Clear();
+            }
+        }
+
+        private void BtnVerificarAdmin_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                _backupBLL.ValidarAdministrador(_usuarioActual.Correo, txtPasswordAdmin.Text);
+                MostrarAutorizacionGerente(true);
+                lblEstadoRestore.Text = "Administrador verificado. Ingrese la autorización del Gerente.";
+                lblEstadoRestore.ForeColor = Color.FromArgb(22, 101, 52);
+                txtPasswordGerente.Focus();
+            }
+            catch (ArgumentException argEx)
+            {
+                MessageBox.Show(argEx.Message, "Contraseña de Administrador Requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtPasswordAdmin.Focus();
+            }
+            catch (UnauthorizedAccessException authEx)
+            {
+                MessageBox.Show(authEx.Message, "Autorización Denegada", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                txtPasswordAdmin.Clear();
+                txtPasswordAdmin.Focus();
+            }
+            finally
+            {
+                Cursor.Current = Cursors.Default;
+            }
         }
 
         private void FrmBackupRestore_Load(object? sender, EventArgs e)

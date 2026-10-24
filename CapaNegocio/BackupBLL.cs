@@ -76,12 +76,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <exception cref="UnauthorizedAccessException">Se lanza si alguna de las dos credenciales es inválida.</exception>
         public void ValidarDobleAutorizacion(string correoAdmin, string contrasenaAdmin, string correoGerente, string contrasenaGerente)
         {
-            if (string.IsNullOrWhiteSpace(correoAdmin))
-                throw new ArgumentException("El correo del Administrador no puede ser nulo o vacío.");
-
-            if (string.IsNullOrWhiteSpace(contrasenaAdmin))
-                throw new ArgumentException("Debe ingresar la contraseña del Administrador.");
-
             if (string.IsNullOrWhiteSpace(correoGerente))
                 throw new ArgumentException("Debe seleccionar o ingresar el correo del Gerente autorizante.");
 
@@ -89,26 +83,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new ArgumentException("Debe ingresar la contraseña del Gerente autorizante.");
 
             // 1. Validar identidad del Administrador
-            UsuarioLoginResult? adminLogin = null;
-            try
-            {
-                adminLogin = _usuarioDAL.ValidarLogin(correoAdmin.Trim(), Seguridad.HashearContrasenia(contrasenaAdmin));
-            }
-            catch (Exception ex)
-            {
-                throw new UnauthorizedAccessException($"Error al autenticar al Administrador: {ex.Message}", ex);
-            }
-
-            if (adminLogin == null)
-            {
-                throw new UnauthorizedAccessException("La contraseña del Administrador es incorrecta o el usuario no está activo.");
-            }
-
-            string rolAdmin = adminLogin.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
-            if (!rolAdmin.Contains("admin") && adminLogin.IdRol != 3)
-            {
-                throw new UnauthorizedAccessException("El usuario especificado como Administrador no cuenta con privilegios de Administrador.");
-            }
+            ValidarAdministrador(correoAdmin, contrasenaAdmin);
 
             // 2. Validar identidad del Gerente
             UsuarioLoginResult? gerenteLogin = null;
@@ -130,6 +105,41 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (!rolGerente.Contains("geren") && gerenteLogin.IdRol != 5 && gerenteLogin.IdRol != 21 && gerenteLogin.IdRol != 25)
             {
                 throw new UnauthorizedAccessException("El usuario seleccionado como Gerente no cuenta con perfil de Gerente.");
+            }
+        }
+
+        /// <summary>
+        /// Valida la primera autorización del restore: credenciales activas y rol del Administrador.
+        /// </summary>
+        /// <exception cref="ArgumentException">Se lanza si algún campo requerido está vacío.</exception>
+        /// <exception cref="UnauthorizedAccessException">Se lanza si la credencial es inválida o no es Administrador.</exception>
+        public void ValidarAdministrador(string correoAdmin, string contrasenaAdmin)
+        {
+            if (string.IsNullOrWhiteSpace(correoAdmin))
+                throw new ArgumentException("El correo del Administrador no puede ser nulo o vacío.");
+
+            if (string.IsNullOrWhiteSpace(contrasenaAdmin))
+                throw new ArgumentException("Debe ingresar la contraseña del Administrador.");
+
+            UsuarioLoginResult? adminLogin = null;
+            try
+            {
+                adminLogin = _usuarioDAL.ValidarLogin(correoAdmin.Trim(), Seguridad.HashearContrasenia(contrasenaAdmin));
+            }
+            catch (Exception ex)
+            {
+                throw new UnauthorizedAccessException($"Error al autenticar al Administrador: {ex.Message}", ex);
+            }
+
+            if (adminLogin == null)
+            {
+                throw new UnauthorizedAccessException("La contraseña del Administrador es incorrecta o el usuario no está activo.");
+            }
+
+            string rolAdmin = adminLogin.NombreRol?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (!rolAdmin.Contains("admin") && adminLogin.IdRol != 3)
+            {
+                throw new UnauthorizedAccessException("El usuario especificado como Administrador no cuenta con privilegios de Administrador.");
             }
         }
 
