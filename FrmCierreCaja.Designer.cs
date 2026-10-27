@@ -256,7 +256,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubKpiCoberturaHoy.Name = "lblSubKpiCoberturaHoy";
             lblSubKpiCoberturaHoy.Size = new Size(153, 12);
             lblSubKpiCoberturaHoy.TabIndex = 2;
-            lblSubKpiCoberturaHoy.Text = "70% aportado por Obras Sociales";
+            lblSubKpiCoberturaHoy.Text = "Aportado por Obras Sociales";
             // 
             // lblKpiCoberturaHoy
             // 
@@ -547,7 +547,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubKpiCoberturaFiltro.Name = "lblSubKpiCoberturaFiltro";
             lblSubKpiCoberturaFiltro.Size = new Size(153, 12);
             lblSubKpiCoberturaFiltro.TabIndex = 2;
-            lblSubKpiCoberturaFiltro.Text = "70% aportado por Obras Sociales";
+            lblSubKpiCoberturaFiltro.Text = "Aportado por Obras Sociales";
             // 
             // lblKpiCoberturaFiltro
             // 

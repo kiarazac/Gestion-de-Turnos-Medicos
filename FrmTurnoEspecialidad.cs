@@ -406,10 +406,11 @@ namespace Gestion_de_Turnos_Medicos
                 idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
                 idPacienteActual = idPaciente;
 
-                // Cálculo del arancel según reglas de negocio (fijo $15.000 Particular, 30% $4.500 con Obra Social)
-                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Especialidad", obraSocial);
+                // Cálculo del arancel según reglas de negocio (arancel base menos el % que cubre la obra social elegida)
+                decimal porcentajeCobertura = (cmbObraSocial.SelectedItem as ObraSocialDTO)?.PorcentajeCobertura ?? 0m;
+                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Especialidad", porcentajeCobertura);
                 bool tieneOS = TurnoBLL.TieneObraSocial(obraSocial);
-                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial);
+                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial, porcentajeCobertura);
 
                 // Registro del turno con generación automática de palabra clave 2FA y arancel
                 var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera", null, montoArancel);
@@ -418,7 +419,7 @@ namespace Gestion_de_Turnos_Medicos
 
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
-                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? "Copago 30%" : "Particular 100%")})";
+                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? $"Copago {100 - porcentajeCobertura:0.##}%" : "Particular 100%")})";
                 lblMontoCobro.ForeColor = tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
 
                 // Guardamos los datos del comprobante para su exportación a .txt incluyendo la clave 2FA y arancel

@@ -50,29 +50,37 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <summary>
         /// Obtiene el texto descriptivo de la condición de cobro para emisión de comprobantes y alertas.
         /// </summary>
-        public static string ObtenerCondicionCobroTexto(string? obraSocial)
+        /// <param name="obraSocial">Nombre de la obra social o Particular.</param>
+        /// <param name="porcentajeCobertura">Porcentaje del arancel que cubre la obra social (0 a 100).</param>
+        public static string ObtenerCondicionCobroTexto(string? obraSocial, decimal porcentajeCobertura)
         {
-            return TieneObraSocial(obraSocial) ? "Copago 30% (Obra Social)" : "Particular (100% Arancel Completo)";
+            return TieneObraSocial(obraSocial)
+                ? $"Copago {100 - porcentajeCobertura:0.##}% (Obra Social)"
+                : "Particular (100% Arancel Completo)";
         }
 
         /// <summary>
-        /// Calcula el arancel que debe abonar el paciente en caja según las reglas de negocio:
-        /// - Fijo para especialidad: $15.000 (Particular) o $4.500 (30% si tiene Obra Social).
-        /// - Emergencia / Guardia: $25.000 (Particular) o $7.500 (30% si tiene Obra Social).
+        /// Arancel completo (Particular) según el tipo de turno: $25.000 Emergencia / Guardia, $15.000 Especialidad.
         /// </summary>
-        /// <param name="tipoTurno">Tipo de turno ('Especialidad' o 'Emergencia').</param>
-        /// <param name="obraSocial">Nombre de la obra social o '-' / Particular.</param>
-        /// <returns>Monto a abonar por el paciente.</returns>
-        public static decimal CalcularArancelSugerido(string tipoTurno, string? obraSocial)
+        /// <param name="tipoTurno">Tipo de turno o sección ('Especialidad', 'Emergencia', 'Guardia').</param>
+        public static decimal ObtenerArancelBase(string? tipoTurno)
         {
             bool esEmergencia = tipoTurno != null && (tipoTurno.Contains("emergencia", StringComparison.OrdinalIgnoreCase) ||
                                 tipoTurno.Contains("guardia", StringComparison.OrdinalIgnoreCase));
 
-            decimal baseParticular = esEmergencia ? 25000.00m : 15000.00m;
-            bool conObraSocial = TieneObraSocial(obraSocial);
+            return esEmergencia ? 25000.00m : 15000.00m;
+        }
 
-            // Paciente abona solo el 30% si cuenta con obra social
-            return conObraSocial ? Math.Round(baseParticular * 0.30m, 2) : baseParticular;
+        /// <summary>
+        /// Calcula el arancel que debe abonar el paciente en caja: el arancel base menos el porcentaje
+        /// que cubre su obra social (Particular = 0% de cobertura, abona el 100%).
+        /// </summary>
+        /// <param name="tipoTurno">Tipo de turno ('Especialidad' o 'Emergencia').</param>
+        /// <param name="porcentajeCobertura">Porcentaje del arancel que cubre la obra social (0 a 100).</param>
+        /// <returns>Monto a abonar por el paciente.</returns>
+        public static decimal CalcularArancelSugerido(string tipoTurno, decimal porcentajeCobertura)
+        {
+            return Math.Round(ObtenerArancelBase(tipoTurno) * (100m - porcentajeCobertura) / 100m, 2);
         }
 
         /// <summary>
@@ -485,7 +493,10 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (fechaTurno.Date < DateTime.Today)
                 throw new InvalidOperationException($"El turno {datos.NroOrden} es del {fechaTurno:dd/MM/yyyy}. Solo se puede descargar el comprobante de turnos de hoy en adelante.");
 
-            datos.DetalleArancel = ObtenerCondicionCobroTexto(datos.ObraSocial);
+            // El % se deriva de lo efectivamente cobrado, así el comprobante no cambia si luego se edita la obra social
+            decimal arancelBase = ObtenerArancelBase(datos.Seccion);
+            decimal porcentajeCobertura = 100m - Math.Round((datos.MontoCobrado ?? arancelBase) * 100m / arancelBase, 2);
+            datos.DetalleArancel = ObtenerCondicionCobroTexto(datos.ObraSocial, porcentajeCobertura);
             return datos;
         }
 

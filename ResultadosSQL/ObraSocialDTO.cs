@@ -18,6 +18,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Estado de actividad lógica de la cobertura médica.</summary>
         public bool Activo { get; set; } = true;
 
+        /// <summary>Porcentaje del arancel que cubre la obra social (0 a 100). Particular = 0.</summary>
+        public decimal PorcentajeCobertura { get; set; }
+
         /// <summary>
         /// Representación textual de la obra social para su visualización en listas y controles desplegables.
         /// </summary>

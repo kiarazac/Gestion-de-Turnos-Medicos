@@ -44,6 +44,8 @@ namespace Gestion_de_Turnos_Medicos
             btnModificar = new Button();
             btnGuardar = new Button();
             lblInfo = new Label();
+            txtPorcentaje = new TextBox();
+            lblPorcentaje = new Label();
             txtSigla = new TextBox();
             lblSigla = new Label();
             txtNombre = new TextBox();
@@ -165,6 +167,8 @@ namespace Gestion_de_Turnos_Medicos
             pnlCardDatos.BorderStyle = BorderStyle.FixedSingle;
             pnlCardDatos.Controls.Add(pnlAcciones);
             pnlCardDatos.Controls.Add(lblInfo);
+            pnlCardDatos.Controls.Add(txtPorcentaje);
+            pnlCardDatos.Controls.Add(lblPorcentaje);
             pnlCardDatos.Controls.Add(txtSigla);
             pnlCardDatos.Controls.Add(lblSigla);
             pnlCardDatos.Controls.Add(txtNombre);
@@ -285,16 +289,38 @@ namespace Gestion_de_Turnos_Medicos
             lblInfo.Padding = new Padding(8);
             lblInfo.Size = new Size(525, 84);
             lblInfo.TabIndex = 5;
-            lblInfo.Text = "💡 Consejos:\r\n• Para dar de alta una nueva cobertura ingrese Nombre y Sigla (opcional) y haga clic en 'Guardar'.\r\n• Para editar o dar de baja, haga clic sobre la fila en la tabla inferior.\r\n• 'Particular / Sin Obra Social' es la cobertura por defecto del sistema y no puede darse de baja.";
+            lblInfo.Text = "💡 Consejos:\r\n• Para dar de alta una nueva cobertura ingrese Nombre, Sigla (opcional) y % de Cobertura, y haga clic en 'Guardar'.\r\n• Para editar o dar de baja, haga clic sobre la fila en la tabla inferior.\r\n• 'Particular / Sin Obra Social' es la cobertura por defecto del sistema y no puede darse de baja.";
+            // 
+            // txtPorcentaje
+            // 
+            txtPorcentaje.Font = new Font("Segoe UI", 10F);
+            txtPorcentaje.Location = new Point(440, 60);
+            txtPorcentaje.MaxLength = 3;
+            txtPorcentaje.Name = "txtPorcentaje";
+            txtPorcentaje.PlaceholderText = "Ej. 70";
+            txtPorcentaje.Size = new Size(100, 25);
+            txtPorcentaje.TabIndex = 8;
+            txtPorcentaje.KeyPress += txtPorcentaje_KeyPress;
+            // 
+            // lblPorcentaje
+            // 
+            lblPorcentaje.AutoSize = true;
+            lblPorcentaje.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblPorcentaje.ForeColor = Color.FromArgb(51, 65, 85);
+            lblPorcentaje.Location = new Point(440, 40);
+            lblPorcentaje.Name = "lblPorcentaje";
+            lblPorcentaje.Size = new Size(85, 15);
+            lblPorcentaje.TabIndex = 7;
+            lblPorcentaje.Text = "% Cobertura: *";
             // 
             // txtSigla
             // 
             txtSigla.Font = new Font("Segoe UI", 10F);
-            txtSigla.Location = new Point(390, 60);
+            txtSigla.Location = new Point(290, 60);
             txtSigla.MaxLength = 20;
             txtSigla.Name = "txtSigla";
             txtSigla.PlaceholderText = "Ej. IOSCOR, OSDE";
-            txtSigla.Size = new Size(150, 25);
+            txtSigla.Size = new Size(135, 25);
             txtSigla.TabIndex = 4;
             // 
             // lblSigla
@@ -302,7 +328,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSigla.AutoSize = true;
             lblSigla.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblSigla.ForeColor = Color.FromArgb(51, 65, 85);
-            lblSigla.Location = new Point(390, 40);
+            lblSigla.Location = new Point(290, 40);
             lblSigla.Name = "lblSigla";
             lblSigla.Size = new Size(149, 15);
             lblSigla.TabIndex = 3;
@@ -315,7 +341,7 @@ namespace Gestion_de_Turnos_Medicos
             txtNombre.MaxLength = 100;
             txtNombre.Name = "txtNombre";
             txtNombre.PlaceholderText = "Ej. Obra Social de Empleados de Comercio";
-            txtNombre.Size = new Size(360, 25);
+            txtNombre.Size = new Size(260, 25);
             txtNombre.TabIndex = 2;
             // 
             // lblNombre
@@ -374,6 +400,8 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtNombre;
         private Label lblSigla;
         private TextBox txtSigla;
+        private Label lblPorcentaje;
+        private TextBox txtPorcentaje;
         private Label lblInfo;
         private Panel pnlAcciones;
         private Button btnGuardar;

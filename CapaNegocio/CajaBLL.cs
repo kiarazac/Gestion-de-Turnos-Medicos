@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Gestion_de_Turnos_Medicos.CapaDeDatos;
+using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 
 namespace Gestion_de_Turnos_Medicos.CapaNegocio
@@ -65,6 +66,21 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
                 TurnosEspecialidad = detalles.Count(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
                 MontoEspecialidad = detalles.Where(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado)
             };
+        }
+
+        /// <summary>
+        /// Calcula el monto total que cubren las obras sociales: por cada turno con obra social,
+        /// la diferencia entre el arancel completo y lo que abonó el paciente en caja.
+        /// Se basa en lo cobrado en cada turno, así el histórico no cambia si luego se edita el % de una obra social.
+        /// </summary>
+        /// <param name="detalles">Lista de turnos del cierre.</param>
+        /// <returns>Monto total cubierto por obras sociales.</returns>
+        public static decimal CalcularCoberturaObraSocial(List<ReporteCierreCajaDetalleDTO> detalles)
+        {
+            // shortcut: asume aranceles base fijos (15000/25000) de TurnoBLL; si cambian, guardar el arancel base por turno
+            return detalles
+                .Where(d => !d.EsParticular)
+                .Sum(d => Math.Max(0m, TurnoBLL.ObtenerArancelBase(d.TipoTurno) - d.MontoCobrado));
         }
     }
 }

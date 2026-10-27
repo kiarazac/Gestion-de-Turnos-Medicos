@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Gestion_de_Turnos_Medicos.CapaNegocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -105,7 +106,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                     page.Content().PaddingTop(10).Column(col =>
                     {
                         // Tarjetas de Resumen Financiero (KPIs)
-                        decimal montoCoberturaOS = resumen.TurnosObraSocial > 0 ? Math.Round(resumen.MontoObraSocial * (70m / 30m), 2) : 0m;
+                        decimal montoCoberturaOS = CajaBLL.CalcularCoberturaObraSocial(detalles);
                         decimal facturacionTotalBruta = resumen.MontoParticulares + (resumen.TurnosObraSocial > 0 ? (resumen.MontoObraSocial + montoCoberturaOS) : 0m);
                         decimal promedioPorTurno = resumen.TotalTurnos > 0 ? Math.Round(resumen.TotalRecaudado / resumen.TotalTurnos, 2) : 0m;
 
@@ -127,7 +128,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
 
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("COBERTURA OBRAS SOCIALES (70%)").FontSize(8).Bold().FontColor(ColorGrisTexto);
+                                c.Item().Text("COBERTURA OBRAS SOCIALES").FontSize(8).Bold().FontColor(ColorGrisTexto);
                                 c.Item().Text($"$ {montoCoberturaOS:N2}").FontSize(14).Bold().FontColor(ColorAcento);
                                 c.Item().Text($"OS: {resumen.TurnosObraSocial} | Part: {resumen.TurnosParticulares}").FontSize(7);
                             });

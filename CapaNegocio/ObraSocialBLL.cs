@@ -27,8 +27,9 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// </summary>
         /// <param name="nombre">Nombre oficial de la obra social (máximo 100 caracteres).</param>
         /// <param name="sigla">Sigla o acrónimo opcional (máximo 20 caracteres).</param>
+        /// <param name="porcentajeCobertura">Porcentaje del arancel que cubre la obra social (0 a 100).</param>
         /// <exception cref="ArgumentException">Se lanza si las validaciones de longitud o datos requeridos fallan.</exception>
-        public void RegistrarObraSocial(string nombre, string? sigla)
+        public void RegistrarObraSocial(string nombre, string? sigla, decimal porcentajeCobertura)
         {
             if (string.IsNullOrWhiteSpace(nombre))
                 throw new ArgumentException("El nombre de la obra social es obligatorio y no puede estar vacío.");
@@ -41,7 +42,10 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (siglaLimpia != null && siglaLimpia.Length > 20)
                 throw new ArgumentException("La sigla no puede exceder los 20 caracteres.");
 
-            _obraSocialDAL.InsertarObraSocial(nombreLimpio, siglaLimpia);
+            if (porcentajeCobertura < 0 || porcentajeCobertura > 100)
+                throw new ArgumentException("El porcentaje de cobertura debe estar entre 0 y 100.");
+
+            _obraSocialDAL.InsertarObraSocial(nombreLimpio, siglaLimpia, porcentajeCobertura);
         }
 
         /// <summary>
@@ -50,8 +54,9 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <param name="idObraSocial">Identificador único de la obra social.</param>
         /// <param name="nombre">Nuevo nombre asignado.</param>
         /// <param name="sigla">Nueva sigla o acrónimo.</param>
+        /// <param name="porcentajeCobertura">Nuevo porcentaje de cobertura (0 a 100; Particular solo 0).</param>
         /// <exception cref="ArgumentException">Se lanza si el ID es inválido o no cumple las restricciones.</exception>
-        public void ModificarObraSocial(int idObraSocial, string nombre, string? sigla)
+        public void ModificarObraSocial(int idObraSocial, string nombre, string? sigla, decimal porcentajeCobertura)
         {
             if (idObraSocial <= 0)
                 throw new ArgumentException("El ID de la obra social no es válido.");
@@ -70,7 +75,13 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             if (siglaLimpia != null && siglaLimpia.Length > 20)
                 throw new ArgumentException("La sigla no puede superar los 20 caracteres.");
 
-            _obraSocialDAL.ModificarObraSocial(idObraSocial, nombreLimpio, siglaLimpia);
+            if (porcentajeCobertura < 0 || porcentajeCobertura > 100)
+                throw new ArgumentException("El porcentaje de cobertura debe estar entre 0 y 100.");
+
+            if (idObraSocial == 1 && porcentajeCobertura != 0)
+                throw new ArgumentException("La cobertura Particular no tiene cobertura: su porcentaje debe ser 0.");
+
+            _obraSocialDAL.ModificarObraSocial(idObraSocial, nombreLimpio, siglaLimpia, porcentajeCobertura);
         }
 
         /// <summary>

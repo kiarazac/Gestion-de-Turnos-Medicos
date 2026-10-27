@@ -237,7 +237,7 @@ namespace Gestion_de_Turnos_Medicos
         private void ActualizarKpisHoy()
         {
             decimal totalRecaudadoCaja = _resumenHoy.TotalRecaudado;
-            decimal coberturaOS = _resumenHoy.TurnosObraSocial > 0 ? Math.Round(_resumenHoy.MontoObraSocial * (70m / 30m), 2) : 0m;
+            decimal coberturaOS = CajaBLL.CalcularCoberturaObraSocial(_detallesHoy);
             decimal facturacionTotal = _resumenHoy.MontoParticulares + (_resumenHoy.TurnosObraSocial > 0 ? (_resumenHoy.MontoObraSocial + coberturaOS) : 0m);
 
             lblKpiTurnosHoy.Text = _resumenHoy.TotalTurnos.ToString();
@@ -247,7 +247,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubKpiRecaudacionHoy.Text = $"Part: $ {_resumenHoy.MontoParticulares:N2} | O.S.: $ {_resumenHoy.MontoObraSocial:N2}";
 
             lblKpiCoberturaHoy.Text = $"$ {coberturaOS:N2}";
-            lblSubKpiCoberturaHoy.Text = $"70% cubierto por {_resumenHoy.TurnosObraSocial} pacientes O.S.";
+            lblSubKpiCoberturaHoy.Text = $"Cubierto por {_resumenHoy.TurnosObraSocial} pacientes O.S.";
 
             lblKpiFacturacionHoy.Text = $"$ {facturacionTotal:N2}";
             decimal promedio = _resumenHoy.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenHoy.TotalTurnos, 2) : 0m;
@@ -354,7 +354,7 @@ namespace Gestion_de_Turnos_Medicos
         private void ActualizarKpisFiltro()
         {
             decimal totalRecaudadoCaja = _resumenFiltro.TotalRecaudado;
-            decimal coberturaOS = _resumenFiltro.TurnosObraSocial > 0 ? Math.Round(_resumenFiltro.MontoObraSocial * (70m / 30m), 2) : 0m;
+            decimal coberturaOS = CajaBLL.CalcularCoberturaObraSocial(_detallesFiltro);
             decimal facturacionTotal = _resumenFiltro.MontoParticulares + (_resumenFiltro.TurnosObraSocial > 0 ? (_resumenFiltro.MontoObraSocial + coberturaOS) : 0m);
 
             lblKpiTurnosFiltro.Text = _resumenFiltro.TotalTurnos.ToString();
@@ -364,7 +364,7 @@ namespace Gestion_de_Turnos_Medicos
             lblSubKpiRecaudacionFiltro.Text = $"Part: $ {_resumenFiltro.MontoParticulares:N2} | O.S.: $ {_resumenFiltro.MontoObraSocial:N2}";
 
             lblKpiCoberturaFiltro.Text = $"$ {coberturaOS:N2}";
-            lblSubKpiCoberturaFiltro.Text = $"70% cubierto por {_resumenFiltro.TurnosObraSocial} pacientes O.S.";
+            lblSubKpiCoberturaFiltro.Text = $"Cubierto por {_resumenFiltro.TurnosObraSocial} pacientes O.S.";
 
             lblKpiFacturacionFiltro.Text = $"$ {facturacionTotal:N2}";
             decimal promedio = _resumenFiltro.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenFiltro.TotalTurnos, 2) : 0m;

@@ -36,7 +36,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             IdObraSocial,
                             Nombre,
                             ISNULL(Sigla, '') AS Sigla,
-                            Activo
+                            Activo,
+                            PorcentajeCobertura
                         FROM ObrasSociales
                         WHERE (@IncluirInactivas = 1 OR Activo = 1)
                         ORDER BY 
@@ -56,16 +57,18 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// </summary>
         /// <param name="nombre">Nombre oficial o denominación de la obra social.</param>
         /// <param name="sigla">Sigla o acrónimo identificatorio opcional.</param>
-        public void InsertarObraSocial(string nombre, string? sigla)
+        /// <param name="porcentajeCobertura">Porcentaje del arancel que cubre la obra social (0 a 100).</param>
+        public void InsertarObraSocial(string nombre, string? sigla, decimal porcentajeCobertura)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pNombre = new SqlParameter("@Nombre", (object)nombre ?? DBNull.Value);
                 var pSigla = new SqlParameter("@Sigla", (object?)sigla ?? DBNull.Value);
+                var pPorcentaje = new SqlParameter("@PorcentajeCobertura", porcentajeCobertura);
 
                 try
                 {
-                    context.Database.ExecuteSqlRaw("EXEC sp_InsertarObraSocial @Nombre, @Sigla", pNombre, pSigla);
+                    context.Database.ExecuteSqlRaw("EXEC sp_InsertarObraSocial @Nombre, @Sigla, @PorcentajeCobertura", pNombre, pSigla, pPorcentaje);
                 }
                 catch (SqlException ex) when (ex.Number == 2812)
                 {
@@ -73,15 +76,15 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                         IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND Activo = 0)
                         BEGIN
                             UPDATE ObrasSociales 
-                            SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE(), Sigla = COALESCE(@Sigla, Sigla)
+                            SET Activo = 1, FechaBaja = NULL, FechaModificacion = GETDATE(), Sigla = COALESCE(@Sigla, Sigla), PorcentajeCobertura = @PorcentajeCobertura
                             WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre);
                         END
                         ELSE
                         BEGIN
-                            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion)
-                            VALUES (@Nombre, @Sigla, 1, GETDATE());
+                            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion, PorcentajeCobertura)
+                            VALUES (@Nombre, @Sigla, 1, GETDATE(), @PorcentajeCobertura);
                         END";
-                    context.Database.ExecuteSqlRaw(sql, pNombre, pSigla);
+                    context.Database.ExecuteSqlRaw(sql, pNombre, pSigla, pPorcentaje);
                 }
             }
         }
@@ -92,22 +95,24 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="idObraSocial">Identificador único de la obra social.</param>
         /// <param name="nombre">Nueva denominación.</param>
         /// <param name="sigla">Nueva sigla opcional.</param>
-        public void ModificarObraSocial(int idObraSocial, string nombre, string? sigla)
+        /// <param name="porcentajeCobertura">Nuevo porcentaje de cobertura (0 a 100).</param>
+        public void ModificarObraSocial(int idObraSocial, string nombre, string? sigla, decimal porcentajeCobertura)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pId = new SqlParameter("@IdObraSocial", idObraSocial);
                 var pNombre = new SqlParameter("@Nombre", (object)nombre ?? DBNull.Value);
                 var pSigla = new SqlParameter("@Sigla", (object?)sigla ?? DBNull.Value);
+                var pPorcentaje = new SqlParameter("@PorcentajeCobertura", porcentajeCobertura);
 
                 try
                 {
-                    context.Database.ExecuteSqlRaw("EXEC sp_ModificarObraSocial @IdObraSocial, @Nombre, @Sigla", pId, pNombre, pSigla);
+                    context.Database.ExecuteSqlRaw("EXEC sp_ModificarObraSocial @IdObraSocial, @Nombre, @Sigla, @PorcentajeCobertura", pId, pNombre, pSigla, pPorcentaje);
                 }
                 catch (SqlException ex) when (ex.Number == 2812)
                 {
-                    string sql = "UPDATE ObrasSociales SET Nombre = @Nombre, Sigla = @Sigla, FechaModificacion = GETDATE() WHERE IdObraSocial = @IdObraSocial";
-                    context.Database.ExecuteSqlRaw(sql, pNombre, pSigla, pId);
+                    string sql = "UPDATE ObrasSociales SET Nombre = @Nombre, Sigla = @Sigla, PorcentajeCobertura = @PorcentajeCobertura, FechaModificacion = GETDATE() WHERE IdObraSocial = @IdObraSocial";
+                    context.Database.ExecuteSqlRaw(sql, pNombre, pSigla, pPorcentaje, pId);
                 }
             }
         }

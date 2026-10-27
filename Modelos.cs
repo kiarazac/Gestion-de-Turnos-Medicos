@@ -57,6 +57,10 @@ namespace Gestion_de_Turnos_Medicos
         [StringLength(20)]
         public string? Sigla { get; set; }
 
+        /// <summary>Porcentaje del arancel que cubre la obra social (0 a 100). Particular = 0.</summary>
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal PorcentajeCobertura { get; set; } = 70m;
+
         /// <summary>Colección de pacientes afiliados o asociados a esta cobertura médica.</summary>
         public ICollection<Paciente> Pacientes { get; set; } = new List<Paciente>();
 

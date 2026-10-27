@@ -279,10 +279,11 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
-                // 3. Cálculo de arancel según reglas de negocio (fijo $25.000 emergencia Particular, 30% $7.500 con Obra Social)
-                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", obraSocial);
+                // 3. Cálculo de arancel según reglas de negocio (arancel base menos el % que cubre la obra social elegida)
+                decimal porcentajeCobertura = (cmbObraSocial.SelectedItem as ObraSocialDTO)?.PorcentajeCobertura ?? 0m;
+                decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", porcentajeCobertura);
                 bool tieneOS = TurnoBLL.TieneObraSocial(obraSocial);
-                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial);
+                string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial, porcentajeCobertura);
 
                 // Llamada a la Capa de Negocio pasando el ID del paciente, los síntomas seleccionados, el estado de "Otro" y el arancel.
                 // TurnoBLL evalúa todas las gravedades asignando la prioridad más alta (1=Alta, 2=Media, 3=Baja) y autogenera la clave 2FA (CAN-XXXX).
@@ -291,7 +292,7 @@ namespace Gestion_de_Turnos_Medicos
                 // 4. Mostramos el resultado visual en pantalla con el número de turno, prioridad y arancel a cobrar
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = $"Prioridad ({prioridadTexto})";
-                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? "Copago 30%" : "Particular 100%")})";
+                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? $"Copago {100 - porcentajeCobertura:0.##}%" : "Particular 100%")})";
                 lblMontoCobro.ForeColor = tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
 
                 // Coloreamos el texto según el nivel de urgencia del triage

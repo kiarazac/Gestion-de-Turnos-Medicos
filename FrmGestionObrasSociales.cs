@@ -87,6 +87,14 @@ namespace Gestion_de_Turnos_Medicos
 
             dgvObrasSociales.Columns.Add(new DataGridViewTextBoxColumn
             {
+                Name = "PorcentajeCobertura",
+                HeaderText = "% Cobertura",
+                ReadOnly = true,
+                Width = 110
+            });
+
+            dgvObrasSociales.Columns.Add(new DataGridViewTextBoxColumn
+            {
                 Name = "Estado",
                 HeaderText = "Estado",
                 ReadOnly = true,
@@ -119,6 +127,7 @@ namespace Gestion_de_Turnos_Medicos
                         fila.Cells["IdObraSocial"].Value = os.IdObraSocial;
                         fila.Cells["Nombre"].Value = os.Nombre;
                         fila.Cells["Sigla"].Value = string.IsNullOrWhiteSpace(os.Sigla) ? "-" : os.Sigla;
+                        fila.Cells["PorcentajeCobertura"].Value = $"{os.PorcentajeCobertura:0.##} %";
                         fila.Cells["Estado"].Value = os.Activo ? "🟢 Activa" : "🔴 Inactiva";
 
                         // Estilo visual tenue para coberturas inactivas
@@ -173,6 +182,7 @@ namespace Gestion_de_Turnos_Medicos
 
             var osObj = _obrasSocialesCache.FirstOrDefault(o => o.IdObraSocial == _idObraSocialSeleccionada);
             bool esInactiva = osObj != null && !osObj.Activo;
+            txtPorcentaje.Text = osObj != null ? osObj.PorcentajeCobertura.ToString("0.##") : string.Empty;
 
             if (_idObraSocialSeleccionada == 1)
             {
@@ -231,7 +241,23 @@ namespace Gestion_de_Turnos_Medicos
                 return false;
             }
 
+            // Re-valida aunque el KeyPress solo deje tipear dígitos: cubre texto pegado con Ctrl+V
+            if (!int.TryParse(txtPorcentaje.Text.Trim(), out int porcentaje) || porcentaje < 0 || porcentaje > 100)
+            {
+                MessageBox.Show("El porcentaje de cobertura es obligatorio y debe ser un número entero entre 0 y 100.",
+                    "Valor inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtPorcentaje.Focus();
+                return false;
+            }
+
             return true;
+        }
+
+        private void txtPorcentaje_KeyPress(object? sender, KeyPressEventArgs e)
+        {
+            // Solo dígitos y teclas de control (Backspace, Ctrl+C/V, etc.)
+            if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar))
+                e.Handled = true;
         }
 
         private void btnGuardar_Click(object? sender, EventArgs e)
@@ -241,10 +267,11 @@ namespace Gestion_de_Turnos_Medicos
 
             string nombre = txtNombre.Text.Trim();
             string? sigla = string.IsNullOrWhiteSpace(txtSigla.Text) ? null : txtSigla.Text.Trim();
+            decimal porcentaje = int.Parse(txtPorcentaje.Text.Trim());
 
             try
             {
-                _obraSocialBLL.RegistrarObraSocial(nombre, sigla);
+                _obraSocialBLL.RegistrarObraSocial(nombre, sigla, porcentaje);
 
                 MessageBox.Show($"Obra social '{nombre}' registrada correctamente.",
                     "Cobertura Guardada", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -276,6 +303,7 @@ namespace Gestion_de_Turnos_Medicos
 
             string nuevoNombre = txtNombre.Text.Trim();
             string? nuevaSigla = string.IsNullOrWhiteSpace(txtSigla.Text) ? null : txtSigla.Text.Trim();
+            decimal nuevoPorcentaje = int.Parse(txtPorcentaje.Text.Trim());
 
             var confirmar = MessageBox.Show($"¿Desea guardar los cambios en la obra social seleccionada con el nombre '{nuevoNombre}'?",
                 "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
@@ -285,7 +313,7 @@ namespace Gestion_de_Turnos_Medicos
 
             try
             {
-                _obraSocialBLL.ModificarObraSocial(_idObraSocialSeleccionada, nuevoNombre, nuevaSigla);
+                _obraSocialBLL.ModificarObraSocial(_idObraSocialSeleccionada, nuevoNombre, nuevaSigla, nuevoPorcentaje);
 
                 MessageBox.Show($"Obra social modificada correctamente a '{nuevoNombre}'.",
                     "Modificación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -402,6 +430,7 @@ namespace Gestion_de_Turnos_Medicos
             _idObraSocialSeleccionada = 0;
             txtNombre.Clear();
             txtSigla.Clear();
+            txtPorcentaje.Clear();
 
             btnGuardar.Enabled = true;
             btnModificar.Enabled = false;

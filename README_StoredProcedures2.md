@@ -1760,14 +1760,15 @@ GO
 - **Entidad:** ObraSocial
 - **Operación:** Catálogo / Consulta
 - **Tablas:** `ObrasSociales`
-- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`
-- **Acción:** Carga inicial y refresco de combos de selección de cobertura
+- **Forms que lo utilizan:** `FrmTurnoEmergencia`, `FrmTurnoEspecialidad`, `FrmGestionObrasSociales`
+- **Acción:** Carga inicial y refresco de combos de selección de cobertura. El `PorcentajeCobertura` de la obra social elegida define el arancel a cobrar.
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@IncluirInactivas` | `BIT` | IN | Si es 1 lista también obras sociales dadas de baja lógica (default 0). |
-- **Devuelve:** `IdObraSocial`, `Nombre`, `Sigla`, `Activo`.
+- **Devuelve:** `IdObraSocial`, `Nombre`, `Sigla`, `Activo`, `PorcentajeCobertura`.
+- **Cambio de esquema asociado:** columna `ObrasSociales.PorcentajeCobertura DECIMAL(5,2) NOT NULL DEFAULT 70` (% del arancel que cubre la obra social; Particular = 0). Se agrega de forma idempotente en `StoredProcedures.sql` antes de compilar los SPs de obras sociales.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarObrasSociales
@@ -1781,7 +1782,8 @@ BEGIN
             IdObraSocial,
             Nombre,
             ISNULL(Sigla, '') AS Sigla,
-            Activo
+            Activo,
+            PorcentajeCobertura
         FROM ObrasSociales
         WHERE (@IncluirInactivas = 1 OR Activo = 1)
         ORDER BY 
@@ -1810,18 +1812,21 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@Nombre` | `NVARCHAR(100)` | IN | Nombre descriptivo o denominación oficial de la obra social. |
   | `@Sigla` | `NVARCHAR(20)` | IN (OPT) | Acrónimo o sigla identificatoria (ej. IOSCOR, OSDE). Default NULL. |
+  | `@PorcentajeCobertura` | `DECIMAL(5,2)` | IN (OPT) | % del arancel que cubre la obra social (0 a 100). Default 70. |
 - **Devuelve:** No retorna conjunto de datos (DML/Update).
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
   | :--- | :--- | :--- |
   | `50060` | *El nombre de la obra social es obligatorio y no puede quedar vacío.* | `@Nombre` nulo o espacios en blanco. |
+  | `50092` | *El porcentaje de cobertura debe estar entre 0 y 100.* | `@PorcentajeCobertura` nulo o fuera de rango. |
   | `50061` | *Ya existe una obra social activa registrada con este mismo nombre.* | Nombre duplicado con otra cobertura activa. |
   | `50062` | *Ya existe una obra social activa registrada con esta misma sigla.* | Sigla duplicada con otra cobertura activa. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarObraSocial
     @Nombre NVARCHAR(100),
-    @Sigla NVARCHAR(20) = NULL
+    @Sigla NVARCHAR(20) = NULL,
+    @PorcentajeCobertura DECIMAL(5,2) = 70
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1830,6 +1835,11 @@ BEGIN
         IF @Nombre IS NULL OR LTRIM(RTRIM(@Nombre)) = ''
         BEGIN
             THROW 50060, 'El nombre de la obra social es obligatorio y no puede quedar vacío.', 1;
+        END
+
+        IF @PorcentajeCobertura IS NULL OR @PorcentajeCobertura < 0 OR @PorcentajeCobertura > 100
+        BEGIN
+            THROW 50092, 'El porcentaje de cobertura debe estar entre 0 y 100.', 1;
         END
 
         SET @Nombre = LTRIM(RTRIM(@Nombre));
@@ -1851,13 +1861,14 @@ BEGIN
             SET Activo = 1,
                 FechaBaja = NULL,
                 FechaModificacion = GETDATE(),
-                Sigla = COALESCE(@Sigla, Sigla)
+                Sigla = COALESCE(@Sigla, Sigla),
+                PorcentajeCobertura = @PorcentajeCobertura
             WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre);
         END
         ELSE
         BEGIN
-            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion)
-            VALUES (@Nombre, @Sigla, 1, GETDATE());
+            INSERT INTO ObrasSociales (Nombre, Sigla, Activo, FechaCreacion, PorcentajeCobertura)
+            VALUES (@Nombre, @Sigla, 1, GETDATE(), @PorcentajeCobertura);
         END
     END TRY
     BEGIN CATCH
@@ -1870,7 +1881,7 @@ GO
 ```
 
 ### 4.0.2 `sp_ModificarObraSocial`
-- **Descripción:** Modifica la denominación y/o sigla de una obra social existente. Valida existencia, unicidad respecto a otras coberturas activas y protege el registro base Particular.
+- **Descripción:** Modifica la denominación, sigla y/o porcentaje de cobertura de una obra social existente. Valida existencia, unicidad respecto a otras coberturas activas y protege el registro base Particular.
 - **Entidad:** ObraSocial
 - **Operación:** Catálogo / Modificación
 - **Tablas:** `ObrasSociales`
@@ -1883,6 +1894,7 @@ GO
   | `@IdObraSocial` | `INT` | IN | Identificador único de la cobertura a actualizar. |
   | `@Nombre` | `NVARCHAR(100)` | IN | Nueva denominación oficial. |
   | `@Sigla` | `NVARCHAR(20)` | IN (OPT) | Nueva sigla opcional. Default NULL. |
+  | `@PorcentajeCobertura` | `DECIMAL(5,2)` | IN | Nuevo % del arancel que cubre la obra social (0 a 100; Particular solo 0). |
 - **Devuelve:** No retorna conjunto de datos (DML/Update).
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
@@ -1890,6 +1902,7 @@ GO
   | `50063` | *La obra social a modificar no existe en el sistema.* | `@IdObraSocial` no encontrado. |
   | `50060` | *El nombre de la obra social es obligatorio y no puede quedar vacío.* | `@Nombre` nulo o en blanco. |
   | `50064` | *No se puede modificar la denominación base de la cobertura Particular requerida por el sistema.* | Intento de suprimir 'Particular' de ID 1. |
+  | `50092` | *El porcentaje de cobertura debe estar entre 0 y 100 (Particular solo admite 0).* | `@PorcentajeCobertura` nulo, fuera de rango o distinto de 0 para ID 1. |
   | `50061` | *Ya existe otra obra social activa registrada con este mismo nombre.* | Colisión con otra cobertura activa. |
   | `50062` | *Ya existe otra obra social activa registrada con esta misma sigla.* | Colisión de sigla con otra cobertura activa. |
 
@@ -1897,7 +1910,8 @@ GO
 CREATE OR ALTER PROCEDURE sp_ModificarObraSocial
     @IdObraSocial INT,
     @Nombre NVARCHAR(100),
-    @Sigla NVARCHAR(20) = NULL
+    @Sigla NVARCHAR(20) = NULL,
+    @PorcentajeCobertura DECIMAL(5,2)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1921,6 +1935,12 @@ BEGIN
             THROW 50064, 'No se puede modificar la denominación base de la cobertura Particular requerida por el sistema.', 1;
         END
 
+        IF @PorcentajeCobertura IS NULL OR @PorcentajeCobertura < 0 OR @PorcentajeCobertura > 100
+           OR (@IdObraSocial = 1 AND @PorcentajeCobertura <> 0)
+        BEGIN
+            THROW 50092, 'El porcentaje de cobertura debe estar entre 0 y 100 (Particular solo admite 0).', 1;
+        END
+
         IF EXISTS (SELECT 1 FROM ObrasSociales WHERE UPPER(LTRIM(RTRIM(Nombre))) = UPPER(@Nombre) AND IdObraSocial <> @IdObraSocial AND Activo = 1)
         BEGIN
             THROW 50061, 'Ya existe otra obra social activa registrada con este mismo nombre.', 1;
@@ -1934,6 +1954,7 @@ BEGIN
         UPDATE ObrasSociales
         SET Nombre = @Nombre,
             Sigla = @Sigla,
+            PorcentajeCobertura = @PorcentajeCobertura,
             FechaModificacion = GETDATE()
         WHERE IdObraSocial = @IdObraSocial;
     END TRY
@@ -2368,7 +2389,7 @@ GO
   | :--- | :--- | :--- | :--- |
   | `@IdPaciente` | `INT` | IN | ID del paciente asistido. |
   | `@IdPrioridad` | `INT` | IN | Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja). |
-  | `@Monto` | `DECIMAL(18,2)` | IN | Monto arancelario cobrado en caja según obra social (opcional). |
+  | `@Monto` | `DECIMAL(18,2)` | IN | Monto arancelario cobrado en caja según obra social (opcional). Si es NULL: `25000 * (100 - PorcentajeCobertura) / 100` de la obra social del paciente. |
   | `@CodigoCancelacion` | `NVARCHAR(50)` | IN | Palabra clave alfanumérica de seguridad 2FA (opcional). |
 - **Devuelve:** `IdNuevoTurno`, `NroOrden`, `CodigoCancelacion`.
 - **Excepciones y Códigos de Error:**
@@ -2408,13 +2429,10 @@ BEGIN
 
         IF @Monto IS NULL
         BEGIN
-            DECLARE @IdObraSocialPaciente INT;
-            SELECT @IdObraSocialPaciente = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
-
-            IF EXISTS (SELECT 1 FROM ObrasSociales WHERE IdObraSocial = @IdObraSocialPaciente AND Nombre NOT LIKE '%Particular%')
-                SET @Monto = 7500.00;
-            ELSE
-                SET @Monto = 25000.00;
+            SELECT @Monto = ROUND(25000.00 * (100 - ISNULL(os.PorcentajeCobertura, 0)) / 100, 2)
+            FROM Pacientes p
+            LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+            WHERE p.IdPaciente = @IdPaciente;
         END
 
         INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
