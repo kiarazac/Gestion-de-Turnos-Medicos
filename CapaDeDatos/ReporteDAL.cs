@@ -160,64 +160,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialIngresosPorMedico</c> para obtener
-        /// la facturación acumulada e ingresos monetarios producidos por cada profesional médico.
-        /// </summary>
-        public List<ReporteIngresoMedicoDTO> ObtenerIngresosPorMedico(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object?)idEspecialidad ?? DBNull.Value);
-
-                return context.Database
-                    .SqlQueryRaw<ReporteIngresoMedicoDTO>(
-                        "EXEC sp_ReporteGerencialIngresosPorMedico @FechaDesde, @FechaHasta, @IdEspecialidad",
-                        pFechaDesde, pFechaHasta, pIdEspecialidad)
-                    .ToList();
-            }
-        }
-
-        /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialObrasSocialesVsParticulares</c>
-        /// para contrastar los montos recaudados de particulares frente a obras sociales y prepagas.
-        /// </summary>
-        public List<ReporteObraSocialVsParticularDTO> ObtenerObrasSocialesVsParticulares(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-
-                return context.Database
-                    .SqlQueryRaw<ReporteObraSocialVsParticularDTO>(
-                        "EXEC sp_ReporteGerencialObrasSocialesVsParticulares @FechaDesde, @FechaHasta",
-                        pFechaDesde, pFechaHasta)
-                    .ToList();
-            }
-        }
-
-        /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialDemandaMedicos</c> para obtener
-        /// el ranking clasificado de médicos con mayor y menor demanda asistencial.
-        /// </summary>
-        public List<ReporteDemandaMedicoRankingDTO> ObtenerDemandaMedicosRanking(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-
-                return context.Database
-                    .SqlQueryRaw<ReporteDemandaMedicoRankingDTO>(
-                        "EXEC sp_ReporteGerencialDemandaMedicos @FechaDesde, @FechaHasta",
-                        pFechaDesde, pFechaHasta)
-                    .ToList();
-            }
-        }
-
-        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ReporteMedico_RankingDiagnosticosYSintomas</c>
         /// para obtener los diagnósticos y síntomas más frecuentes atendidos por el médico en su especialidad.
         /// </summary>
@@ -238,65 +180,104 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRecaudacionAuditoriaResumen</c>
-        /// para obtener los totales consolidados de emisión, modalidades y coberturas para auditoría de recepcionistas.
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialFinanzasResumen</c> para obtener los totales de
+        /// recaudación del período: cobrado en caja, a cobrar a obras sociales, total facturado, ticket promedio y ausentismo.
         /// </summary>
-        public ReporteRecaudacionAuditoriaResumenDTO ObtenerAuditoriaRecaudacionResumen(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public ReporteFinanzasResumenDTO ObtenerFinanzasResumen(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-
                 return context.Database
-                    .SqlQueryRaw<ReporteRecaudacionAuditoriaResumenDTO>(
-                        "EXEC sp_ReporteGerencialRecaudacionAuditoriaResumen @FechaDesde, @FechaHasta",
-                        pFechaDesde, pFechaHasta)
+                    .SqlQueryRaw<ReporteFinanzasResumenDTO>(
+                        "EXEC sp_ReporteGerencialFinanzasResumen @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia",
+                        ParametrosFacturacion(fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia))
                     .AsEnumerable()
-                    .FirstOrDefault() ?? new ReporteRecaudacionAuditoriaResumenDTO
-                    {
-                        FechaDesde = fechaDesde?.Date ?? DateTime.Today,
-                        FechaHasta = fechaHasta?.Date ?? DateTime.Today
-                    };
+                    .FirstOrDefault() ?? new ReporteFinanzasResumenDTO();
             }
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRecaudacionAuditoriaDetalle</c>
-        /// para obtener el listado detallado de turnos emitidos y cobrados en recepción en el período seleccionado.
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRecaudacionDiaria</c> para obtener
+        /// la evolución de la recaudación por día (o por mes en rangos largos).
         /// </summary>
-        public List<ReporteRecaudacionAuditoriaDetalleDTO> ObtenerAuditoriaRecaudacionDetalle(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public List<ReporteRecaudacionDiariaDTO> ObtenerRecaudacionDiaria(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-
                 return context.Database
-                    .SqlQueryRaw<ReporteRecaudacionAuditoriaDetalleDTO>(
-                        "EXEC sp_ReporteGerencialRecaudacionAuditoriaDetalle @FechaDesde, @FechaHasta",
-                        pFechaDesde, pFechaHasta)
+                    .SqlQueryRaw<ReporteRecaudacionDiariaDTO>(
+                        "EXEC sp_ReporteGerencialRecaudacionDiaria @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia",
+                        ParametrosFacturacion(fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia))
                     .ToList();
             }
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRankingMedicos</c>
-        /// para clasificar a los profesionales médicos según la cantidad de consultas efectivamente atendidas.
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRankingMedicos</c> para clasificar a los
+        /// profesionales médicos según la facturación (caja + obra social) de sus atenciones realizadas.
         /// </summary>
-        public List<ReporteRankingMedicoDTO> ObtenerRankingMedicos(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingMedicos(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia, int? idEspecialidad = null)
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
+                var parametros = ParametrosFacturacion(fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia)
+                    .Append(new SqlParameter("@IdEspecialidad", (object?)idEspecialidad ?? DBNull.Value))
+                    .ToArray();
 
                 return context.Database
-                    .SqlQueryRaw<ReporteRankingMedicoDTO>(
-                        "EXEC sp_ReporteGerencialRankingMedicos @FechaDesde, @FechaHasta",
-                        pFechaDesde, pFechaHasta)
+                    .SqlQueryRaw<ReporteRankingFacturacionDTO>(
+                        "EXEC sp_ReporteGerencialRankingMedicos @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia, @IdEspecialidad",
+                        parametros)
                     .ToList();
             }
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRankingEspecialidades</c> (ranking de especialidades por facturación).
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingEspecialidades(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
+        {
+            return EjecutarRankingFacturacion("EXEC sp_ReporteGerencialRankingEspecialidades @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia", fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia);
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialRankingObrasSociales</c> (ranking de obras sociales por facturación,
+        /// con monto a cobrar y cobertura vigente vs. aplicada).
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingObrasSociales(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
+        {
+            return EjecutarRankingFacturacion("EXEC sp_ReporteGerencialRankingObrasSociales @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia", fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia);
+        }
+
+        /// <summary>
+        /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialFacturacionPorSegmento</c> (facturación por modalidad y por cobertura).
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerFacturacionPorSegmento(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
+        {
+            return EjecutarRankingFacturacion("EXEC sp_ReporteGerencialFacturacionPorSegmento @FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia", fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia);
+        }
+
+        private List<ReporteRankingFacturacionDTO> EjecutarRankingFacturacion(string sql, DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                return context.Database
+                    .SqlQueryRaw<ReporteRankingFacturacionDTO>(
+                        sql,
+                        ParametrosFacturacion(fechaDesde, fechaHasta, arancelEspecialidad, arancelEmergencia))
+                    .ToList();
+            }
+        }
+
+        private static SqlParameter[] ParametrosFacturacion(DateTime fechaDesde, DateTime fechaHasta, decimal arancelEspecialidad, decimal arancelEmergencia)
+        {
+            return new[]
+            {
+                new SqlParameter("@FechaDesde", fechaDesde.Date),
+                new SqlParameter("@FechaHasta", fechaHasta.Date),
+                new SqlParameter("@ArancelEspecialidad", arancelEspecialidad),
+                new SqlParameter("@ArancelEmergencia", arancelEmergencia)
+            };
         }
     }
 }

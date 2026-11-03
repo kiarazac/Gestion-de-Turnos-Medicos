@@ -66,29 +66,58 @@ namespace Gestion_de_Turnos_Medicos
                 Servicios.ExportadorPdf.ExportarCierreCaja(pathCajaPdf, resumenCaja, detallesCaja, DateTime.Today, gerente);
                 Console.WriteLine($"[OK] PDF Cierre de Caja generado exitosamente ({new FileInfo(pathCajaPdf).Length} bytes): {pathCajaPdf}");
 
-                // 3. Verificar Reportes Gerenciales (Gerente)
+                // 3. Verificar Reportes Gerenciales de Recaudación (Gerente)
                 var reporteBLL = new Negocio.ReporteBLL();
                 DateTime desde = new DateTime(2025, 1, 1);
                 DateTime hasta = DateTime.Today.AddDays(1);
-                var ingresos = reporteBLL.ObtenerIngresosPorMedico(desde, hasta);
-                var coberturas = reporteBLL.ObtenerObrasSocialesVsParticulares(desde, hasta);
-                var demanda = reporteBLL.ObtenerDemandaMedicosRanking(desde, hasta);
-                Console.WriteLine($"[OK] SPs Gerenciales ejecutados: Ingresos: {ingresos.Count} médicos, Coberturas: {coberturas.Count} grupos, Demanda: {demanda.Count} rankings.");
+                var anterior = Negocio.ReporteBLL.ObtenerPeriodoAnterior(desde, hasta);
+                var resumen = reporteBLL.ObtenerFinanzasResumen(desde, hasta);
+                var resumenAnterior = reporteBLL.ObtenerFinanzasResumen(anterior.Desde, anterior.Hasta);
+                var evolucion = reporteBLL.ObtenerRecaudacionDiaria(desde, hasta);
+                var rankingMedicos = reporteBLL.ObtenerRankingMedicos(desde, hasta);
+                var rankingEspecialidades = reporteBLL.ObtenerRankingEspecialidades(desde, hasta);
+                var rankingObrasSociales = reporteBLL.ObtenerRankingObrasSociales(desde, hasta);
+                var segmentos = reporteBLL.ObtenerFacturacionPorSegmento(desde, hasta);
+                Console.WriteLine($"[OK] SPs Gerenciales ejecutados: Facturado ${resumen.TotalFacturado:N2} (Caja ${resumen.CobradoCaja:N2} + OS ${resumen.ACobrarObraSocial:N2}), {evolucion.Count} períodos, {rankingMedicos.Count} médicos, {rankingEspecialidades.Count} especialidades, {rankingObrasSociales.Count} coberturas.");
+
+                // Control de consistencia: todos los cortes deben sumar el total facturado del resumen
+                var cortes = new[]
+                {
+                    ("caja + obras sociales", resumen.CobradoCaja + resumen.ACobrarObraSocial),
+                    ("evolución", evolucion.Sum(d => d.TotalFacturado)),
+                    ("especialidades", rankingEspecialidades.Sum(r => r.TotalFacturado)),
+                    ("obras sociales", rankingObrasSociales.Sum(r => r.TotalFacturado)),
+                    ("modalidad", segmentos.Where(s => s.Detalle == "Modalidad").Sum(s => s.TotalFacturado)),
+                    ("cobertura", segmentos.Where(s => s.Detalle == "Cobertura").Sum(s => s.TotalFacturado))
+                };
+                foreach (var (corte, total) in cortes)
+                {
+                    if (total != resumen.TotalFacturado)
+                        throw new InvalidOperationException($"El corte '{corte}' suma ${total:N2} y no coincide con el total facturado ${resumen.TotalFacturado:N2}.");
+                }
+                if (rankingMedicos.Sum(r => r.TotalFacturado) > resumen.TotalFacturado)
+                    throw new InvalidOperationException("El ranking de médicos supera el total facturado.");
+                Console.WriteLine("[OK] Consistencia de recaudación verificada: todos los cortes suman el total facturado.");
 
                 string pathGerencialPdf = Path.Combine(testDir, "Test_ReporteGerencial.pdf");
-                Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialPdf, ingresos, coberturas, demanda, desde, hasta, gerente);
+                Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialPdf, resumen, resumenAnterior, evolucion, rankingMedicos,
+                    rankingEspecialidades, rankingObrasSociales, segmentos, "Todas las especialidades", desde, hasta, gerente);
                 Console.WriteLine($"[OK] PDF Gerencial generado exitosamente ({new FileInfo(pathGerencialPdf).Length} bytes): {pathGerencialPdf}");
 
-                // 3.1 Verificar Nuevos Reportes de Auditoría de Emisión y Ranking de Médicos
-                var resumenAudit = reporteBLL.ObtenerAuditoriaRecaudacionResumen(DateTime.Today, DateTime.Today);
-                var detalleAudit = reporteBLL.ObtenerAuditoriaRecaudacionDetalle(DateTime.Today, DateTime.Today);
-                var rankingMedicos = reporteBLL.ObtenerRankingMedicos(DateTime.Today, DateTime.Today);
-                Console.WriteLine($"[OK] Reporte Auditoría Emisión: {resumenAudit.TotalTurnos} tickets emitidos, ${resumenAudit.TotalRecaudado:N2} recaudados. Filas detalle: {detalleAudit.Count}.");
-                Console.WriteLine($"[OK] Reporte Ranking Médicos: {rankingMedicos.Count} profesionales clasificados. Líder: {rankingMedicos.FirstOrDefault()?.NombreMedico} ({rankingMedicos.FirstOrDefault()?.AtencionesRealizadas} atenciones).");
-
-                string pathGerencialAuditadoPdf = Path.Combine(testDir, "Test_ReporteGerencial_Auditado.pdf");
-                Servicios.ExportadorPdf.ExportarReporteGerencial(pathGerencialAuditadoPdf, resumenAudit, detalleAudit, rankingMedicos, DateTime.Today, DateTime.Today, gerente);
-                Console.WriteLine($"[OK] PDF Gerencial Auditado generado exitosamente ({new FileInfo(pathGerencialAuditadoPdf).Length} bytes): {pathGerencialAuditadoPdf}");
+                // 3.1 Últimos 7 días: evolución día por día y variación contra la semana anterior
+                DateTime desdeSemana = DateTime.Today.AddDays(-6);
+                var semanaAnterior = Negocio.ReporteBLL.ObtenerPeriodoAnterior(desdeSemana, DateTime.Today);
+                string pathSemanalPdf = Path.Combine(testDir, "Test_ReporteGerencial_Semanal.pdf");
+                Servicios.ExportadorPdf.ExportarReporteGerencial(pathSemanalPdf,
+                    reporteBLL.ObtenerFinanzasResumen(desdeSemana, DateTime.Today),
+                    reporteBLL.ObtenerFinanzasResumen(semanaAnterior.Desde, semanaAnterior.Hasta),
+                    reporteBLL.ObtenerRecaudacionDiaria(desdeSemana, DateTime.Today),
+                    reporteBLL.ObtenerRankingMedicos(desdeSemana, DateTime.Today),
+                    reporteBLL.ObtenerRankingEspecialidades(desdeSemana, DateTime.Today),
+                    reporteBLL.ObtenerRankingObrasSociales(desdeSemana, DateTime.Today),
+                    reporteBLL.ObtenerFacturacionPorSegmento(desdeSemana, DateTime.Today),
+                    "Todas las especialidades", desdeSemana, DateTime.Today, gerente);
+                Console.WriteLine($"[OK] PDF Gerencial semanal generado exitosamente ({new FileInfo(pathSemanalPdf).Length} bytes): {pathSemanalPdf}");
 
                 // 4. Verificar Reporte Médico y Triage de Atenciones
                 var historiaBLL = new Negocio.HistoriaClinicaBLL();

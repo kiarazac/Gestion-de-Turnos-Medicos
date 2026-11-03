@@ -434,9 +434,65 @@ BEGIN
 END;
 "@,
 @"
-CREATE OR ALTER PROCEDURE sp_ReporteGerencialRecaudacionAuditoriaResumen
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialIngresosPorMedico;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialObrasSocialesVsParticulares;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialDemandaMedicos;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaResumen;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaDetalle;
+"@,
+@"
+CREATE OR ALTER FUNCTION fn_ReporteGerencialTurnosFacturados
+(
+    @FechaDesde DATE,
+    @FechaHasta DATE,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT
+        t.IdTurno,
+        CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) AS FechaEmision,
+        t.Estado,
+        x.EsEmergencia,
+        COALESCE(t.IdUsuario, (
+            SELECT TOP 1 hc.IdUsuario FROM HistoriasClinicas hc
+            WHERE hc.IdTurno = t.IdTurno AND hc.Activo = 1
+            ORDER BY hc.IdHistoria DESC
+        )) AS IdMedico,
+        t.IdEspecialidad,
+        x.EsObraSocial,
+        CASE WHEN x.EsObraSocial = 1 THEN os.IdObraSocial END AS IdObraSocial,
+        CASE WHEN x.EsObraSocial = 1 THEN os.Nombre ELSE 'Particular / Sin Obra Social' END AS ObraSocial,
+        CASE WHEN x.EsObraSocial = 1 THEN os.PorcentajeCobertura ELSE 0.00 END AS PorcentajeCoberturaVigente,
+        x.ArancelBase,
+        ISNULL(t.Monto, 0.00) AS CobradoCaja,
+        CASE WHEN x.EsObraSocial = 1 AND x.ArancelBase > ISNULL(t.Monto, 0.00)
+             THEN x.ArancelBase - ISNULL(t.Monto, 0.00)
+             ELSE 0.00
+        END AS ACobrarObraSocial
+    FROM Turnos t
+    INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
+    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+    CROSS APPLY (
+        SELECT
+            CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN 1 ELSE 0 END AS EsEmergencia,
+            CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN @ArancelEmergencia ELSE @ArancelEspecialidad END AS ArancelBase,
+            CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN 1 ELSE 0 END AS EsObraSocial
+    ) x
+    WHERE CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) BETWEEN @FechaDesde AND @FechaHasta
+      AND t.Activo = 1
+      AND t.Estado <> 'Cancelado'
+);
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialFinanzasResumen
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -445,25 +501,21 @@ BEGIN
         IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
         IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
 
-        SELECT 
-            @FechaDesde AS FechaDesde,
-            @FechaHasta AS FechaHasta,
-            COUNT(t.IdTurno) AS TotalTurnos,
-            ISNULL(SUM(t.Monto), 0.00) AS TotalRecaudado,
-            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEmergencia,
-            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEmergencia,
-            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEspecialidad,
-            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEspecialidad,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosObraSocial,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoObraSocial,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosParticulares,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoParticulares
-        FROM Turnos t
-        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
-        WHERE CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) BETWEEN @FechaDesde AND @FechaHasta
-          AND t.Activo = 1
-          AND t.Estado <> 'Cancelado';
+        SELECT
+            COUNT(f.IdTurno) AS TotalTurnos,
+            ISNULL(SUM(f.CobradoCaja), 0.00) AS CobradoCaja,
+            ISNULL(SUM(f.ACobrarObraSocial), 0.00) AS ACobrarObraSocial,
+            ISNULL(SUM(f.CobradoCaja + f.ACobrarObraSocial), 0.00) AS TotalFacturado,
+            CASE WHEN COUNT(f.IdTurno) > 0
+                 THEN CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) / COUNT(f.IdTurno) AS DECIMAL(18,2))
+                 ELSE 0.00
+            END AS TicketPromedio,
+            ISNULL(SUM(CASE WHEN f.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TurnosAtendidos,
+            ISNULL(SUM(CASE WHEN f.Estado NOT IN ('Atendido', 'Finalizado', 'Ausente') THEN 1 ELSE 0 END), 0) AS TurnosPendientes,
+            ISNULL(SUM(CASE WHEN f.Estado = 'Ausente' THEN 1 ELSE 0 END), 0) AS TurnosAusentes,
+            ISNULL(SUM(CASE WHEN f.Estado = 'Ausente' THEN f.CobradoCaja + f.ACobrarObraSocial ELSE 0 END), 0.00) AS FacturadoAusentes
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f;
+
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -473,9 +525,11 @@ BEGIN
 END;
 "@,
 @"
-CREATE OR ALTER PROCEDURE sp_ReporteGerencialRecaudacionAuditoriaDetalle
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialRecaudacionDiaria
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -484,31 +538,22 @@ BEGIN
         IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
         IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
 
-        SELECT 
-            t.IdTurno,
-            ISNULL(t.NroOrden, 'S/N') AS NroOrden,
-            ISNULL(t.FechaCreacion, t.Fecha) AS FechaEmision,
-            ISNULL(CONCAT(p.Apellido, ', ', p.Nombre), 'Sin Paciente') AS Paciente,
-            ISNULL(p.Dni, '--') AS DniPaciente,
-            ISNULL(t.TipoTurno, 'Consulta') AS TipoTurno,
-            ISNULL(e.Nombre, 'General') AS Especialidad,
-            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-            CASE 
-                WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN 'Particular' 
-                ELSE 'Obra Social / Prepaga' 
-            END AS TipoCobertura,
-            ISNULL(t.Monto, 0.00) AS MontoCobrado,
-            ISNULL(t.Estado, 'En Espera') AS EstadoTurno,
-            ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado
-        FROM Turnos t
-        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
-        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
-        LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
-        WHERE CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) BETWEEN @FechaDesde AND @FechaHasta
-          AND t.Activo = 1
-          AND t.Estado <> 'Cancelado'
-        ORDER BY ISNULL(t.FechaCreacion, t.Fecha) DESC, t.IdTurno DESC;
+        DECLARE @PorMes BIT = CASE WHEN DATEDIFF(DAY, @FechaDesde, @FechaHasta) > 62 THEN 1 ELSE 0 END;
+
+        SELECT
+            CAST(per.Periodo AS DATETIME) AS Fecha,
+            @PorMes AS AgrupadoPorMes,
+            COUNT(f.IdTurno) AS CantidadTurnos,
+            ISNULL(SUM(f.CobradoCaja), 0.00) AS CobradoCaja,
+            ISNULL(SUM(f.ACobrarObraSocial), 0.00) AS ACobrarObraSocial,
+            ISNULL(SUM(f.CobradoCaja + f.ACobrarObraSocial), 0.00) AS TotalFacturado
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+        CROSS APPLY (
+            SELECT CASE WHEN @PorMes = 1 THEN DATEFROMPARTS(YEAR(f.FechaEmision), MONTH(f.FechaEmision), 1) ELSE f.FechaEmision END AS Periodo
+        ) per
+        GROUP BY per.Periodo
+        ORDER BY per.Periodo ASC;
+
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -520,60 +565,238 @@ END;
 @"
 CREATE OR ALTER PROCEDURE sp_ReporteGerencialRankingMedicos
     @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2),
+    @IdEspecialidad INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
-        IF @FechaHasta IS NULL SET @FechaHasta = CAST(GETDATE() AS DATE);
+        IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
+        IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
 
-        DECLARE @TotalAtencionesPeriodo INT = 0;
-
-        SELECT @TotalAtencionesPeriodo = COUNT(DISTINCT t.IdTurno)
-        FROM Turnos t
-        LEFT JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno
-        WHERE t.Estado IN ('Atendido', 'Finalizado')
-          AND t.Activo = 1
-          AND CAST(COALESCE(hc.Fecha, t.FechaModificacion, t.Fecha) AS DATE) BETWEEN @FechaDesde AND @FechaHasta;
-
-        SELECT 
+        WITH Facturacion AS (
+            SELECT
+                f.IdMedico,
+                COUNT(f.IdTurno) AS CantidadTurnos,
+                SUM(f.CobradoCaja) AS CobradoCaja,
+                SUM(f.ACobrarObraSocial) AS ACobrarObraSocial
+            FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+            WHERE f.Estado IN ('Atendido', 'Finalizado')
+              AND f.IdMedico IS NOT NULL
+              AND (@IdEspecialidad IS NULL OR f.IdEspecialidad = @IdEspecialidad)
+            GROUP BY f.IdMedico
+        ),
+        Total AS (
+            SELECT SUM(CobradoCaja + ACobrarObraSocial) AS GranTotal FROM Facturacion
+        )
+        SELECT
             ROW_NUMBER() OVER(
-                ORDER BY COUNT(DISTINCT t.IdTurno) DESC, 
-                         ISNULL(SUM(t.Monto), 0.00) DESC, 
+                ORDER BY ISNULL(fa.CobradoCaja + fa.ACobrarObraSocial, 0.00) DESC,
+                         ISNULL(fa.CantidadTurnos, 0) DESC,
                          u.Apellido ASC
             ) AS Posicion,
-            u.IdUsuario,
-            ISNULL(CONCAT(u.Apellido, ', ', u.Nombre), 'Médico Desconocido') AS NombreMedico,
-            ISNULL(u.NroMatricula, '--') AS Matricula,
+            u.IdUsuario AS Id,
+            CONCAT(u.Apellido, ', ', u.Nombre) AS Nombre,
             ISNULL((
                 SELECT STRING_AGG(e.Nombre, ', ')
                 FROM MedicosEspecialidades me
                 INNER JOIN Especialidades e ON me.IdEspecialidad = e.IdEspecialidad
                 WHERE me.IdUsuario = u.IdUsuario AND me.Activo = 1 AND e.Activo = 1
-            ), 'General') AS Especialidad,
-            COUNT(DISTINCT t.IdTurno) AS AtencionesRealizadas,
-            ISNULL(SUM(t.Monto), 0.00) AS TotalRecaudado,
-            CASE 
-                WHEN @TotalAtencionesPeriodo > 0 
-                THEN CAST((COUNT(DISTINCT t.IdTurno) * 100.0 / @TotalAtencionesPeriodo) AS DECIMAL(5,2))
-                ELSE 0.00 
-            END AS PorcentajeParticipacion
+            ), 'General') AS Detalle,
+            ISNULL(u.NroMatricula, '--') AS Matricula,
+            ISNULL(fa.CantidadTurnos, 0) AS CantidadTurnos,
+            ISNULL(fa.CobradoCaja, 0.00) AS CobradoCaja,
+            ISNULL(fa.ACobrarObraSocial, 0.00) AS ACobrarObraSocial,
+            ISNULL(fa.CobradoCaja + fa.ACobrarObraSocial, 0.00) AS TotalFacturado,
+            CASE WHEN fa.CantidadTurnos > 0
+                 THEN CAST((fa.CobradoCaja + fa.ACobrarObraSocial) / fa.CantidadTurnos AS DECIMAL(18,2))
+                 ELSE 0.00
+            END AS TicketPromedio,
+            CASE WHEN tot.GranTotal > 0
+                 THEN CAST(ISNULL(fa.CobradoCaja + fa.ACobrarObraSocial, 0.00) * 100.0 / tot.GranTotal AS DECIMAL(5,2))
+                 ELSE 0.00
+            END AS PorcentajeParticipacion,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaVigente,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaAplicada
         FROM Usuarios u
         INNER JOIN Roles r ON u.IdRol = r.IdRol
-        LEFT JOIN Turnos t ON (t.IdUsuario = u.IdUsuario OR t.IdTurno IN (SELECT hc.IdTurno FROM HistoriasClinicas hc WHERE hc.IdUsuario = u.IdUsuario))
-                           AND t.Estado IN ('Atendido', 'Finalizado')
-                           AND t.Activo = 1
-                           AND CAST(COALESCE(
-                               (SELECT TOP 1 hc2.Fecha FROM HistoriasClinicas hc2 WHERE hc2.IdTurno = t.IdTurno ORDER BY hc2.IdHistoria DESC),
-                               t.FechaModificacion, 
-                               t.Fecha
-                           ) AS DATE) BETWEEN @FechaDesde AND @FechaHasta
+        LEFT JOIN Facturacion fa ON fa.IdMedico = u.IdUsuario
+        CROSS JOIN Total tot
         WHERE (u.IdRol = 1 OR r.Descripcion LIKE '%Médic%' OR r.Descripcion LIKE '%Medic%')
-          AND u.Activo = 1
-        GROUP BY u.IdUsuario, u.Apellido, u.Nombre, u.NroMatricula
-        ORDER BY AtencionesRealizadas DESC, TotalRecaudado DESC, u.Apellido ASC;
+          AND (u.Activo = 1 OR fa.IdMedico IS NOT NULL)
+          AND (@IdEspecialidad IS NULL OR fa.IdMedico IS NOT NULL OR EXISTS (
+                SELECT 1 FROM MedicosEspecialidades me
+                WHERE me.IdUsuario = u.IdUsuario AND me.IdEspecialidad = @IdEspecialidad AND me.Activo = 1
+          ))
+        ORDER BY Posicion ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialRankingEspecialidades
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
+        IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
+
+        DECLARE @GranTotal DECIMAL(18,2);
+
+        SELECT @GranTotal = SUM(f.CobradoCaja + f.ACobrarObraSocial)
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f;
+
+        SELECT
+            ROW_NUMBER() OVER(ORDER BY SUM(f.CobradoCaja + f.ACobrarObraSocial) DESC, COUNT(f.IdTurno) DESC) AS Posicion,
+            f.IdEspecialidad AS Id,
+            ISNULL(e.Nombre, 'Sin especialidad') AS Nombre,
+            CASE WHEN SUM(f.EsEmergencia) = COUNT(f.IdTurno) THEN 'Emergencia / Guardia'
+                 WHEN SUM(f.EsEmergencia) = 0 THEN 'Especialidad'
+                 ELSE 'Mixta'
+            END AS Detalle,
+            CAST(NULL AS NVARCHAR(50)) AS Matricula,
+            COUNT(f.IdTurno) AS CantidadTurnos,
+            SUM(f.CobradoCaja) AS CobradoCaja,
+            SUM(f.ACobrarObraSocial) AS ACobrarObraSocial,
+            SUM(f.CobradoCaja + f.ACobrarObraSocial) AS TotalFacturado,
+            CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) / COUNT(f.IdTurno) AS DECIMAL(18,2)) AS TicketPromedio,
+            CASE WHEN @GranTotal > 0
+                 THEN CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) * 100.0 / @GranTotal AS DECIMAL(5,2))
+                 ELSE 0.00
+            END AS PorcentajeParticipacion,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaVigente,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaAplicada
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+        LEFT JOIN Especialidades e ON f.IdEspecialidad = e.IdEspecialidad
+        GROUP BY f.IdEspecialidad, e.Nombre
+        ORDER BY Posicion ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialRankingObrasSociales
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
+        IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
+
+        DECLARE @GranTotal DECIMAL(18,2);
+
+        SELECT @GranTotal = SUM(f.CobradoCaja + f.ACobrarObraSocial)
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f;
+
+        SELECT
+            ROW_NUMBER() OVER(ORDER BY f.EsObraSocial DESC, SUM(f.CobradoCaja + f.ACobrarObraSocial) DESC, COUNT(f.IdTurno) DESC) AS Posicion,
+            f.IdObraSocial AS Id,
+            f.ObraSocial AS Nombre,
+            CASE WHEN f.EsObraSocial = 1 THEN 'Obra Social / Prepaga' ELSE 'Particular' END AS Detalle,
+            CAST(NULL AS NVARCHAR(50)) AS Matricula,
+            COUNT(f.IdTurno) AS CantidadTurnos,
+            SUM(f.CobradoCaja) AS CobradoCaja,
+            SUM(f.ACobrarObraSocial) AS ACobrarObraSocial,
+            SUM(f.CobradoCaja + f.ACobrarObraSocial) AS TotalFacturado,
+            CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) / COUNT(f.IdTurno) AS DECIMAL(18,2)) AS TicketPromedio,
+            CASE WHEN @GranTotal > 0
+                 THEN CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) * 100.0 / @GranTotal AS DECIMAL(5,2))
+                 ELSE 0.00
+            END AS PorcentajeParticipacion,
+            CAST(f.PorcentajeCoberturaVigente AS DECIMAL(5,2)) AS PorcentajeCoberturaVigente,
+            CASE WHEN SUM(f.ArancelBase) > 0
+                 THEN CAST(100.0 - SUM(f.CobradoCaja) * 100.0 / SUM(f.ArancelBase) AS DECIMAL(5,2))
+                 ELSE 0.00
+            END AS PorcentajeCoberturaAplicada
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+        GROUP BY f.EsObraSocial, f.IdObraSocial, f.ObraSocial, f.PorcentajeCoberturaVigente
+        ORDER BY Posicion ASC;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+"@,
+@"
+CREATE OR ALTER PROCEDURE sp_ReporteGerencialFacturacionPorSegmento
+    @FechaDesde DATE = NULL,
+    @FechaHasta DATE = NULL,
+    @ArancelEspecialidad DECIMAL(18,2),
+    @ArancelEmergencia DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF @FechaDesde IS NULL SET @FechaDesde = CAST(GETDATE() AS DATE);
+        IF @FechaHasta IS NULL SET @FechaHasta = @FechaDesde;
+
+        DECLARE @GranTotal DECIMAL(18,2);
+
+        SELECT @GranTotal = SUM(f.CobradoCaja + f.ACobrarObraSocial)
+        FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f;
+
+        SELECT
+            CAST(seg.Orden AS BIGINT) AS Posicion,
+            CAST(NULL AS INT) AS Id,
+            seg.Nombre,
+            seg.Grupo AS Detalle,
+            CAST(NULL AS NVARCHAR(50)) AS Matricula,
+            COUNT(f.IdTurno) AS CantidadTurnos,
+            ISNULL(SUM(f.CobradoCaja), 0.00) AS CobradoCaja,
+            ISNULL(SUM(f.ACobrarObraSocial), 0.00) AS ACobrarObraSocial,
+            ISNULL(SUM(f.CobradoCaja + f.ACobrarObraSocial), 0.00) AS TotalFacturado,
+            CASE WHEN COUNT(f.IdTurno) > 0
+                 THEN CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) / COUNT(f.IdTurno) AS DECIMAL(18,2))
+                 ELSE 0.00
+            END AS TicketPromedio,
+            CASE WHEN @GranTotal > 0
+                 THEN CAST(ISNULL(SUM(f.CobradoCaja + f.ACobrarObraSocial), 0.00) * 100.0 / @GranTotal AS DECIMAL(5,2))
+                 ELSE 0.00
+            END AS PorcentajeParticipacion,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaVigente,
+            CAST(NULL AS DECIMAL(5,2)) AS PorcentajeCoberturaAplicada
+        FROM (VALUES
+            (1, 'Emergencia / Guardia', 'Modalidad'),
+            (2, 'Especialidad', 'Modalidad'),
+            (3, 'Obra Social / Prepaga', 'Cobertura'),
+            (4, 'Particular', 'Cobertura')
+        ) seg(Orden, Nombre, Grupo)
+        LEFT JOIN dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+            ON (seg.Orden = 1 AND f.EsEmergencia = 1)
+            OR (seg.Orden = 2 AND f.EsEmergencia = 0)
+            OR (seg.Orden = 3 AND f.EsObraSocial = 1)
+            OR (seg.Orden = 4 AND f.EsObraSocial = 0)
+        GROUP BY seg.Orden, seg.Nombre, seg.Grupo
+        ORDER BY seg.Orden ASC;
+
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

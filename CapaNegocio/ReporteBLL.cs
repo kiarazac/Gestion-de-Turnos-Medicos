@@ -68,50 +68,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene y valida las estadísticas de ingresos y facturación acumulada por profesional médico.
-        /// </summary>
-        public List<ReporteIngresoMedicoDTO> ObtenerIngresosPorMedico(DateTime? fechaDesde = null, DateTime? fechaHasta = null, int? idEspecialidad = null)
-        {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            if (idEspecialidad.HasValue && idEspecialidad.Value <= 0)
-            {
-                idEspecialidad = null;
-            }
-
-            return _reporteDAL.ObtenerIngresosPorMedico(fechaDesde, fechaHasta, idEspecialidad);
-        }
-
-        /// <summary>
-        /// Obtiene la comparativa económica de facturación de particulares frente a obras sociales y prepagas.
-        /// </summary>
-        public List<ReporteObraSocialVsParticularDTO> ObtenerObrasSocialesVsParticulares(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            return _reporteDAL.ObtenerObrasSocialesVsParticulares(fechaDesde, fechaHasta);
-        }
-
-        /// <summary>
-        /// Obtiene el ranking analítico de médicos ordenados por demanda asistencial.
-        /// </summary>
-        public List<ReporteDemandaMedicoRankingDTO> ObtenerDemandaMedicosRanking(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            return _reporteDAL.ObtenerDemandaMedicosRanking(fechaDesde, fechaHasta);
-        }
-
-        /// <summary>
         /// Obtiene el ranking consolidado de diagnósticos clínicos y síntomas atendidos por el médico en su especialidad.
         /// </summary>
         public List<ReporteMedicoDiagnosticoFrecuenteDTO> ObtenerRankingDiagnosticosMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
@@ -130,42 +86,92 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene los totales consolidados de recaudación financiera y tickets emitidos para la auditoría de recepcionistas.
+        /// Obtiene los totales de recaudación del período (cobrado en caja, a cobrar a obras sociales, facturado, ticket promedio y ausentismo).
         /// </summary>
-        public ReporteRecaudacionAuditoriaResumenDTO ObtenerAuditoriaRecaudacionResumen(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public ReporteFinanzasResumenDTO ObtenerFinanzasResumen(DateTime fechaDesde, DateTime fechaHasta)
         {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            return _reporteDAL.ObtenerAuditoriaRecaudacionResumen(fechaDesde, fechaHasta);
+            ValidarRango(fechaDesde, fechaHasta);
+            return _reporteDAL.ObtenerFinanzasResumen(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia);
         }
 
         /// <summary>
-        /// Obtiene el detalle auditado de turnos emitidos y cobrados por recepción en el período seleccionado.
+        /// Obtiene la evolución de la recaudación por día (o por mes si el rango supera los 62 días).
         /// </summary>
-        public List<ReporteRecaudacionAuditoriaDetalleDTO> ObtenerAuditoriaRecaudacionDetalle(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public List<ReporteRecaudacionDiariaDTO> ObtenerRecaudacionDiaria(DateTime fechaDesde, DateTime fechaHasta)
         {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            return _reporteDAL.ObtenerAuditoriaRecaudacionDetalle(fechaDesde, fechaHasta);
+            ValidarRango(fechaDesde, fechaHasta);
+            return _reporteDAL.ObtenerRecaudacionDiaria(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia);
         }
 
         /// <summary>
-        /// Obtiene el ranking oficial de médicos en base a la cantidad de consultas efectivamente atendidas en el rango seleccionado.
+        /// Obtiene el ranking de médicos por facturación de sus atenciones realizadas, opcionalmente filtrado por especialidad del turno.
         /// </summary>
-        public List<ReporteRankingMedicoDTO> ObtenerRankingMedicos(DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingMedicos(DateTime fechaDesde, DateTime fechaHasta, int? idEspecialidad = null)
         {
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
+            ValidarRango(fechaDesde, fechaHasta);
+            if (idEspecialidad.HasValue && idEspecialidad.Value <= 0)
+            {
+                idEspecialidad = null;
+            }
+
+            return _reporteDAL.ObtenerRankingMedicos(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia, idEspecialidad);
+        }
+
+        /// <summary>
+        /// Obtiene el ranking de especialidades por facturación.
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingEspecialidades(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            ValidarRango(fechaDesde, fechaHasta);
+            return _reporteDAL.ObtenerRankingEspecialidades(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia);
+        }
+
+        /// <summary>
+        /// Obtiene el ranking de obras sociales por facturación (copagos, monto a cobrar y cobertura vigente vs. aplicada).
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerRankingObrasSociales(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            ValidarRango(fechaDesde, fechaHasta);
+            return _reporteDAL.ObtenerRankingObrasSociales(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia);
+        }
+
+        /// <summary>
+        /// Obtiene la facturación por modalidad (Emergencia / Especialidad) y por cobertura (Obra Social / Particular).
+        /// </summary>
+        public List<ReporteRankingFacturacionDTO> ObtenerFacturacionPorSegmento(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            ValidarRango(fechaDesde, fechaHasta);
+            return _reporteDAL.ObtenerFacturacionPorSegmento(fechaDesde, fechaHasta, ArancelEspecialidad, ArancelEmergencia);
+        }
+
+        /// <summary>
+        /// Devuelve el período inmediatamente anterior de igual duración (ej. 01/11–07/11 → 25/10–31/10), para comparar KPIs.
+        /// </summary>
+        public static (DateTime Desde, DateTime Hasta) ObtenerPeriodoAnterior(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            int dias = (fechaHasta.Date - fechaDesde.Date).Days + 1;
+            DateTime hastaAnterior = fechaDesde.Date.AddDays(-1);
+            return (hastaAnterior.AddDays(1 - dias), hastaAnterior);
+        }
+
+        /// <summary>
+        /// Variación porcentual entre dos valores; null si el período anterior no tiene movimiento.
+        /// </summary>
+        public static decimal? CalcularVariacion(decimal actual, decimal anterior)
+        {
+            return anterior == 0 ? null : Math.Round((actual - anterior) * 100m / anterior, 1);
+        }
+
+        // Los aranceles base viven en TurnoBLL; se pasan a los SPs para no duplicarlos en SQL
+        private static decimal ArancelEspecialidad => TurnoBLL.ObtenerArancelBase("Especialidad");
+        private static decimal ArancelEmergencia => TurnoBLL.ObtenerArancelBase("Emergencia");
+
+        private static void ValidarRango(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            if (fechaDesde.Date > fechaHasta.Date)
             {
                 throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
             }
-
-            return _reporteDAL.ObtenerRankingMedicos(fechaDesde, fechaHasta);
         }
     }
 }

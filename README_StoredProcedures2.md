@@ -4572,53 +4572,102 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
   | `@Fecha` | `DATE` | IN (OPT) | Fecha de la jornada analizada. |
 - **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`.
 
-### 7.3 `sp_ReporteGerencialIngresosPorMedico`
-- **Descripción:** Totaliza la facturación médica acumulada por cada facultativo según las consultas efectivas atendidas, calculando ticket promedio y el porcentaje de contribución a los ingresos del centro médico.
-- **Entidad:** `Usuarios` / `Turnos` / `Finanzas`
+> **Reemplazados:** `sp_ReporteGerencialIngresosPorMedico`, `sp_ReporteGerencialObrasSocialesVsParticulares`, `sp_ReporteGerencialDemandaMedicos`, `sp_ReporteGerencialRecaudacionAuditoriaResumen` y `sp_ReporteGerencialRecaudacionAuditoriaDetalle` se eliminaron (`DROP PROCEDURE IF EXISTS`). El panel del Gerente ya no muestra el detalle de turnos; se enfoca en el control de la recaudación.
+>
+> **Criterio común (7.3 a 7.9):** se toman los turnos no cancelados por **fecha de emisión** (`FechaCreacion`). El monto a cobrar a la obra social se **deriva de lo cobrado** (`arancel base - Monto` cobrado en caja), así el histórico no cambia si luego se edita el % de cobertura de una obra social. Los aranceles base llegan como parámetros desde `TurnoBLL.ObtenerArancelBase` (única fuente).
+
+### 7.3 `fn_ReporteGerencialTurnosFacturados` (función)
+- **Descripción:** Función de tabla en línea que sirve de base común a los reportes de recaudación: un turno facturado por fila con lo cobrado en caja, lo que corresponde cobrar a la obra social, médico, especialidad y cobertura.
+- **Entidad:** `Turnos` / `Finanzas`
+- **Operación:** Consulta / Base de Reportes
+- **Tablas:** `Turnos`, `Pacientes`, `ObrasSociales`, `HistoriasClinicas`
+- **Forms que lo utilizan:** — (la invocan los SPs 7.4 a 7.9)
+- **Estado:** `EN USO`
+- **Parámetros:**
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@FechaDesde` | `DATE` | IN | Fecha inicial de emisión. |
+  | `@FechaHasta` | `DATE` | IN | Fecha final de emisión. |
+  | `@ArancelEspecialidad` | `DECIMAL(18,2)` | IN | Arancel base de turnos de especialidad. |
+  | `@ArancelEmergencia` | `DECIMAL(18,2)` | IN | Arancel base de turnos de emergencia / guardia. |
+- **Devuelve:** `IdTurno`, `FechaEmision`, `Estado`, `EsEmergencia`, `IdMedico`, `IdEspecialidad`, `EsObraSocial`, `IdObraSocial`, `ObraSocial`, `PorcentajeCoberturaVigente`, `ArancelBase`, `CobradoCaja`, `ACobrarObraSocial`.
+
+### 7.4 `sp_ReporteGerencialFinanzasResumen`
+- **Descripción:** Totales de recaudación del período para las tarjetas KPI: cobrado en caja, a cobrar a obras sociales, total facturado, ticket promedio, turnos atendidos / pendientes y ausentismo. Se ejecuta también sobre el período anterior de igual duración para mostrar la variación.
+- **Entidad:** `Turnos` / `Finanzas`
 - **Operación:** Consulta / Reporte Gerencial
-- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+- **Tablas:** `fn_ReporteGerencialTurnosFacturados`
 - **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
-- **Acción:** Pestaña "Ingresos por Médico"
+- **Acción:** Tarjetas KPI y encabezado del PDF
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha inicial de análisis. |
-  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha final de análisis. |
-  | `@IdEspecialidad` | `INT` | IN (OPT) | Identificador de especialidad médica para filtro individual. |
-- **Devuelve:** `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `ConsultasAtendidas`, `IngresosTotales`, `TicketPromedio`, `PorcentajeAporte`.
+  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha inicial de emisión (por defecto hoy). |
+  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha final de emisión (por defecto `@FechaDesde`). |
+  | `@ArancelEspecialidad` | `DECIMAL(18,2)` | IN | Arancel base de especialidad. |
+  | `@ArancelEmergencia` | `DECIMAL(18,2)` | IN | Arancel base de emergencia. |
+- **Devuelve:** `TotalTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`, `TicketPromedio`, `TurnosAtendidos`, `TurnosPendientes`, `TurnosAusentes`, `FacturadoAusentes`.
 
-### 7.4 `sp_ReporteGerencialObrasSocialesVsParticulares`
-- **Descripción:** Consolida la facturación global discriminando entre pacientes particulares y las distintas obras sociales o prepagas, informando montos, volumen de consultas y ticket promedio.
-- **Entidad:** `Turnos` / `Pacientes` / `Finanzas`
-- **Operación:** Consulta / Balance Comercial
-- **Tablas:** `Turnos`, `Pacientes`
+### 7.5 `sp_ReporteGerencialRecaudacionDiaria`
+- **Descripción:** Evolución de la recaudación por día (o por mes si el rango supera los 62 días), separando caja y obras sociales.
+- **Entidad:** `Turnos` / `Finanzas`
+- **Operación:** Consulta / Serie Temporal
+- **Tablas:** `fn_ReporteGerencialTurnosFacturados`
 - **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
-- **Acción:** Pestaña "Obras Sociales vs. Particulares"
+- **Acción:** Pestaña "Evolución de la Recaudación"
 - **Estado:** `EN USO`
-- **Parámetros:**
+- **Parámetros:** mismos que 7.4.
+- **Devuelve:** `Fecha`, `AgrupadoPorMes`, `CantidadTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`.
+
+### 7.6 `sp_ReporteGerencialRankingMedicos`
+- **Descripción:** Ranking de médicos por facturación (caja + obra social) de las atenciones realizadas (`Atendido` / `Finalizado`). Incluye a los médicos activos sin facturación para detectar profesionales sin actividad.
+- **Entidad:** `Usuarios` / `Turnos` / `Finanzas`
+- **Operación:** Consulta / Ranking
+- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `fn_ReporteGerencialTurnosFacturados`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Ranking de Médicos" (combo de especialidad)
+- **Estado:** `EN USO`
+- **Parámetros:** mismos que 7.4, más:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima de consulta. |
-  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima de consulta. |
-- **Devuelve:** `IdFila`, `NombreCobertura`, `TipoCobertura`, `CantidadTurnos`, `TotalRecaudado`, `PorcentajeFacturacion`, `TicketPromedio`.
+  | `@IdEspecialidad` | `INT` | IN (OPT) | Filtra por especialidad del turno. |
+- **Devuelve:** `Posicion`, `Id`, `Nombre`, `Detalle` (especialidades asignadas), `Matricula`, `CantidadTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`, `TicketPromedio`, `PorcentajeParticipacion`, `PorcentajeCoberturaVigente` (null), `PorcentajeCoberturaAplicada` (null).
 
-### 7.5 `sp_ReporteGerencialDemandaMedicos`
-- **Descripción:** Construye el ranking analítico de profesionales clasificados por nivel de demanda de turnos (alta, media o baja demanda), midiendo volumen asignado y tasa de resolución efectiva.
-- **Entidad:** `Usuarios` / `Turnos`
-- **Operación:** Consulta / Analítica de Demanda
-- **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `Turnos`
+### 7.7 `sp_ReporteGerencialRankingEspecialidades`
+- **Descripción:** Ranking de especialidades por facturación (caja + obra social).
+- **Entidad:** `Especialidades` / `Finanzas`
+- **Operación:** Consulta / Ranking
+- **Tablas:** `Especialidades`, `fn_ReporteGerencialTurnosFacturados`
 - **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
-- **Acción:** Pestaña "Demanda de Médicos"
+- **Acción:** Pestaña "Ranking de Especialidades"
 - **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima. |
-  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima. |
-- **Devuelve:** `IdUsuario`, `NombreMedico`, `Matricula`, `Especialidad`, `TotalTurnosAsignados`, `TurnosAtendidos`, `TurnosEnEspera`, `TasaResolucion`, `CategoriaDemanda`.
+- **Parámetros:** mismos que 7.4.
+- **Devuelve:** mismas columnas que 7.6 (`Detalle` = modalidad: Especialidad, Emergencia / Guardia o Mixta).
 
-### 7.6 `sp_ReporteMedico_RankingDiagnosticosYSintomas`
+### 7.8 `sp_ReporteGerencialRankingObrasSociales`
+- **Descripción:** Ranking de obras sociales por facturación: copagos cobrados en caja, monto a cobrar a cada obra social y cobertura vigente vs. aplicada (si difieren, el % se modificó en el período o se cobró distinto a lo configurado). Los particulares van al final.
+- **Entidad:** `ObrasSociales` / `Finanzas`
+- **Operación:** Consulta / Ranking y Control
+- **Tablas:** `fn_ReporteGerencialTurnosFacturados`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Ranking de Obras Sociales"
+- **Estado:** `EN USO`
+- **Parámetros:** mismos que 7.4.
+- **Devuelve:** mismas columnas que 7.6, con `PorcentajeCoberturaVigente` y `PorcentajeCoberturaAplicada` informados.
+
+### 7.9 `sp_ReporteGerencialFacturacionPorSegmento`
+- **Descripción:** Facturación por modalidad (Emergencia / Guardia vs. Especialidad) y por cobertura (Obra Social / Prepaga vs. Particular). Siempre devuelve las 4 filas.
+- **Entidad:** `Turnos` / `Finanzas`
+- **Operación:** Consulta / Segmentación
+- **Tablas:** `fn_ReporteGerencialTurnosFacturados`
+- **Forms que lo utilizan:** `FrmReportesGerente` (Rol Gerente)
+- **Acción:** Pestaña "Modalidad y Cobertura"
+- **Estado:** `EN USO`
+- **Parámetros:** mismos que 7.4.
+- **Devuelve:** mismas columnas que 7.6 (`Detalle` = `Modalidad` o `Cobertura`).
+
+### 7.10 `sp_ReporteMedico_RankingDiagnosticosYSintomas`
 - **Descripción:** Determina los diagnósticos clínicos más recurrentes y los síntomas de triage atendidos por el profesional de la salud autenticado dentro de su especialidad, con cantidades y porcentajes relativos.
 - **Entidad:** `HistoriasClinicas` / `TurnoSintomas` / `Sintomas`
 - **Operación:** Consulta / Analítica Clínica

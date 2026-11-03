@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Gestion_de_Turnos_Medicos.CapaNegocio;
+using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -228,16 +229,27 @@ namespace Gestion_de_Turnos_Medicos.Servicios
 
         #endregion
 
-        #region 2. Reporte Gerencial de Recaudación y Ranking Médico (Gerente)
+        #region 2. Reporte Gerencial de Recaudación y Control del Flujo de Dinero (Gerente)
+
+        private static readonly Color ColorBarraCaja = Color.FromHex("#14B8A6");      // Teal claro: cobrado en caja
+        private static readonly Color ColorBarraObraSocial = Color.FromHex("#38BDF8"); // Celeste: a cobrar a obras sociales
+        private static readonly Color ColorAdvertencia = Color.FromHex("#C2410C");    // Naranja: cobertura con diferencia
+        private static readonly Color[] ColoresPodio = { Color.FromHex("#FEF3C7"), Color.FromHex("#E2E8F0"), Color.FromHex("#FFEDD5") };
 
         /// <summary>
-        /// Genera el reporte gerencial oficial de auditoría de recaudación de recepcionistas y ranking de médicos en PDF inmutable.
+        /// Genera el reporte gerencial oficial de recaudación (KPIs con variación, evolución, rankings de médicos,
+        /// especialidades y obras sociales, y facturación por modalidad / cobertura) en PDF inmutable.
         /// </summary>
         public static void ExportarReporteGerencial(
             string rutaArchivo,
-            ReporteRecaudacionAuditoriaResumenDTO resumen,
-            List<ReporteRecaudacionAuditoriaDetalleDTO> detalles,
-            List<ReporteRankingMedicoDTO> ranking,
+            ReporteFinanzasResumenDTO resumen,
+            ReporteFinanzasResumenDTO resumenAnterior,
+            List<ReporteRecaudacionDiariaDTO> evolucion,
+            List<ReporteRankingFacturacionDTO> rankingMedicos,
+            List<ReporteRankingFacturacionDTO> rankingEspecialidades,
+            List<ReporteRankingFacturacionDTO> rankingObrasSociales,
+            List<ReporteRankingFacturacionDTO> segmentos,
+            string filtroEspecialidadMedicos,
             DateTime fechaDesde,
             DateTime fechaHasta,
             UsuarioLoginResult? usuarioActual)
@@ -260,7 +272,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             {
                                 c.Item().Text("CENTRO MÉDICO DE ESPECIALIDADES")
                                     .FontSize(14).Bold().FontColor(ColorPrimario);
-                                c.Item().Text("INFORME GERENCIAL: RECAUDACIÓN Y RANKING MÉDICO")
+                                c.Item().Text("INFORME GERENCIAL: RECAUDACIÓN Y FLUJO DE DINERO")
                                     .FontSize(11).Bold().FontColor(ColorSecundario);
                                 c.Item().Text($"Período Auditado: {fechaDesde:dd/MM/yyyy} al {fechaHasta:dd/MM/yyyy}")
                                     .FontSize(9).SemiBold();
@@ -270,7 +282,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             {
                                 c.Item().Text($"Emisión: {DateTime.Now:dd/MM/yyyy HH:mm}").FontSize(8);
                                 c.Item().Text($"Gerencia: {usuarioActual?.Nombre} {usuarioActual?.Apellido}").FontSize(8);
-                                c.Item().Text("AUDITORÍA DE EMISIÓN DE CAJA").FontSize(7).Bold().FontColor(ColorAlerta);
+                                c.Item().Text("CONTROL DE RECAUDACIÓN").FontSize(7).Bold().FontColor(ColorAlerta);
                                 c.Item().Text("DOCUMENTO OFICIAL INMUTABLE").FontSize(7).Bold().FontColor(ColorPrimario);
                             });
                         });
@@ -281,129 +293,126 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                     // Contenido
                     page.Content().PaddingTop(10).Column(col =>
                     {
-                        // Tarjetas KPI Macro de Auditoría
-                        col.Item().Border(1).BorderColor(ColorBorde).Padding(8).Background(ColorKpiFondo).Row(row =>
+                        // Tarjetas KPI con variación contra el período anterior de igual duración
+                        var anterior = TextoPeriodoAnterior(fechaDesde, fechaHasta);
+                        decimal facturado = resumen.TotalFacturado;
+
+                        col.Item().Border(1).BorderColor(ColorBorde).Background(ColorKpiFondo).Padding(8).Column(kpis =>
                         {
-                            row.RelativeItem().Column(c =>
+                            kpis.Item().Row(row =>
                             {
-                                c.Item().Text("TOTAL TICKETS EMITIDOS").FontSize(7).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"{resumen.TotalTurnos} tickets").FontSize(12).Bold().FontColor(ColorPrimario);
+                                KpiPdf(row, "TOTAL FACTURADO", $"$ {resumen.TotalFacturado:N2}", resumen.TotalFacturado, resumenAnterior.TotalFacturado, "Caja + obras sociales", ColorExito);
+                                KpiPdf(row, "COBRADO EN CAJA", $"$ {resumen.CobradoCaja:N2}", resumen.CobradoCaja, resumenAnterior.CobradoCaja, $"{Proporcion(resumen.CobradoCaja, facturado):P0} del facturado", ColorPrimario);
+                                KpiPdf(row, "A COBRAR A OBRAS SOCIALES", $"$ {resumen.ACobrarObraSocial:N2}", resumen.ACobrarObraSocial, resumenAnterior.ACobrarObraSocial, $"{Proporcion(resumen.ACobrarObraSocial, facturado):P0} del facturado", ColorAcento);
                             });
-                            row.RelativeItem().Column(c =>
+                            kpis.Item().PaddingTop(6).Row(row =>
                             {
-                                c.Item().Text("RECAUDACIÓN TOTAL AUDITADA").FontSize(7).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"$ {resumen.TotalRecaudado:N2}").FontSize(12).Bold().FontColor(ColorExito);
+                                KpiPdf(row, "TICKET PROMEDIO", $"$ {resumen.TicketPromedio:N2}", resumen.TicketPromedio, resumenAnterior.TicketPromedio, "Por turno facturado", ColorSecundario);
+                                KpiPdf(row, "TURNOS FACTURADOS", $"{resumen.TotalTurnos} turnos", resumen.TotalTurnos, resumenAnterior.TotalTurnos, $"Atendidos {resumen.TurnosAtendidos} · Pendientes {resumen.TurnosPendientes}", ColorSecundario);
+                                KpiPdf(row, "AUSENTISMO", $"{resumen.TurnosAusentes} ({Proporcion(resumen.TurnosAusentes, resumen.TotalTurnos):P1})", resumen.TurnosAusentes, resumenAnterior.TurnosAusentes, $"$ {resumen.FacturadoAusentes:N0} sin atención", ColorAdvertencia, invertirColores: true);
                             });
-                            row.RelativeItem().Column(c =>
-                            {
-                                c.Item().Text("OBRAS SOCIALES VS PART.").FontSize(7).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"OS: ${resumen.MontoObraSocial:N0} | Part: ${resumen.MontoParticulares:N0}").FontSize(9).Bold().FontColor(ColorAcento);
-                            });
-                            row.RelativeItem().Column(c =>
-                            {
-                                c.Item().Text("EMERGENCIA VS ESPECIALIDAD").FontSize(7).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"Emg: ${resumen.MontoEmergencia:N0} | Esp: ${resumen.MontoEspecialidad:N0}").FontSize(9).Bold().FontColor(ColorSecundario);
-                            });
+                            kpis.Item().PaddingTop(4).Text($"Variaciones calculadas contra el período anterior: {anterior}.")
+                                .FontSize(6.5f).Italic().FontColor(ColorGrisTexto);
                         });
 
-                        // SECCIÓN 1: Auditoría de Recaudación y Emisión de Recepcionistas
-                        col.Item().PaddingTop(12).Text("1. AUDITORÍA DE RECAUDACIÓN Y EMISIÓN (RECEPCIÓN Y CAJA)")
+                        // SECCIÓN 1: Evolución de la recaudación
+                        bool porMes = evolucion.FirstOrDefault()?.AgrupadoPorMes == true;
+                        decimal maximoDia = evolucion.Select(d => d.TotalFacturado).DefaultIfEmpty(0m).Max();
+
+                        col.Item().PaddingTop(12).Text(porMes ? "1. EVOLUCIÓN MENSUAL DE LA RECAUDACIÓN" : "1. EVOLUCIÓN DIARIA DE LA RECAUDACIÓN")
+                            .FontSize(10).Bold().FontColor(ColorPrimario);
+                        col.Item().Text("Barra: cobrado en caja (verde) + a cobrar a obras sociales (celeste), relativa al período de mayor facturación.")
+                            .FontSize(6.5f).Italic().FontColor(ColorGrisTexto);
+
+                        col.Item().PaddingTop(4).Table(t =>
+                        {
+                            t.ColumnsDefinition(c =>
+                            {
+                                c.ConstantColumn(80);   // Fecha
+                                c.ConstantColumn(40);   // Turnos
+                                c.ConstantColumn(70);   // Caja
+                                c.ConstantColumn(70);   // OS
+                                c.ConstantColumn(75);   // Total
+                                c.RelativeColumn();     // Barra
+                            });
+
+                            EncabezadosPdf(t, ColorPrimario, "Fecha", "Turnos", "Caja", "Obras Soc.", "Total", "Composición");
+
+                            for (int i = 0; i < evolucion.Count; i++)
+                            {
+                                var dia = evolucion[i];
+                                var fondo = (i % 2 == 1) ? ColorFondoTabla : ColorBlanco;
+
+                                CeldaPdf(t, fondo).Text(porMes ? $"{dia.Fecha:MMMM yyyy}" : $"{dia.Fecha:ddd dd/MM/yyyy}").FontSize(7.5f).SemiBold();
+                                CeldaPdf(t, fondo).AlignCenter().Text($"{dia.CantidadTurnos}").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {dia.CobradoCaja:N2}").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {dia.ACobrarObraSocial:N2}").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {dia.TotalFacturado:N2}").FontSize(7.5f).Bold().FontColor(ColorExito);
+                                BarraPdf(CeldaPdf(t, fondo), maximoDia, null, (dia.CobradoCaja, ColorBarraCaja), (dia.ACobrarObraSocial, ColorBarraObraSocial));
+                            }
+                        });
+
+                        // SECCIÓN 2: Ranking de médicos
+                        col.Item().PaddingTop(14).Text("2. RANKING DE MÉDICOS POR FACTURACIÓN DE ATENCIONES REALIZADAS")
+                            .FontSize(10).Bold().FontColor(ColorPrimario);
+                        col.Item().Text($"Especialidad de los turnos: {filtroEspecialidadMedicos}")
+                            .FontSize(6.5f).Italic().FontColor(ColorGrisTexto);
+                        TablaFacturacionPdf(col, rankingMedicos, "Profesional Médico", "Especialidades", "Atenc.", mostrarPosicion: true);
+
+                        // SECCIÓN 3: Ranking de especialidades
+                        col.Item().PaddingTop(14).Text("3. RANKING DE ESPECIALIDADES POR FACTURACIÓN")
+                            .FontSize(10).Bold().FontColor(ColorPrimario);
+                        TablaFacturacionPdf(col, rankingEspecialidades, "Especialidad", "Modalidad", "Turnos", mostrarPosicion: true);
+
+                        // SECCIÓN 4: Ranking de obras sociales
+                        col.Item().PaddingTop(14).Text("4. RANKING DE OBRAS SOCIALES: COPAGOS Y MONTOS A COBRAR")
                             .FontSize(10).Bold().FontColor(ColorPrimario);
 
                         col.Item().PaddingTop(4).Table(t =>
                         {
                             t.ColumnsDefinition(c =>
                             {
-                                c.ConstantColumn(45);   // Nro Orden
-                                c.ConstantColumn(85);   // Emisión
-                                c.RelativeColumn(2.5f); // Paciente
-                                c.ConstantColumn(55);   // DNI
-                                c.ConstantColumn(65);   // Tipo
-                                c.RelativeColumn(2.2f); // Especialidad
-                                c.RelativeColumn(2.5f); // Obra Social
-                                c.ConstantColumn(65);   // Monto
-                                c.ConstantColumn(55);   // Estado
+                                c.ConstantColumn(22);   // #
+                                c.RelativeColumn(3);    // Obra Social
+                                c.ConstantColumn(36);   // Turnos
+                                c.ConstantColumn(62);   // Copagos
+                                c.ConstantColumn(66);   // A cobrar
+                                c.ConstantColumn(66);   // Total
+                                c.ConstantColumn(42);   // % Vigente
+                                c.ConstantColumn(46);   // % Aplicada
+                                c.RelativeColumn(2);    // Barra
                             });
 
-                            t.Header(h =>
-                            {
-                                h.Cell().Background(ColorPrimario).Padding(3).AlignCenter().Text("N° Ord").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Emisión").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Paciente").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("DNI").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Modalidad").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Especialidad").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Obra Social").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).AlignRight().Text("Monto").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorPrimario).Padding(3).Text("Estado").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                            });
+                            EncabezadosPdf(t, ColorSecundario, "#", "Obra Social / Prepaga", "Turnos", "Copagos", "A Cobrar OS", "Total", "% Vig.", "% Aplic.", "% Particip.");
 
-                            int maxFilasDetalle = Math.Min(detalles.Count, 40);
-                            for (int i = 0; i < maxFilasDetalle; i++)
+                            for (int i = 0; i < rankingObrasSociales.Count; i++)
                             {
-                                var det = detalles[i];
-                                var fondo = (i % 2 == 1) ? ColorFondoTabla : ColorBlanco;
+                                var os = rankingObrasSociales[i];
+                                var fondo = FondoFilaRanking(os, i);
+                                var colorAplicada = os.CoberturaConDiferencia ? ColorAdvertencia : ColorSecundario;
 
-                                t.Cell().Background(fondo).Padding(2.5f).AlignCenter().Text(det.NroOrden).FontSize(7).SemiBold();
-                                t.Cell().Background(fondo).Padding(2.5f).Text($"{det.FechaEmision:dd/MM/yyyy HH:mm}").FontSize(7);
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.Paciente).FontSize(7).SemiBold();
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.DniPaciente).FontSize(7);
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.TipoTurno).FontSize(7);
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.Especialidad).FontSize(7);
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.ObraSocial).FontSize(7);
-                                t.Cell().Background(fondo).Padding(2.5f).AlignRight().Text($"$ {det.MontoCobrado:N2}").FontSize(7).Bold();
-                                t.Cell().Background(fondo).Padding(2.5f).Text(det.EstadoTurno).FontSize(7);
+                                CeldaPdf(t, fondo).AlignCenter().Text($"{os.Posicion}").FontSize(7.5f).Bold();
+                                CeldaPdf(t, fondo).Text(os.Nombre).FontSize(7.5f).SemiBold();
+                                CeldaPdf(t, fondo).AlignCenter().Text($"{os.CantidadTurnos}").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {os.CobradoCaja:N2}").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {os.ACobrarObraSocial:N2}").FontSize(7.5f).Bold().FontColor(ColorAcento);
+                                CeldaPdf(t, fondo).AlignRight().Text($"$ {os.TotalFacturado:N2}").FontSize(7.5f).Bold().FontColor(ColorExito);
+                                CeldaPdf(t, fondo).AlignRight().Text($"{os.PorcentajeCoberturaVigente:0.##} %").FontSize(7.5f);
+                                CeldaPdf(t, fondo).AlignRight().Text($"{(os.CoberturaConDiferencia ? "(!) " : "")}{os.PorcentajeCoberturaAplicada:0.##} %").FontSize(7.5f).Bold().FontColor(colorAplicada);
+                                BarraPdf(CeldaPdf(t, fondo), 100m, $"{os.PorcentajeParticipacion:N1}%", (os.PorcentajeParticipacion, ColorBarraCaja));
                             }
                         });
 
-                        if (detalles.Count > 40)
+                        if (rankingObrasSociales.Any(o => o.CoberturaConDiferencia))
                         {
-                            col.Item().PaddingTop(2).Text($"* Mostrando las primeras 40 emisiones de {detalles.Count} registradas en el período auditado.")
-                                .FontSize(7).Italic().FontColor(ColorGrisTexto);
+                            col.Item().PaddingTop(2).Text("(!) La cobertura aplicada según lo cobrado en caja difiere de la vigente: el % de la obra social se modificó en el período o se cobró un monto distinto al configurado.")
+                                .FontSize(6.5f).Italic().FontColor(ColorAdvertencia);
                         }
 
-                        // SECCIÓN 2: Ranking de Médicos por Atenciones Realizadas
-                        col.Item().PaddingTop(14).Text("2. RANKING DE MÉDICOS POR ATENCIONES EFECTIVAMENTE REALIZADAS")
+                        // SECCIÓN 5: Modalidad y cobertura
+                        col.Item().PaddingTop(14).Text("5. FACTURACIÓN POR MODALIDAD Y COBERTURA")
                             .FontSize(10).Bold().FontColor(ColorPrimario);
-
-                        col.Item().PaddingTop(4).Table(t =>
-                        {
-                            t.ColumnsDefinition(c =>
-                            {
-                                c.ConstantColumn(25);   // #
-                                c.RelativeColumn(3.5f); // Profesional Médico
-                                c.RelativeColumn(3.5f); // Especialidad
-                                c.ConstantColumn(65);   // Matrícula
-                                c.ConstantColumn(65);   // Atenciones
-                                c.ConstantColumn(85);   // Facturación
-                                c.ConstantColumn(55);   // % Part.
-                            });
-
-                            t.Header(h =>
-                            {
-                                h.Cell().Background(ColorSecundario).Padding(3).AlignCenter().Text("#").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).Text("Profesional Médico").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).Text("Especialidades Asignadas").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).Text("Matrícula").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).AlignCenter().Text("Atenciones").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).AlignRight().Text("Facturación").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                                h.Cell().Background(ColorSecundario).Padding(3).AlignRight().Text("% Part.").FontSize(7.5f).Bold().FontColor(ColorBlanco);
-                            });
-
-                            for (int i = 0; i < ranking.Count; i++)
-                            {
-                                var med = ranking[i];
-                                var fondo = (i % 2 == 1) ? ColorFondoTabla : ColorBlanco;
-
-                                t.Cell().Background(fondo).Padding(3).AlignCenter().Text($"{med.Posicion}").FontSize(7.5f).Bold();
-                                t.Cell().Background(fondo).Padding(3).Text(med.NombreMedico).FontSize(7.5f).SemiBold();
-                                t.Cell().Background(fondo).Padding(3).Text(med.Especialidad).FontSize(7.5f);
-                                t.Cell().Background(fondo).Padding(3).Text(med.Matricula).FontSize(7.5f);
-                                t.Cell().Background(fondo).Padding(3).AlignCenter().Text($"{med.AtencionesRealizadas}").FontSize(7.5f).Bold();
-                                t.Cell().Background(fondo).Padding(3).AlignRight().Text($"$ {med.TotalRecaudado:N2}").FontSize(7.5f);
-                                t.Cell().Background(fondo).Padding(3).AlignRight().Text($"{med.PorcentajeParticipacion:N1}%").FontSize(7.5f).Bold();
-                            }
-                        });
+                        TablaFacturacionPdf(col, segmentos, "Segmento", "Agrupación", "Turnos", mostrarPosicion: false);
                     });
 
                     // Pie de Página
@@ -430,39 +439,119 @@ namespace Gestion_de_Turnos_Medicos.Servicios
         }
 
         /// <summary>
-        /// Sobrecarga de compatibilidad hacia atrás para pruebas unitarias y de integración existentes.
+        /// Tabla de facturación compartida por los rankings de médicos y especialidades y la tabla de modalidad / cobertura.
         /// </summary>
-        public static void ExportarReporteGerencial(
-            string rutaArchivo,
-            List<ReporteIngresoMedicoDTO> ingresos,
-            List<ReporteObraSocialVsParticularDTO> coberturas,
-            List<ReporteDemandaMedicoRankingDTO> demanda,
-            DateTime fechaDesde,
-            DateTime fechaHasta,
-            UsuarioLoginResult? usuarioActual)
+        private static void TablaFacturacionPdf(ColumnDescriptor col, List<ReporteRankingFacturacionDTO> datos,
+            string tituloNombre, string tituloDetalle, string tituloCantidad, bool mostrarPosicion)
         {
-            var resumen = new ReporteRecaudacionAuditoriaResumenDTO
+            col.Item().PaddingTop(4).Table(t =>
             {
-                FechaDesde = fechaDesde,
-                FechaHasta = fechaHasta,
-                TotalTurnos = coberturas.Sum(c => c.CantidadTurnos),
-                TotalRecaudado = ingresos.Sum(i => i.IngresosTotales),
-                MontoParticulares = coberturas.Where(c => c.TipoCobertura.Equals("Particular", StringComparison.OrdinalIgnoreCase)).Sum(c => c.TotalRecaudado),
-                MontoObraSocial = coberturas.Where(c => !c.TipoCobertura.Equals("Particular", StringComparison.OrdinalIgnoreCase)).Sum(c => c.TotalRecaudado)
-            };
+                t.ColumnsDefinition(c =>
+                {
+                    if (mostrarPosicion) c.ConstantColumn(22); // #
+                    c.RelativeColumn(3);    // Nombre
+                    c.RelativeColumn(3);    // Detalle
+                    c.ConstantColumn(36);   // Cantidad
+                    c.ConstantColumn(62);   // Caja
+                    c.ConstantColumn(62);   // OS
+                    c.ConstantColumn(66);   // Total
+                    c.RelativeColumn(2);    // Barra
+                });
 
-            var ranking = demanda.Select((d, idx) => new ReporteRankingMedicoDTO
+                var titulos = new List<string> { tituloNombre, tituloDetalle, tituloCantidad, "Caja", "Obras Soc.", "Total", "% Particip." };
+                if (mostrarPosicion) titulos.Insert(0, "#");
+                EncabezadosPdf(t, ColorSecundario, titulos.ToArray());
+
+                for (int i = 0; i < datos.Count; i++)
+                {
+                    var item = datos[i];
+                    var fondo = mostrarPosicion ? FondoFilaRanking(item, i) : ((i % 2 == 1) ? ColorFondoTabla : ColorBlanco);
+                    var colorTexto = item.TotalFacturado == 0 ? ColorGrisTexto : ColorSecundario;
+
+                    if (mostrarPosicion) CeldaPdf(t, fondo).AlignCenter().Text($"{item.Posicion}").FontSize(7.5f).Bold().FontColor(colorTexto);
+                    CeldaPdf(t, fondo).Text(item.Nombre).FontSize(7.5f).SemiBold().FontColor(colorTexto);
+                    CeldaPdf(t, fondo).Text(item.Detalle ?? "—").FontSize(7).FontColor(colorTexto);
+                    CeldaPdf(t, fondo).AlignCenter().Text($"{item.CantidadTurnos}").FontSize(7.5f).Bold().FontColor(colorTexto);
+                    CeldaPdf(t, fondo).AlignRight().Text($"$ {item.CobradoCaja:N2}").FontSize(7.5f).FontColor(colorTexto);
+                    CeldaPdf(t, fondo).AlignRight().Text($"$ {item.ACobrarObraSocial:N2}").FontSize(7.5f).FontColor(colorTexto);
+                    CeldaPdf(t, fondo).AlignRight().Text($"$ {item.TotalFacturado:N2}").FontSize(7.5f).Bold().FontColor(item.TotalFacturado == 0 ? ColorGrisTexto : ColorExito);
+                    BarraPdf(CeldaPdf(t, fondo), 100m, $"{item.PorcentajeParticipacion:N1}%", (item.PorcentajeParticipacion, ColorBarraCaja));
+                }
+            });
+        }
+
+        private static void KpiPdf(RowDescriptor row, string titulo, string valor, decimal actual, decimal anterior, string complemento, Color color, bool invertirColores = false)
+        {
+            decimal? variacion = ReporteBLL.CalcularVariacion(actual, anterior);
+            bool sube = variacion >= 0;
+
+            row.RelativeItem().Column(c =>
             {
-                Posicion = idx + 1,
-                NombreMedico = d.NombreMedico,
-                Especialidad = d.Especialidad,
-                Matricula = d.Matricula,
-                AtencionesRealizadas = d.TurnosAtendidos,
-                TotalRecaudado = 0,
-                PorcentajeParticipacion = d.TasaResolucion
-            }).ToList();
+                c.Item().Text(titulo).FontSize(7).Bold().FontColor(ColorGrisTexto);
+                c.Item().Text(valor).FontSize(11).Bold().FontColor(color);
+                c.Item().Text(variacion == null
+                        ? "— sin movimiento anterior"
+                        : $"{(sube ? "▲" : "▼")} {Math.Abs(variacion.Value):N1}% vs. período anterior")
+                    .FontSize(7).SemiBold().FontColor(variacion == null ? ColorGrisTexto : ((sube ^ invertirColores) ? ColorExito : ColorAlerta));
+                c.Item().Text(complemento).FontSize(6.5f).FontColor(ColorGrisTexto);
+            });
+        }
 
-            ExportarReporteGerencial(rutaArchivo, resumen, new List<ReporteRecaudacionAuditoriaDetalleDTO>(), ranking, fechaDesde, fechaHasta, usuarioActual);
+        private static void EncabezadosPdf(TableDescriptor t, Color fondo, params string[] titulos)
+        {
+            t.Header(h =>
+            {
+                foreach (var titulo in titulos)
+                {
+                    h.Cell().Background(fondo).Padding(3).Text(titulo).FontSize(7.5f).Bold().FontColor(ColorBlanco);
+                }
+            });
+        }
+
+        private static IContainer CeldaPdf(TableDescriptor t, Color fondo) => t.Cell().Background(fondo).Padding(3).AlignMiddle();
+
+        private static Color FondoFilaRanking(ReporteRankingFacturacionDTO item, int indice)
+        {
+            if (item.TotalFacturado > 0 && item.Posicion >= 1 && item.Posicion <= ColoresPodio.Length)
+            {
+                return ColoresPodio[item.Posicion - 1];
+            }
+            return (indice % 2 == 1) ? ColorFondoTabla : ColorBlanco;
+        }
+
+        /// <summary>
+        /// Dibuja una barra horizontal con uno o más tramos proporcionales a <paramref name="escala"/> y, opcionalmente, un texto a la derecha.
+        /// </summary>
+        private static void BarraPdf(IContainer celda, decimal escala, string? texto, params (decimal Valor, Color Color)[] tramos)
+        {
+            celda.Row(row =>
+            {
+                row.RelativeItem().AlignMiddle().Height(7).Background(ColorKpiFondo).Row(barra =>
+                {
+                    decimal resto = 1m;
+                    foreach (var (valor, color) in tramos)
+                    {
+                        decimal fraccion = escala > 0 ? Math.Min(Math.Max(valor, 0m) / escala, resto) : 0m;
+                        if (fraccion <= 0) continue;
+                        barra.RelativeItem((float)fraccion).Background(color);
+                        resto -= fraccion;
+                    }
+                    if (resto > 0) barra.RelativeItem((float)resto);
+                });
+
+                if (texto != null)
+                {
+                    row.ConstantItem(32).AlignRight().Text(texto).FontSize(7).Bold();
+                }
+            });
+        }
+
+        private static decimal Proporcion(decimal parte, decimal total) => total == 0 ? 0 : parte / total;
+
+        private static string TextoPeriodoAnterior(DateTime fechaDesde, DateTime fechaHasta)
+        {
+            var anterior = ReporteBLL.ObtenerPeriodoAnterior(fechaDesde, fechaHasta);
+            return $"{anterior.Desde:dd/MM/yyyy} al {anterior.Hasta:dd/MM/yyyy}";
         }
 
         #endregion
