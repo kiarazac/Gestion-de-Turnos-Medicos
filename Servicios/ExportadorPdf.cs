@@ -621,7 +621,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             });
 
                             int emergenciasCount = atenciones.Count(a => a.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase));
-                            int consultasCount = atenciones.Count(a => a.TipoTurno.Equals("Consulta", StringComparison.OrdinalIgnoreCase));
+                            int consultasCount = atenciones.Count(a => a.TipoTurno.Equals("Especialidad", StringComparison.OrdinalIgnoreCase));
 
                             row.RelativeItem().Column(c =>
                             {

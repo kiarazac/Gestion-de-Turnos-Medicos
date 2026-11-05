@@ -51,6 +51,8 @@ namespace Gestion_de_Turnos_Medicos
             label2 = new Label();
             txtNombre = new TextBox();
             label1 = new Label();
+            LTelefono = new Label();
+            txtTelefono = new TextBox();
             panel3 = new Panel();
             Ldescrip_turno_especialidad = new Label();
             Lid_turno = new Label();
@@ -64,6 +66,9 @@ namespace Gestion_de_Turnos_Medicos
             lblClaveCancelacion = new Label();
             txtClaveCancelacion = new TextBox();
             btnCancelarTurno = new Button();
+            btnTurnosAReprogramar = new Button();
+            lblReprogramando = new Label();
+            btnCancelarReprogramacion = new Button();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             Condicionales.SuspendLayout();
@@ -116,6 +121,8 @@ namespace Gestion_de_Turnos_Medicos
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
+            panel2.Controls.Add(txtTelefono);
+            panel2.Controls.Add(LTelefono);
             panel2.Controls.Add(cmbObraSocial);
             panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(LEspecialidad);
@@ -317,7 +324,27 @@ namespace Gestion_de_Turnos_Medicos
             label1.Size = new Size(73, 21);
             label1.TabIndex = 3;
             label1.Text = "Nombre";
-            // 
+            //
+            // LTelefono
+            //
+            LTelefono.AutoSize = true;
+            LTelefono.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            LTelefono.ForeColor = SystemColors.InactiveCaptionText;
+            LTelefono.Location = new Point(373, 138);
+            LTelefono.Name = "LTelefono";
+            LTelefono.Size = new Size(77, 21);
+            LTelefono.TabIndex = 22;
+            LTelefono.Text = "Teléfono";
+            //
+            // txtTelefono
+            //
+            txtTelefono.Location = new Point(373, 172);
+            txtTelefono.MaxLength = 15;
+            txtTelefono.Name = "txtTelefono";
+            txtTelefono.PlaceholderText = "Solo números (7 a 15 dígitos)";
+            txtTelefono.Size = new Size(326, 23);
+            txtTelefono.TabIndex = 23;
+            //
             // panel3
             // 
             panel3.BackColor = SystemColors.ActiveCaption;
@@ -470,12 +497,55 @@ namespace Gestion_de_Turnos_Medicos
             btnCancelarTurno.Text = "CANCELAR TURNO (2FA)";
             btnCancelarTurno.UseVisualStyleBackColor = false;
             // 
+            // btnTurnosAReprogramar
+            // 
+            btnTurnosAReprogramar.BackColor = Color.FromArgb(178, 34, 34);
+            btnTurnosAReprogramar.Cursor = Cursors.Hand;
+            btnTurnosAReprogramar.FlatStyle = FlatStyle.Flat;
+            btnTurnosAReprogramar.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnTurnosAReprogramar.ForeColor = Color.White;
+            btnTurnosAReprogramar.Location = new Point(826, 70);
+            btnTurnosAReprogramar.Name = "btnTurnosAReprogramar";
+            btnTurnosAReprogramar.Size = new Size(367, 40);
+            btnTurnosAReprogramar.TabIndex = 30;
+            btnTurnosAReprogramar.Text = "⚠ Turnos a reprogramar";
+            btnTurnosAReprogramar.UseVisualStyleBackColor = false;
+            btnTurnosAReprogramar.Visible = false;
+            // 
+            // lblReprogramando
+            // 
+            lblReprogramando.Font = new Font("Segoe UI", 8.25F, FontStyle.Bold);
+            lblReprogramando.ForeColor = Color.FromArgb(180, 83, 9);
+            lblReprogramando.Location = new Point(826, 114);
+            lblReprogramando.Name = "lblReprogramando";
+            lblReprogramando.Size = new Size(237, 46);
+            lblReprogramando.TabIndex = 31;
+            lblReprogramando.Visible = false;
+            // 
+            // btnCancelarReprogramacion
+            // 
+            btnCancelarReprogramacion.BackColor = Color.FromArgb(127, 29, 29);
+            btnCancelarReprogramacion.Cursor = Cursors.Hand;
+            btnCancelarReprogramacion.FlatStyle = FlatStyle.Flat;
+            btnCancelarReprogramacion.Font = new Font("Segoe UI", 8.25F, FontStyle.Bold);
+            btnCancelarReprogramacion.ForeColor = Color.White;
+            btnCancelarReprogramacion.Location = new Point(1068, 116);
+            btnCancelarReprogramacion.Name = "btnCancelarReprogramacion";
+            btnCancelarReprogramacion.Size = new Size(125, 42);
+            btnCancelarReprogramacion.TabIndex = 32;
+            btnCancelarReprogramacion.Text = "Cancelar reprogramación";
+            btnCancelarReprogramacion.UseVisualStyleBackColor = false;
+            btnCancelarReprogramacion.Visible = false;
+            // 
             // FrmTurnoEspecialidad
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Control;
             ClientSize = new Size(1205, 668);
+            Controls.Add(btnCancelarReprogramacion);
+            Controls.Add(lblReprogramando);
+            Controls.Add(btnTurnosAReprogramar);
             Controls.Add(gbDetalleTurno);
             Controls.Add(btnDescargarTxt);
             Controls.Add(LdescripTurno);
@@ -520,6 +590,8 @@ namespace Gestion_de_Turnos_Medicos
         private Label label2;
         private TextBox txtNombre;
         private Label label1;
+        private Label LTelefono;
+        private TextBox txtTelefono;
         private MonthCalendar calFechaTurno;
         private ComboBox cmbHorarios;
         private Label LEspecialidad;
@@ -539,5 +611,8 @@ namespace Gestion_de_Turnos_Medicos
         private Label lblClaveCancelacion;
         private TextBox txtClaveCancelacion;
         private Button btnCancelarTurno;
+        private Button btnTurnosAReprogramar;
+        private Label lblReprogramando;
+        private Button btnCancelarReprogramacion;
     }
 }

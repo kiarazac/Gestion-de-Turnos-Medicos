@@ -35,6 +35,7 @@ namespace Gestion_de_Turnos_Medicos
             mis_Salas = new Button();
             lista_turnos_atención = new Button();
             btnMisAtenciones = new Button();
+            btnMisAusencias = new Button();
             pnlFooterSidebar = new Panel();
             salir = new Button();
             pnlHeaderSidebar = new Panel();
@@ -78,6 +79,7 @@ namespace Gestion_de_Turnos_Medicos
             pnlNav.Controls.Add(mis_Salas);
             pnlNav.Controls.Add(lista_turnos_atención);
             pnlNav.Controls.Add(btnMisAtenciones);
+            pnlNav.Controls.Add(btnMisAusencias);
             pnlNav.Dock = DockStyle.Fill;
             pnlNav.Location = new Point(0, 105);
             pnlNav.Name = "pnlNav";
@@ -143,6 +145,26 @@ namespace Gestion_de_Turnos_Medicos
             btnMisAtenciones.TextAlign = ContentAlignment.MiddleLeft;
             btnMisAtenciones.UseVisualStyleBackColor = false;
             btnMisAtenciones.Click += btnMisAtenciones_Click;
+            // 
+            // btnMisAusencias
+            // 
+            btnMisAusencias.BackColor = Color.FromArgb(15, 118, 110);
+            btnMisAusencias.Cursor = Cursors.Hand;
+            btnMisAusencias.FlatAppearance.BorderSize = 0;
+            btnMisAusencias.FlatAppearance.MouseDownBackColor = Color.FromArgb(20, 184, 166);
+            btnMisAusencias.FlatAppearance.MouseOverBackColor = Color.FromArgb(13, 148, 136);
+            btnMisAusencias.FlatStyle = FlatStyle.Flat;
+            btnMisAusencias.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            btnMisAusencias.ForeColor = Color.White;
+            btnMisAusencias.Location = new Point(15, 174);
+            btnMisAusencias.Name = "btnMisAusencias";
+            btnMisAusencias.Padding = new Padding(12, 0, 0, 0);
+            btnMisAusencias.Size = new Size(210, 46);
+            btnMisAusencias.TabIndex = 3;
+            btnMisAusencias.Text = "📅  Mis Ausencias";
+            btnMisAusencias.TextAlign = ContentAlignment.MiddleLeft;
+            btnMisAusencias.UseVisualStyleBackColor = false;
+            btnMisAusencias.Click += btnMisAusencias_Click;
             // 
             // pnlFooterSidebar
             // 
@@ -260,6 +282,7 @@ namespace Gestion_de_Turnos_Medicos
         private Button mis_Salas;
         private Button lista_turnos_atención;
         private Button btnMisAtenciones;
+        private Button btnMisAusencias;
         private Panel pnlFooterSidebar;
         private Button salir;
     }

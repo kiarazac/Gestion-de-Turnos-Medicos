@@ -22,6 +22,22 @@ namespace Gestion_de_Turnos_Medicos
             InitializeComponent();
             _usuarioActual = usuario;
             this.Load += FrmRecepcionista_Load;
+            this.FormClosing += (s, e) => { if (HayReprogramacionPendiente()) e.Cancel = true; };
+        }
+
+        /// <summary>
+        /// Indica (y avisa) si el módulo de turnos por especialidad tiene una reprogramación sin completar ni cancelar.
+        /// </summary>
+        private bool HayReprogramacionPendiente()
+        {
+            if (formularioActivo is FrmTurnoEspecialidad frmEspecialidad && frmEspecialidad.TieneReprogramacionPendiente)
+            {
+                MessageBox.Show("Hay una reprogramación de turno en curso. Genere el nuevo turno o cancele la reprogramación antes de cambiar de módulo o cerrar sesión.",
+                    "Reprogramación en Curso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return true;
+            }
+
+            return false;
         }
 
         private void FrmRecepcionista_Load(object? sender, EventArgs e)
@@ -39,6 +55,12 @@ namespace Gestion_de_Turnos_Medicos
         /// <param name="formHijo">Instancia del formulario hijo a mostrar.</param>
         private void AbrirFormularioHijo(Form formHijo)
         {
+            if (HayReprogramacionPendiente())
+            {
+                formHijo.Dispose();
+                return;
+            }
+
             if (formularioActivo != null)
             {
                 formularioActivo.Close();
@@ -109,6 +131,9 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         private void salir_Click(object sender, EventArgs e)
         {
+            if (HayReprogramacionPendiente())
+                return;
+
             Application.OpenForms["FrmLogin"]?.Show();
             this.Close();
         }

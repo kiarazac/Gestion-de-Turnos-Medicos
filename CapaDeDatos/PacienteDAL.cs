@@ -18,8 +18,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="apellido">Apellido(s) del paciente.</param>
         /// <param name="dni">DNI del paciente.</param>
         /// <param name="idObraSocial">Identificador único de la obra social asociada.</param>
+        /// <param name="telefono">Teléfono de contacto (opcional; si es <c>null</c> no se sobrescribe el existente).</param>
         /// <returns>Identificador único del paciente (<c>IdPaciente</c>).</returns>
-        public int GuardarPaciente(string nombre, string apellido, string dni, int idObraSocial)
+        public int GuardarPaciente(string nombre, string apellido, string dni, int idObraSocial, string? telefono)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -27,10 +28,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pApellido = new SqlParameter("@Apellido", apellido);
                 var pDni = new SqlParameter("@Dni", dni);
                 var pIdObraSocial = new SqlParameter("@IdObraSocial", idObraSocial <= 0 ? 1 : idObraSocial);
+                var pTelefono = new SqlParameter("@Telefono", (object?)telefono ?? DBNull.Value);
 
                 return context.Database
-                    .SqlQueryRaw<int>("EXEC sp_GuardarPaciente @Nombre, @Apellido, @Dni, @IdObraSocial",
-                        pNombre, pApellido, pDni, pIdObraSocial)
+                    .SqlQueryRaw<int>("EXEC sp_GuardarPaciente @Nombre, @Apellido, @Dni, @IdObraSocial, @Telefono",
+                        pNombre, pApellido, pDni, pIdObraSocial, pTelefono)
                     .AsEnumerable()
                     .FirstOrDefault();
             }

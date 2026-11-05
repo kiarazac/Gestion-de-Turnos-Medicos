@@ -34,6 +34,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Palabra clave alfanumérica de 2FA para cancelación del turno.</summary>
         public string? CodigoCancelacion { get; set; }
 
+        /// <summary>Teléfono de contacto del paciente asignado.</summary>
+        public string? Telefono { get; set; }
+
         /// <summary>Texto descriptivo para mostrar en controles de interfaz de usuario.</summary>
         public string TextoDisplay => EstaDisponible
             ? $"{Horario}  (Disponible)"

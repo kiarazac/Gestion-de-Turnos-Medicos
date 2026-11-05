@@ -283,7 +283,7 @@ namespace Gestion_de_Turnos_Medicos
                         FechaCreacion = DateTime.Today.AddDays(-1),
                         Horario = new TimeSpan(11, 0, 0),
                         Estado = "En Espera",
-                        TipoTurno = "Consulta",
+                        TipoTurno = "Especialidad",
                         IdPrioridad = 3,
                         Activo = true,
                         NroOrden = "TEST-AYER",

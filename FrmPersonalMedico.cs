@@ -205,6 +205,14 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
+        /// Abre el módulo de registro y anulación de ausencias programadas del médico autenticado.
+        /// </summary>
+        private void btnMisAusencias_Click(object sender, EventArgs e)
+        {
+            AbrirFormularioHijo(new FrmMisAusencias(_usuarioActual));
+        }
+
+        /// <summary>
         /// Cierra la sesión activa del profesional médico y regresa a la pantalla de Login.
         /// </summary>
         private void salir_Click(object sender, EventArgs e)

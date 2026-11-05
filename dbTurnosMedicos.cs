@@ -52,6 +52,9 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>Conjunto de entidades de auditoría y detalle de asignación/uso de salas por médicos.</summary>
         public DbSet<DetalleSala> DetallesSalas { get; set; }
 
+        /// <summary>Conjunto de entidades de ausencias programadas (por día) de los profesionales médicos.</summary>
+        public DbSet<AusenciaMedica> AusenciasMedicas { get; set; }
+
         /// <summary>
         /// Configura el proveedor de base de datos y la cadena de conexión si no ha sido configurada previamente.
         /// </summary>

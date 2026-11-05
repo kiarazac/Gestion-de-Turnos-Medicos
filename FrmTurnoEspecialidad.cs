@@ -20,15 +20,22 @@ namespace Gestion_de_Turnos_Medicos
 
         private int? idPacienteActual = null;
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
+        private bool _fechaSinCobertura = false; // La fecha elegida no tiene profesionales disponibles: no se emiten turnos nuevos
+        private TurnoAReprogramarDTO? _turnoEnReprogramacion = null; // Turno cancelado cuyo reemplazo aún no se generó ni se descartó
+        private readonly System.Windows.Forms.Timer _tmrAvisoReprogramar = new System.Windows.Forms.Timer { Interval = 60000 };
 
         public FrmTurnoEspecialidad()
         {
             InitializeComponent();
 
             this.Load += FrmTurnoEspecialidad_Load;
+            this.FormClosed += (s, e) => _tmrAvisoReprogramar.Dispose();
             this.button1.Click += BtnGenerarTurno_Click;
             this.btnDescargarTxt.Click += BtnDescargarTxt_Click;
             this.btnCancelarTurno.Click += BtnCancelarTurno_Click;
+            this.btnTurnosAReprogramar.Click += BtnTurnosAReprogramar_Click;
+            this.btnCancelarReprogramacion.Click += BtnCancelarReprogramacion_Click;
+            _tmrAvisoReprogramar.Tick += (s, e) => ActualizarAvisoReprogramar();
 
             txtDNI.Leave += TxtDNI_Leave;
             txtDNI.KeyDown += TxtDNI_KeyDown;
@@ -44,6 +51,99 @@ namespace Gestion_de_Turnos_Medicos
             Ldescrip_turno_especialidad.Text = "Especialidad";
             lblMontoCobro.Text = "Arancel: $ --";
             lblMontoCobro.ForeColor = SystemColors.ControlDarkDark;
+
+            ActualizarAvisoReprogramar();
+            _tmrAvisoReprogramar.Start();
+        }
+
+        /// <summary>
+        /// Muestra el botón de aviso con la cantidad de turnos sin profesional disponible que deben reprogramarse.
+        /// </summary>
+        private void ActualizarAvisoReprogramar()
+        {
+            try
+            {
+                int cantidad = _turnoBLL.ListarTurnosAReprogramar().Count;
+                btnTurnosAReprogramar.Text = $"⚠ Turnos a reprogramar ({cantidad})";
+                btnTurnosAReprogramar.Visible = cantidad > 0;
+            }
+            catch
+            {
+                // El aviso es informativo: un fallo de consulta no debe interrumpir la emisión de turnos
+                btnTurnosAReprogramar.Visible = false;
+            }
+        }
+
+        private void BtnTurnosAReprogramar_Click(object? sender, EventArgs e)
+        {
+            using (var frm = new FrmTurnosAReprogramar())
+            {
+                if (frm.ShowDialog() == DialogResult.OK && frm.TurnoAReprogramar != null)
+                    PrepararReprogramacion(frm.TurnoAReprogramar);
+            }
+
+            ActualizarAvisoReprogramar();
+        }
+
+        /// <summary>
+        /// Indica si hay una reprogramación en curso (turno cancelado sin reemplazo emitido ni descartado).
+        /// El contenedor la consulta para impedir cambiar de módulo o cerrar sesión.
+        /// </summary>
+        public bool TieneReprogramacionPendiente => _turnoEnReprogramacion != null;
+
+        /// <summary>
+        /// Precarga el paciente y la especialidad del turno cancelado; la fecha y el horario se eligen como en un turno normal.
+        /// Paciente y especialidad quedan bloqueados hasta generar el nuevo turno o cancelar la reprogramación.
+        /// </summary>
+        private void PrepararReprogramacion(TurnoAReprogramarDTO turno)
+        {
+            LimpiarCampos();
+            txtDNI.Text = turno.Dni ?? string.Empty;
+            BuscarYAutocompletarPaciente();
+
+            int idx = cmbEspecialidad.FindStringExact(turno.Especialidad ?? string.Empty);
+            if (idx > 0)
+                cmbEspecialidad.SelectedIndex = idx;
+
+            _turnoEnReprogramacion = turno;
+            lblReprogramando.Text = $"Reprogramando a {turno.Paciente} (turno cancelado #{turno.NroOrden}). Elija fecha y horario y genere el nuevo turno.";
+            AplicarModoReprogramacion(true);
+        }
+
+        /// <summary>
+        /// Muestra u oculta el aviso de reprogramación y bloquea los datos que no deben cambiar mientras está en curso.
+        /// </summary>
+        private void AplicarModoReprogramacion(bool activo)
+        {
+            if (!activo)
+                _turnoEnReprogramacion = null;
+
+            lblReprogramando.Visible = activo;
+            btnCancelarReprogramacion.Visible = activo;
+            txtDNI.ReadOnly = activo;
+            cmbEspecialidad.Enabled = !activo;
+            btnTurnosAReprogramar.Enabled = !activo;
+        }
+
+        /// <summary>
+        /// Descarta la reprogramación en curso: el turno original ya fue cancelado con su clave y el paciente queda sin turno nuevo.
+        /// </summary>
+        private void BtnCancelarReprogramacion_Click(object? sender, EventArgs e)
+        {
+            if (_turnoEnReprogramacion is not { } turno)
+                return;
+
+            var confirmacion = MessageBox.Show(
+                $"¿Cancelar la reprogramación de {turno.Paciente}?\n\n" +
+                $"El turno original #{turno.NroOrden} ya fue cancelado: el paciente quedará sin turno.",
+                "Cancelar Reprogramación", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            AplicarModoReprogramacion(false);
+            LimpiarCampos();
+            cmbEspecialidad.SelectedIndex = 0;
         }
 
         private void TxtDNI_Leave(object sender, EventArgs e)
@@ -75,6 +175,7 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
+                    txtTelefono.Text = paciente.Telefono ?? string.Empty; // Editable: permite actualizar el teléfono de contacto
 
                     if (paciente.IdObraSocial.HasValue && paciente.IdObraSocial.Value > 0)
                     {
@@ -96,6 +197,7 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
+                    txtTelefono.Clear();
                     if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
                     txtNombre.ReadOnly = false;
@@ -199,6 +301,7 @@ namespace Gestion_de_Turnos_Medicos
         private void CargarHorariosDisponibles(string especialidad, DateTime fechaElegida)
         {
             cmbHorarios.Items.Clear();
+            _fechaSinCobertura = false;
 
             if (string.IsNullOrWhiteSpace(especialidad) || cmbEspecialidad.SelectedIndex <= 0)
                 return;
@@ -206,6 +309,7 @@ namespace Gestion_de_Turnos_Medicos
             try
             {
                 var horarios = _turnoBLL.ObtenerHorariosDisponibles(especialidad, fechaElegida);
+                _fechaSinCobertura = !_turnoBLL.EspecialidadTieneCobertura(especialidad, fechaElegida);
 
                 if (horarios != null && horarios.Count > 0)
                 {
@@ -224,7 +328,22 @@ namespace Gestion_de_Turnos_Medicos
                                 continue; // Horario ya transcurrido
                         }
 
+                        // Sin profesional disponible: solo se listan los turnos ya reservados (para consulta o cancelación)
+                        if (_fechaSinCobertura && h.EstaDisponible)
+                            continue;
+
                         cmbHorarios.Items.Add(h);
+                    }
+
+                    if (_fechaSinCobertura)
+                    {
+                        MessageBox.Show(
+                            $"No hay profesionales de {especialidad} disponibles el {fechaElegida:dd/MM/yyyy} (ausencia programada o sin médicos activos).\n\n" +
+                            "No se pueden emitir turnos nuevos en esa fecha. Elija otra fecha.",
+                            "Fecha sin Profesionales",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
                     }
 
                     if (cmbHorarios.Items.Count > 0)
@@ -234,7 +353,7 @@ namespace Gestion_de_Turnos_Medicos
                     }
                     else
                     {
-                        if (esHoy)
+                        if (esHoy && !_fechaSinCobertura)
                         {
                             MessageBox.Show(
                                 "No quedan más horarios de atención disponibles para el día de hoy.\nPor favor, seleccione una fecha posterior en el calendario.",
@@ -243,7 +362,7 @@ namespace Gestion_de_Turnos_Medicos
                                 MessageBoxIcon.Information
                             );
                         }
-                        else
+                        else if (!_fechaSinCobertura) // La falta de profesionales ya se informó arriba
                         {
                             MessageBox.Show(
                                 "No hay turnos disponibles para esta fecha y especialidad.",
@@ -284,7 +403,7 @@ namespace Gestion_de_Turnos_Medicos
             if (cmbHorarios.SelectedItem is not HorarioDisponibleDTO slot)
             {
                 gbDetalleTurno.Visible = false;
-                button1.Enabled = true;
+                button1.Enabled = !_fechaSinCobertura;
                 btnDescargarTxt.Enabled = _ultimoTurnoEmitido != null;
                 return;
             }
@@ -302,7 +421,7 @@ namespace Gestion_de_Turnos_Medicos
                 // Horario ocupado: mostrar datos del turno y activar cancelación con 2FA
                 button1.Enabled = false;
                 gbDetalleTurno.Visible = true;
-                lblDetallePaciente.Text = $"Paciente: {slot.Paciente ?? "--"}";
+                lblDetallePaciente.Text = $"Paciente: {slot.Paciente ?? "--"} | Tel: {slot.Telefono ?? "--"}";
                 lblDetalleDni.Text = $"DNI: {slot.Dni ?? "--"} | O.S.: {slot.ObraSocial ?? "--"}";
                 lblDetalleTurnoNro.Text = $"Turno: #{slot.NroOrden ?? "--"} | Estado: {slot.Estado ?? "En Espera"}";
                 btnDescargarTxt.Enabled = slot.Estado == "En Espera" || slot.Estado == "Llamado";
@@ -375,6 +494,7 @@ namespace Gestion_de_Turnos_Medicos
 
                 txtClaveCancelacion.Clear();
                 CargarHorariosDisponibles(especialidad, fecha);
+                ActualizarAvisoReprogramar();
             }
             catch (Exception ex)
             {
@@ -403,7 +523,7 @@ namespace Gestion_de_Turnos_Medicos
                 int idPaciente;
 
                 // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
-                idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
+                idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial, txtTelefono.Text);
                 idPacienteActual = idPaciente;
 
                 // Cálculo del arancel según reglas de negocio (arancel base menos el % que cubre la obra social elegida)
@@ -463,6 +583,7 @@ namespace Gestion_de_Turnos_Medicos
                 );
 
                 LimpiarCampos();
+                AplicarModoReprogramacion(false); // El turno cancelado ya tiene su reemplazo
                 CargarHorariosDisponibles(especialidad, fecha);
             }
             catch (InvalidOperationException invEx)
@@ -539,9 +660,10 @@ namespace Gestion_de_Turnos_Medicos
             if (string.IsNullOrWhiteSpace(txtNombre.Text) ||
                 string.IsNullOrWhiteSpace(txtApellido.Text) ||
                 string.IsNullOrWhiteSpace(txtDNI.Text) ||
+                string.IsNullOrWhiteSpace(txtTelefono.Text) ||
                 cmbObraSocial.SelectedIndex < 0)
             {
-                MessageBox.Show("Por favor, complete todos los datos del paciente y seleccione una obra social.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor, complete todos los datos del paciente (incluido el teléfono de contacto) y seleccione una obra social.", "Faltan datos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -563,6 +685,13 @@ namespace Gestion_de_Turnos_Medicos
             {
                 MessageBox.Show("El DNI debe tener entre 7 y 8 números.", "DNI inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtDNI.Focus();
+                return false;
+            }
+
+            if (!Validaciones.EsTelefono(txtTelefono.Text.Trim()))
+            {
+                MessageBox.Show("El teléfono ingresado no es válido. Debe contener solo números (entre 7 y 15 dígitos).", "Teléfono inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtTelefono.Focus();
                 return false;
             }
 
@@ -643,6 +772,7 @@ namespace Gestion_de_Turnos_Medicos
             txtNombre.Clear();
             txtApellido.Clear();
             txtDNI.Clear();
+            txtTelefono.Clear();
             if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
             txtNombre.ReadOnly = false;

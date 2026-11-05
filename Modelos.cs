@@ -86,6 +86,10 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>Documento Nacional de Identidad (DNI) del paciente (único para búsqueda y verificación).</summary>
         public string Dni { get; set; }
 
+        /// <summary>Teléfono de contacto del paciente (para avisos de cancelación o modificación de turnos).</summary>
+        [StringLength(20)]
+        public string? Telefono { get; set; }
+
         /// <summary>Identificador foráneo de la obra social asociada al paciente.</summary>
         public int IdObraSocial { get; set; }
 
@@ -421,5 +425,31 @@ namespace Gestion_de_Turnos_Medicos
 
         /// <summary>Propiedad de navegación hacia el usuario médico.</summary>
         public Usuario Usuario { get; set; }
+    }
+
+    /// <summary>
+    /// Registra un día de ausencia programada de un profesional médico. Si ningún médico de una especialidad
+    /// está disponible ese día, la fecha queda bloqueada para nuevos turnos y los existentes pasan a reprogramarse.
+    /// </summary>
+    public class AusenciaMedica : EntidadAuditable
+    {
+        /// <summary>Identificador único de la ausencia.</summary>
+        [Key]
+        public int IdAusencia { get; set; }
+
+        /// <summary>Identificador foráneo del médico que se ausenta.</summary>
+        [ForeignKey("Usuario")]
+        public int IdUsuario { get; set; }
+
+        /// <summary>Propiedad de navegación hacia el usuario médico.</summary>
+        public Usuario Usuario { get; set; }
+
+        /// <summary>Día completo de ausencia.</summary>
+        [Column(TypeName = "date")]
+        public DateTime Fecha { get; set; }
+
+        /// <summary>Motivo opcional informado por el médico.</summary>
+        [StringLength(200)]
+        public string? Motivo { get; set; }
     }
 }

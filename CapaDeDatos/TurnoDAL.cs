@@ -161,7 +161,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             pac.Dni,
                             ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
                             t.Estado,
-                            t.CodigoCancelacion
+                            t.CodigoCancelacion,
+                            pac.Telefono
                         FROM @Horarios h
                         LEFT JOIN (
                             SELECT 
@@ -287,6 +288,36 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pCodigo = new SqlParameter("@CodigoCancelacion", codigoCancelacion.Trim());
 
                 context.Database.ExecuteSqlRaw("EXEC sp_CancelarTurnoEspecialidad @IdTurno, @CodigoCancelacion", pIdTurno, pCodigo);
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta <c>sp_VerificarCoberturaEspecialidad</c>: indica si la especialidad tiene al menos un profesional disponible en la fecha.
+        /// </summary>
+        /// <param name="nombreEspecialidad">Nombre de la especialidad.</param>
+        /// <param name="fecha">Fecha consultada.</param>
+        public bool EspecialidadTieneCobertura(string nombreEspecialidad, DateTime fecha)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                var pEspecialidad = new SqlParameter("@NombreEspecialidad", nombreEspecialidad);
+                var pFecha = new SqlParameter("@Fecha", fecha.Date);
+
+                return context.Database
+                    .SqlQueryRaw<bool>("EXEC sp_VerificarCoberturaEspecialidad @NombreEspecialidad, @Fecha", pEspecialidad, pFecha)
+                    .AsEnumerable()
+                    .FirstOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta <c>sp_ListarTurnosAReprogramar</c>: turnos vigentes cuya fecha quedó sin profesional disponible.
+        /// </summary>
+        public List<TurnoAReprogramarDTO> ListarTurnosAReprogramar()
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                return context.Database.SqlQueryRaw<TurnoAReprogramarDTO>("EXEC sp_ListarTurnosAReprogramar").ToList();
             }
         }
 
@@ -482,13 +513,15 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             e.Nombre AS NombreEspecialidad,
                             ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
                             t.IdPrioridad,
-                            ISNULL(s.NombreSala, '--') AS NombreSala
+                            ISNULL(s.NombreSala, '--') AS NombreSala,
+                            pac.Telefono
                         FROM Turnos t
                         INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
                         LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
                         LEFT JOIN Salas s ON t.IdSala = s.IdSala
-                        WHERE t.Activo = 1 
-                          AND t.TipoTurno = 'Consulta'
+                        LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+                        WHERE t.Activo = 1
+                          AND t.TipoTurno = 'Especialidad'
                           AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
                           AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
                           AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
@@ -532,11 +565,13 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             e.Nombre AS NombreEspecialidad,
                             pr.Descripcion AS PrioridadTexto,
                             t.IdPrioridad,
-                            ISNULL(s.NombreSala, '--') AS NombreSala
+                            ISNULL(s.NombreSala, '--') AS NombreSala,
+                            pac.Telefono
                         FROM Turnos t
                         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
                         LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
                         LEFT JOIN Salas s ON t.IdSala = s.IdSala
+                        LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
                         WHERE t.Activo = 1
                           AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
                           AND (@Estado IS NULL OR t.Estado = @Estado)

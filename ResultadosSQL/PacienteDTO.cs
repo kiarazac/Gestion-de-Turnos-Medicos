@@ -23,5 +23,8 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Nombre descriptivo de la obra social o cobertura médica prepaga.</summary>
         public string ObraSocial { get; set; } = string.Empty;
+
+        /// <summary>Teléfono de contacto del paciente.</summary>
+        public string? Telefono { get; set; }
     }
 }

@@ -49,6 +49,8 @@ namespace Gestion_de_Turnos_Medicos
             label2 = new Label();
             txtNombre = new TextBox();
             label1 = new Label();
+            LTelefono = new Label();
+            txtTelefono = new TextBox();
             LdescripTurno = new Label();
             panel3 = new Panel();
             Ldescrip_turno_especialidad = new Label();
@@ -114,6 +116,8 @@ namespace Gestion_de_Turnos_Medicos
             // panel2
             // 
             panel2.BorderStyle = BorderStyle.FixedSingle;
+            panel2.Controls.Add(txtTelefono);
+            panel2.Controls.Add(LTelefono);
             panel2.Controls.Add(cmbObraSocial);
             panel2.Controls.Add(LObraSocial);
             panel2.Controls.Add(Condicionales);
@@ -125,7 +129,7 @@ namespace Gestion_de_Turnos_Medicos
             panel2.Controls.Add(label1);
             panel2.Location = new Point(36, 156);
             panel2.Name = "panel2";
-            panel2.Size = new Size(740, 494);
+            panel2.Size = new Size(740, 536);
             panel2.TabIndex = 7;
             // 
             // cmbObraSocial
@@ -156,7 +160,7 @@ namespace Gestion_de_Turnos_Medicos
             Condicionales.Controls.Add(checkedListAlta);
             Condicionales.Controls.Add(label6);
             Condicionales.Controls.Add(label4);
-            Condicionales.Location = new Point(31, 158);
+            Condicionales.Location = new Point(31, 200);
             Condicionales.Name = "Condicionales";
             Condicionales.Size = new Size(687, 331);
             Condicionales.TabIndex = 10;
@@ -283,7 +287,27 @@ namespace Gestion_de_Turnos_Medicos
             label1.Size = new Size(73, 21);
             label1.TabIndex = 3;
             label1.Text = "Nombre";
-            // 
+            //
+            // LTelefono
+            //
+            LTelefono.AutoSize = true;
+            LTelefono.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            LTelefono.ForeColor = SystemColors.InactiveCaptionText;
+            LTelefono.Location = new Point(33, 140);
+            LTelefono.Name = "LTelefono";
+            LTelefono.Size = new Size(156, 21);
+            LTelefono.TabIndex = 13;
+            LTelefono.Text = "Teléfono (opcional)";
+            //
+            // txtTelefono
+            //
+            txtTelefono.Location = new Point(31, 166);
+            txtTelefono.MaxLength = 15;
+            txtTelefono.Name = "txtTelefono";
+            txtTelefono.PlaceholderText = "Solo números (7 a 15 dígitos)";
+            txtTelefono.Size = new Size(326, 23);
+            txtTelefono.TabIndex = 9;
+            //
             // LdescripTurno
             // 
             LdescripTurno.AutoSize = true;
@@ -504,6 +528,8 @@ namespace Gestion_de_Turnos_Medicos
         private TextBox txtApellido;
         private Label label2;
         private TextBox txtNombre;
+        private Label LTelefono;
+        private TextBox txtTelefono;
         private Label label1;
         private ComboBox cmbObraSocial;
         private Label LObraSocial;

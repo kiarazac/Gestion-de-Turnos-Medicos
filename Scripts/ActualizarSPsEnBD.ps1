@@ -3,6 +3,14 @@ $conn.Open()
 
 $sps = @(
 @"
+IF OBJECT_ID('Pacientes') IS NOT NULL AND COL_LENGTH('Pacientes', 'Telefono') IS NULL
+    ALTER TABLE Pacientes ADD Telefono NVARCHAR(20) NULL;
+"@,
+@"
+UPDATE Turnos SET TipoTurno = 'Especialidad' WHERE TipoTurno = 'Consulta';
+UPDATE HistoriasClinicas SET TipoTurno = 'Especialidad' WHERE TipoTurno = 'Consulta';
+"@,
+@"
 CREATE OR ALTER PROCEDURE sp_ListarTurnosAtencion
 AS
 BEGIN
@@ -174,7 +182,7 @@ BEGIN
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
-      AND t.TipoTurno = 'Consulta'
+      AND t.TipoTurno = 'Especialidad'
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
@@ -204,13 +212,15 @@ BEGIN
         e.Nombre AS NombreEspecialidad,
         ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
         t.IdPrioridad,
-        ISNULL(s.NombreSala, '--') AS NombreSala
+        ISNULL(s.NombreSala, '--') AS NombreSala,
+        pac.Telefono
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
-    WHERE t.Activo = 1 
-      AND t.TipoTurno = 'Consulta'
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    WHERE t.Activo = 1
+      AND t.TipoTurno = 'Especialidad'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')

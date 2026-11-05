@@ -2085,7 +2085,7 @@ GO
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
   | `@DNI` | `NVARCHAR(20)` | IN | Documento de identidad del paciente. |
-- **Devuelve:** `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`.
+- **Devuelve:** `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`, `Telefono`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_BuscarPacientePorDNI
@@ -2101,7 +2101,8 @@ BEGIN
             p.Apellido, 
             p.Dni, 
             p.IdObraSocial,
-            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial 
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+            p.Telefono
         FROM Pacientes p
         LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         WHERE p.DNI = @DNI AND p.Activo = 1;
@@ -2132,6 +2133,7 @@ GO
   | `@Apellido` | `NVARCHAR(100)` | IN | Apellido del paciente. |
   | `@Dni` | `NVARCHAR(20)` | IN | Documento de identidad. |
   | `@IdObraSocial` | `INT` | IN | Clave foránea de la obra social asociada (default 1). |
+  | `@Telefono` | `NVARCHAR(20)` | IN | Teléfono de contacto (opcional, default `NULL`; si viene vacío no se sobrescribe el existente). |
 - **Devuelve:** 1 fila: `IdPaciente`.
 - **Excepciones y Códigos de Error:**
   | Código | Mensaje al Operador | Condición de Disparo |
@@ -2143,7 +2145,8 @@ CREATE OR ALTER PROCEDURE sp_GuardarPaciente
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Dni NVARCHAR(20),
-    @IdObraSocial INT = 1
+    @IdObraSocial INT = 1,
+    @Telefono NVARCHAR(20) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2173,13 +2176,14 @@ BEGIN
             SET Nombre = @Nombre,
                 Apellido = @Apellido,
                 IdObraSocial = @IdObraSocial,
+                Telefono = COALESCE(NULLIF(@Telefono, ''), Telefono),
                 FechaModificacion = GETDATE()
             WHERE IdPaciente = @IdPaciente;
         END
         ELSE
         BEGIN
-            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Activo, FechaCreacion)
-            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, 1, GETDATE());
+            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Telefono, Activo, FechaCreacion)
+            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, NULLIF(@Telefono, ''), 1, GETDATE());
 
             SET @IdPaciente = SCOPE_IDENTITY();
         END
@@ -2499,7 +2503,8 @@ BEGIN
         pac.Dni,
         pac.ObraSocial,
         t.Estado,
-        t.CodigoCancelacion
+        t.CodigoCancelacion,
+        pac.Telefono
     FROM @Horarios h
     LEFT JOIN (
         SELECT 
@@ -3004,11 +3009,13 @@ BEGIN
         e.Nombre AS NombreEspecialidad,
         ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
         t.IdPrioridad,
-        ISNULL(s.NombreSala, '--') AS NombreSala
+        ISNULL(s.NombreSala, '--') AS NombreSala,
+        pac.Telefono
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     WHERE t.Activo = 1 
       AND t.TipoTurno = 'Consulta'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
@@ -4369,6 +4376,12 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 56 | `sp_RealizarBackupBaseDatos` | dbGestionTurnos | Backup | `FrmBackupRestore` | Botón btnGenerarBackup | `EN USO` |
 | 57 | `sp_ListarGerentes` | Usuario / Rol | Seguridad | `FrmBackupRestore` | Carga desplegable de autorización de Gerente | `EN USO` |
 | 58 | `sp_RestaurarBaseDatos` | dbGestionTurnos | Restore | `FrmBackupRestore` | Botón btnRestaurarBackup (Doble autorización) | `EN USO` |
+| 59 | `sp_RegistrarAusencias` | AusenciasMedicas | Alta (un registro por día) | `FrmMisAusencias` | Botón `btnRegistrar` (mínimo desde mañana) | `EN USO` |
+| 60 | `sp_ListarAusenciasPorMedico` | AusenciasMedicas | Listado | `FrmMisAusencias` | Carga de grilla de ausencias vigentes | `EN USO` |
+| 61 | `sp_AnularAusencia` | AusenciasMedicas | Baja lógica | `FrmMisAusencias` | Botón `btnAnular` | `EN USO` |
+| 62 | `sp_VerificarCoberturaEspecialidad` | Especialidad / AusenciasMedicas | Consulta | `FrmTurnoEspecialidad` | Bloqueo de fechas sin profesionales | `EN USO` |
+| 63 | `sp_ListarTurnosAReprogramar` | Turno / Paciente | Listado | `FrmTurnoEspecialidad`, `FrmTurnosAReprogramar` | Aviso y lista de turnos sin profesional (con teléfono y horario sugerido) | `EN USO` |
+| 65 | `fn_HorariosEstandar` / `fn_EspecialidadSinCobertura` / `fn_HorariosLibres` | Funciones | Soporte | SPs de turnos y ausencias | Horarios fijos, regla de cobertura y horarios libres | `EN USO` |
 
 ---
 

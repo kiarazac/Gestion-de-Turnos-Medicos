@@ -127,7 +127,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                             DniPaciente = t.Paciente?.Dni ?? "--",
                             ObraSocial = t.Paciente?.ObraSocial?.Nombre ?? "Particular / Sin Obra Social",
                             EsParticular = esPart,
-                            TipoTurno = t.TipoTurno ?? "Consulta",
+                            TipoTurno = t.TipoTurno ?? "Especialidad",
                             Especialidad = t.Especialidad?.Nombre ?? "General",
                             MontoCobrado = t.Monto,
                             Estado = t.Estado ?? "En Espera",

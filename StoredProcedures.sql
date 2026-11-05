@@ -20,6 +20,11 @@ USE dbGestionTurnos;
 
 GO
 
+-- Requerido para el índice filtrado de AusenciasMedicas y los SPs que escriben en esa tabla (sqlcmd lo trae en OFF por defecto)
+SET QUOTED_IDENTIFIER ON;
+
+GO
+
 /* =========================================================================
 ** Procedimiento : sp_ValidarLogin
 ** Sección       : 1.1
@@ -1797,14 +1802,20 @@ END;
 
 GO
 
+-- Columna Telefono en BDs existentes (debe existir antes de compilar los SPs de pacientes y turnos)
+IF OBJECT_ID('Pacientes') IS NOT NULL AND COL_LENGTH('Pacientes', 'Telefono') IS NULL
+    ALTER TABLE Pacientes ADD Telefono NVARCHAR(20) NULL;
+
+GO
+
 /* =========================================================================
 ** Procedimiento : sp_BuscarPacientePorDNI
 ** Sección       : 4.1
-** Propósito     : Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI), incluyendo su obra social vinculada.
+** Propósito     : Busca y recupera la información de un paciente activo a partir de su número de documento de identidad (DNI), incluyendo su obra social vinculada y su teléfono de contacto.
 ** Entidad/Tablas: `Pacientes`, `ObrasSociales`
 ** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (Autocompletado y verificación de antecedentes al ingresar DNI)
 ** Estado        : `EN USO`
-** Retorno       : `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`.
+** Retorno       : `IdPaciente`, `Nombre`, `Apellido`, `Dni`, `IdObraSocial`, `ObraSocial`, `Telefono`.
 ** Parámetros   :
 **                `@DNI` (`NVARCHAR(20)`, IN) - Documento de identidad del paciente.
 ** ========================================================================= */
@@ -1821,7 +1832,8 @@ BEGIN
             p.Apellido, 
             p.Dni, 
             p.IdObraSocial,
-            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial 
+            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+            p.Telefono
         FROM Pacientes p
         LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
         WHERE p.DNI = @DNI AND p.Activo = 1;
@@ -1838,7 +1850,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_GuardarPaciente
 ** Sección       : 4.2
-** Propósito     : Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido e IdObraSocial y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
+** Propósito     : Busca al paciente por DNI. Valida que dicho DNI no pertenezca a un usuario del sistema (código `50010`). Si el paciente ya existe en el sistema, actualiza su nombre, apellido, IdObraSocial y Telefono (este último solo si se envía no vacío, para no borrar uno existente) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y retorna el nuevo ID autoincremental generado.
 ** Entidad/Tablas: `Pacientes`, `Usuarios`, `ObrasSociales`
 ** Invocado por  : `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
@@ -1848,12 +1860,14 @@ GO
 **                `@Apellido` (`NVARCHAR(100)`, IN) - Apellido del paciente.
 **                `@Dni` (`NVARCHAR(20)`, IN) - Documento de identidad.
 **                `@IdObraSocial` (`INT`, IN, DEFAULT 1) - Clave foránea de la obra social seleccionada.
+**                `@Telefono` (`NVARCHAR(20)`, IN, DEFAULT NULL) - Teléfono de contacto del paciente (opcional).
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_GuardarPaciente
     @Nombre NVARCHAR(100),
     @Apellido NVARCHAR(100),
     @Dni NVARCHAR(20),
-    @IdObraSocial INT = 1
+    @IdObraSocial INT = 1,
+    @Telefono NVARCHAR(20) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1884,13 +1898,14 @@ BEGIN
             SET Nombre = @Nombre,
                 Apellido = @Apellido,
                 IdObraSocial = @IdObraSocial,
+                Telefono = COALESCE(NULLIF(@Telefono, ''), Telefono),
                 FechaModificacion = GETDATE()
             WHERE IdPaciente = @IdPaciente;
         END
         ELSE
         BEGIN
-            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Activo, FechaCreacion)
-            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, 1, GETDATE());
+            INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, Telefono, Activo, FechaCreacion)
+            VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, NULLIF(@Telefono, ''), 1, GETDATE());
 
             SET @IdPaciente = SCOPE_IDENTITY();
         END
@@ -2163,6 +2178,129 @@ END;
 
 GO
 
+-- Normalización de TipoTurno: los turnos programados por consultorio externo se identifican como 'Especialidad' (antes 'Consulta')
+IF OBJECT_ID('Turnos') IS NOT NULL
+    UPDATE Turnos SET TipoTurno = 'Especialidad' WHERE TipoTurno = 'Consulta';
+
+IF OBJECT_ID('HistoriasClinicas') IS NOT NULL
+    UPDATE HistoriasClinicas SET TipoTurno = 'Especialidad' WHERE TipoTurno = 'Consulta';
+
+GO
+
+-- Tabla AusenciasMedicas: un registro por médico y día de ausencia programada
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AusenciasMedicas')
+BEGIN
+    CREATE TABLE AusenciasMedicas (
+        IdAusencia INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUsuario INT NOT NULL,
+        Fecha DATE NOT NULL,
+        Motivo NVARCHAR(200) NULL,
+        FechaCreacion DATETIME NOT NULL DEFAULT GETDATE(),
+        FechaModificacion DATETIME NULL,
+        Activo BIT NOT NULL DEFAULT 1,
+        FechaBaja DATETIME NULL,
+        CONSTRAINT FK_AusenciasMedicas_Usuarios FOREIGN KEY (IdUsuario) REFERENCES Usuarios (IdUsuario)
+    );
+END;
+
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_AusenciasMedicas_Usuario_Fecha')
+    CREATE UNIQUE INDEX UX_AusenciasMedicas_Usuario_Fecha ON AusenciasMedicas (IdUsuario, Fecha) WHERE Activo = 1;
+
+GO
+
+/* =========================================================================
+** Función       : fn_HorariosEstandar
+** Sección       : 5.4.1
+** Propósito     : Catálogo único de franjas horarias estándar de consultorio externo (fuente para horarios con estado y sugerencias).
+** Entidad/Tablas: Ninguna (valores fijos)
+** Invocado por  : `sp_ObtenerHorariosConEstado`, `fn_HorariosLibres`
+** Estado        : `EN USO`
+** Retorno       : Tabla `Horario` (`VARCHAR(5)`).
+** Parámetros   : Ninguno.
+** ========================================================================= */
+CREATE OR ALTER FUNCTION fn_HorariosEstandar()
+RETURNS TABLE
+AS
+RETURN (
+    SELECT Horario
+    FROM (VALUES ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'),
+                 ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00')) AS h(Horario)
+);
+
+GO
+
+/* =========================================================================
+** Función       : fn_EspecialidadSinCobertura
+** Sección       : 5.4.2
+** Propósito     : Indica si una especialidad queda sin profesionales disponibles en una fecha: no existe ningún médico activo, con la especialidad asignada y activa, que no tenga una ausencia registrada ese día. Cubre también el caso de especialidades sin médicos asignados.
+** Entidad/Tablas: `MedicosEspecialidades`, `Usuarios`, `AusenciasMedicas`
+** Invocado por  : `sp_CrearTurnoEspecialidad`, `sp_VerificarCoberturaEspecialidad`, `sp_RegistrarAusencias`, `sp_ListarTurnosAReprogramar`, `fn_HorariosLibres`
+** Estado        : `EN USO`
+** Retorno       : `BIT` (1 = sin cobertura / fecha bloqueada).
+** Parámetros   :
+**                `@IdEspecialidad` (`INT`, IN) - Especialidad evaluada.
+**                `@Fecha` (`DATE`, IN) - Fecha evaluada.
+** ========================================================================= */
+CREATE OR ALTER FUNCTION fn_EspecialidadSinCobertura(@IdEspecialidad INT, @Fecha DATE)
+RETURNS BIT
+AS
+BEGIN
+    RETURN CASE WHEN EXISTS (
+        SELECT 1
+        FROM MedicosEspecialidades me
+        INNER JOIN Usuarios u ON me.IdUsuario = u.IdUsuario
+        WHERE me.IdEspecialidad = @IdEspecialidad
+          AND me.Activo = 1
+          AND u.Activo = 1
+          AND NOT EXISTS (
+              SELECT 1 FROM AusenciasMedicas a
+              WHERE a.IdUsuario = u.IdUsuario AND a.Fecha = @Fecha AND a.Activo = 1
+          )
+    ) THEN 0 ELSE 1 END;
+END;
+
+GO
+
+/* =========================================================================
+** Función       : fn_HorariosLibres
+** Sección       : 5.4.3
+** Propósito     : Devuelve las combinaciones fecha/horario libres de una especialidad dentro de una ventana de días: excluye fechas sin cobertura médica, horarios ya reservados y horarios pasados.
+** Entidad/Tablas: `Turnos`, `AusenciasMedicas`, `MedicosEspecialidades`
+** Invocado por  : `sp_ListarTurnosAReprogramar` (próximo horario libre sugerido)
+** Estado        : `EN USO`
+** Retorno       : Tabla `Fecha` (`DATE`), `Horario` (`VARCHAR(5)`).
+** Parámetros   :
+**                `@IdEspecialidad` (`INT`, IN) - Especialidad evaluada.
+**                `@Desde` (`DATE`, IN) - Primer día de la ventana.
+**                `@Dias` (`INT`, IN) - Cantidad de días a evaluar.
+** ========================================================================= */
+CREATE OR ALTER FUNCTION fn_HorariosLibres(@IdEspecialidad INT, @Desde DATE, @Dias INT)
+RETURNS TABLE
+AS
+RETURN (
+    WITH Dias AS (
+        SELECT TOP (@Dias) DATEADD(DAY, ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1, @Desde) AS Fecha
+        FROM sys.all_objects
+    )
+    SELECT d.Fecha, h.Horario
+    FROM Dias d
+    CROSS JOIN dbo.fn_HorariosEstandar() h
+    WHERE dbo.fn_EspecialidadSinCobertura(@IdEspecialidad, d.Fecha) = 0
+      AND CAST(d.Fecha AS DATETIME) + CAST(CAST(h.Horario AS TIME) AS DATETIME) > GETDATE()
+      AND NOT EXISTS (
+          SELECT 1 FROM Turnos t
+          WHERE t.IdEspecialidad = @IdEspecialidad
+            AND CAST(t.Fecha AS DATE) = d.Fecha
+            AND CAST(t.Horario AS TIME) = CAST(h.Horario AS TIME)
+            AND t.Activo = 1
+            AND t.Estado <> 'Cancelado'
+      )
+);
+
+GO
+
 /* =========================================================================
 ** Procedimiento : sp_ObtenerHorariosConEstado
 ** Sección       : 5.5
@@ -2170,7 +2308,7 @@ GO
 ** Entidad/Tablas: `Turnos`, `Especialidades`, `Pacientes`
 ** Invocado por  : `FrmTurnoEspecialidad` (Selección de fecha en calendario (`calFechaTurno_DateChanged`) y de especialidad)
 ** Estado        : `EN USO`
-** Retorno       : `Horario`, `EstaDisponible`, `IdTurno`, `NroOrden`, `Paciente`, `Dni`, `ObraSocial`, `Estado`, `CodigoCancelacion`
+** Retorno       : `Horario`, `EstaDisponible`, `IdTurno`, `NroOrden`, `Paciente`, `Dni`, `ObraSocial`, `Estado`, `CodigoCancelacion`, `Telefono`
 ** Parámetros   :
 **                `@NombreEspecialidad` (`NVARCHAR(100)`, IN) - Nombre de la especialidad.
 **                `@Fecha` (`DATE`, IN) - Fecha consultada.
@@ -2184,13 +2322,7 @@ BEGIN
 
     BEGIN TRY
 
-    -- Tabla de horarios estándar
-    DECLARE @Horarios TABLE (Horario VARCHAR(10));
-    INSERT INTO @Horarios VALUES 
-        ('08:30'), ('09:00'), ('09:30'), ('10:00'), ('10:30'), 
-        ('11:00'), ('14:00'), ('14:30'), ('15:00'), ('16:00');
-
-    SELECT 
+    SELECT
         h.Horario,
         CAST(CASE WHEN t.IdTurno IS NULL THEN 1 ELSE 0 END AS BIT) AS EstaDisponible,
         t.IdTurno,
@@ -2199,8 +2331,9 @@ BEGIN
         pac.Dni,
         ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
         t.Estado,
-        t.CodigoCancelacion
-    FROM @Horarios h
+        t.CodigoCancelacion,
+        pac.Telefono
+    FROM dbo.fn_HorariosEstandar() h
     LEFT JOIN (
         SELECT 
             t_sub.IdTurno,
@@ -2233,7 +2366,7 @@ GO
 ** Procedimiento : sp_CrearTurnoEspecialidad
 ** Sección       : 5.6
 ** Propósito     : Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha, horario asignado y la palabra clave / código 2FA de cancelación. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001`, `P-001`) y devuelve el ID recién creado.
-** Entidad/Tablas: `Turnos`, `Especialidades`, `Pacientes`
+** Entidad/Tablas: `Turnos`, `Especialidades`, `Pacientes`, `AusenciasMedicas` (vía `fn_EspecialidadSinCobertura`)
 ** Invocado por  : `FrmTurnoEspecialidad` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
 ** Retorno       : `IdNuevoTurno`, `NroOrden`.
@@ -2281,6 +2414,12 @@ BEGIN
             THROW 50005, 'No se pueden registrar turnos para una fecha u horario pasados. El turno debe ser posterior al momento actual.', 1;
         END
 
+        -- Validamos que haya al menos un profesional de la especialidad disponible ese día (ausencias programadas)
+        IF dbo.fn_EspecialidadSinCobertura(@IdEspecialidad, @Fecha) = 1
+        BEGIN
+            THROW 50100, 'No hay profesionales disponibles para la especialidad seleccionada en esa fecha. Elija otra fecha.', 1;
+        END
+
         -- Validamos que no exista ya un turno activo para la misma fecha, horario y especialidad
         IF EXISTS (
             SELECT 1 
@@ -2295,6 +2434,8 @@ BEGIN
             THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
         END
 
+        DECLARE @IdTurno INT;
+        DECLARE @NroOrden NVARCHAR(20);
         DECLARE @Prefijo NVARCHAR(10) = UPPER(LEFT(@NombreEspecialidad, 1));
         DECLARE @Secuencia INT;
 
@@ -2324,7 +2465,7 @@ BEGIN
 
         -- Insertamos directamente con el NroOrden definitivo
         INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
-        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Consulta', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
+        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Especialidad', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
 
@@ -2417,6 +2558,247 @@ BEGIN
 END;
 
 GO
+
+/* =========================================================================
+** Procedimiento : sp_RegistrarAusencias
+** Sección       : 5.6.0.0.1
+** Propósito     : Registra las ausencias programadas de un profesional médico, generando un registro por cada día del rango indicado (omite los días ya registrados). Exige al menos un día de anticipación para poder notificar a los pacientes y devuelve cuántos turnos reservados quedaron sin profesional disponible.
+** Entidad/Tablas: `AusenciasMedicas`, `Usuarios`, `MedicosEspecialidades`, `Turnos`
+** Invocado por  : `FrmMisAusencias` (Botón `btnRegistrar`)
+** Estado        : `EN USO`
+** Retorno       : `DiasRegistrados`, `TurnosSinCobertura`.
+** Parámetros   :
+**                `@IdUsuario` (`INT`, IN) - Médico que se ausenta.
+**                `@FechaDesde` (`DATE`, IN) - Primer día de ausencia (mínimo mañana).
+**                `@FechaHasta` (`DATE`, IN) - Último día de ausencia (máximo 90 días de rango).
+**                `@Motivo` (`NVARCHAR(200)`, IN, DEFAULT NULL) - Motivo opcional.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_RegistrarAusencias
+    @IdUsuario INT,
+    @FechaDesde DATE,
+    @FechaHasta DATE,
+    @Motivo NVARCHAR(200) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Usuarios u
+            INNER JOIN MedicosEspecialidades me ON u.IdUsuario = me.IdUsuario
+            WHERE u.IdUsuario = @IdUsuario AND u.Activo = 1 AND me.Activo = 1
+        )
+        BEGIN
+            THROW 50101, 'Solo los profesionales médicos activos con especialidades asignadas pueden registrar ausencias.', 1;
+        END
+
+        IF @FechaDesde IS NULL OR @FechaHasta IS NULL OR @FechaHasta < @FechaDesde
+        BEGIN
+            THROW 50102, 'El rango de fechas es inválido: la fecha hasta debe ser igual o posterior a la fecha desde.', 1;
+        END
+
+        IF @FechaDesde <= CAST(GETDATE() AS DATE)
+        BEGIN
+            THROW 50103, 'Las ausencias deben registrarse con al menos un día de anticipación (a partir de mañana).', 1;
+        END
+
+        IF DATEDIFF(DAY, @FechaDesde, @FechaHasta) > 90
+        BEGIN
+            THROW 50104, 'No se pueden registrar más de 90 días de ausencia en una sola carga.', 1;
+        END;
+
+        -- Un registro por día del rango, omitiendo los días ya cargados
+        WITH Dias AS (
+            SELECT TOP (DATEDIFF(DAY, @FechaDesde, @FechaHasta) + 1)
+                DATEADD(DAY, ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1, @FechaDesde) AS Fecha
+            FROM sys.all_objects
+        )
+        INSERT INTO AusenciasMedicas (IdUsuario, Fecha, Motivo, Activo, FechaCreacion)
+        SELECT @IdUsuario, d.Fecha, NULLIF(LTRIM(RTRIM(@Motivo)), ''), 1, GETDATE()
+        FROM Dias d
+        WHERE NOT EXISTS (
+            SELECT 1 FROM AusenciasMedicas a
+            WHERE a.IdUsuario = @IdUsuario AND a.Fecha = d.Fecha AND a.Activo = 1
+        );
+
+        DECLARE @DiasRegistrados INT = @@ROWCOUNT;
+
+        SELECT
+            @DiasRegistrados AS DiasRegistrados,
+            (
+                SELECT COUNT(*)
+                FROM Turnos t
+                INNER JOIN MedicosEspecialidades me ON t.IdEspecialidad = me.IdEspecialidad AND me.IdUsuario = @IdUsuario AND me.Activo = 1
+                WHERE t.Activo = 1
+                  AND t.TipoTurno = 'Especialidad'
+                  AND t.Estado = 'En Espera'
+                  AND CAST(t.Fecha AS DATE) BETWEEN @FechaDesde AND @FechaHasta
+                  AND dbo.fn_EspecialidadSinCobertura(t.IdEspecialidad, CAST(t.Fecha AS DATE)) = 1
+            ) AS TurnosSinCobertura;
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ListarAusenciasPorMedico
+** Sección       : 5.6.0.0.2
+** Propósito     : Lista las ausencias programadas vigentes (desde hoy en adelante) de un profesional médico.
+** Entidad/Tablas: `AusenciasMedicas`
+** Invocado por  : `FrmMisAusencias` (Evento `Load` / tras registrar o anular)
+** Estado        : `EN USO`
+** Retorno       : `IdAusencia`, `Fecha`, `Motivo`.
+** Parámetros   :
+**                `@IdUsuario` (`INT`, IN) - Médico consultado.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ListarAusenciasPorMedico
+    @IdUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT IdAusencia, Fecha, Motivo
+    FROM AusenciasMedicas
+    WHERE IdUsuario = @IdUsuario
+      AND Activo = 1
+      AND Fecha >= CAST(GETDATE() AS DATE)
+    ORDER BY Fecha ASC;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_AnularAusencia
+** Sección       : 5.6.0.0.3
+** Propósito     : Anula (baja lógica) una ausencia programada del propio médico, siempre que la fecha sea a partir de mañana.
+** Entidad/Tablas: `AusenciasMedicas`
+** Invocado por  : `FrmMisAusencias` (Botón `btnAnular`)
+** Estado        : `EN USO`
+** Retorno       : No retorna conjunto de datos (DML/Update)
+** Parámetros   :
+**                `@IdAusencia` (`INT`, IN) - Ausencia a anular.
+**                `@IdUsuario` (`INT`, IN) - Médico autenticado (debe ser el titular de la ausencia).
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_AnularAusencia
+    @IdAusencia INT,
+    @IdUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        DECLARE @Fecha DATE;
+
+        SELECT @Fecha = Fecha
+        FROM AusenciasMedicas
+        WHERE IdAusencia = @IdAusencia AND IdUsuario = @IdUsuario AND Activo = 1;
+
+        IF @Fecha IS NULL
+        BEGIN
+            THROW 50105, 'La ausencia no existe, ya fue anulada o no pertenece al profesional.', 1;
+        END
+
+        IF @Fecha <= CAST(GETDATE() AS DATE)
+        BEGIN
+            THROW 50106, 'Solo pueden anularse ausencias a partir de mañana.', 1;
+        END
+
+        UPDATE AusenciasMedicas
+        SET Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        WHERE IdAusencia = @IdAusencia;
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_VerificarCoberturaEspecialidad
+** Sección       : 5.6.0.0.4
+** Propósito     : Indica si una especialidad tiene al menos un profesional disponible en la fecha indicada (regla de `fn_EspecialidadSinCobertura`).
+** Entidad/Tablas: `Especialidades` (+ `fn_EspecialidadSinCobertura`)
+** Invocado por  : `FrmTurnoEspecialidad` (`CargarHorariosDisponibles`)
+** Estado        : `EN USO`
+** Retorno       : 1 fila: `TieneCobertura` (`BIT`). Sin filas si la especialidad no existe o está inactiva.
+** Parámetros   :
+**                `@NombreEspecialidad` (`NVARCHAR(100)`, IN) - Especialidad consultada.
+**                `@Fecha` (`DATE`, IN) - Fecha consultada.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_VerificarCoberturaEspecialidad
+    @NombreEspecialidad NVARCHAR(100),
+    @Fecha DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT CAST(1 - dbo.fn_EspecialidadSinCobertura(e.IdEspecialidad, @Fecha) AS BIT) AS TieneCobertura
+    FROM Especialidades e
+    WHERE e.Nombre = @NombreEspecialidad AND e.Activo = 1;
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ListarTurnosAReprogramar
+** Sección       : 5.6.0.0.5
+** Propósito     : Lista los turnos de especialidad vigentes ('En Espera', desde hoy) cuya fecha quedó sin profesional disponible (ausencias, bajas o especialidad sin médicos), con los datos de contacto del paciente y el próximo horario libre sugerido para reprogramar. Un turno cancelado deja de figurar automáticamente.
+** Entidad/Tablas: `Turnos`, `Especialidades`, `Pacientes`, `ObrasSociales` (+ `fn_EspecialidadSinCobertura`, `fn_HorariosLibres`)
+** Invocado por  : `FrmTurnoEspecialidad` (aviso de turnos a reprogramar), `FrmTurnosAReprogramar`
+** Estado        : `EN USO`
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `Especialidad`, `Paciente`, `Dni`, `Telefono`, `ObraSocial`, `ProximoHorarioLibre`.
+** Parámetros   : Ninguno.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ListarTurnosAReprogramar
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        t.IdTurno,
+        t.NroOrden,
+        CAST(t.Fecha AS DATE) AS Fecha,
+        CONVERT(VARCHAR(5), t.Horario, 108) AS Horario,
+        e.Nombre AS Especialidad,
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
+        pac.Dni,
+        pac.Telefono,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+        prox.ProximoHorarioLibre
+    FROM Turnos t
+    INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
+    INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
+    OUTER APPLY (
+        SELECT TOP 1 CONCAT(CONVERT(VARCHAR(10), hl.Fecha, 103), ' ', hl.Horario, ' hs') AS ProximoHorarioLibre
+        FROM dbo.fn_HorariosLibres(t.IdEspecialidad, DATEADD(DAY, 1, CAST(GETDATE() AS DATE)), 30) hl
+        ORDER BY hl.Fecha, hl.Horario
+    ) prox
+    WHERE t.Activo = 1
+      AND t.TipoTurno = 'Especialidad'
+      AND t.Estado = 'En Espera'
+      AND CAST(t.Fecha AS DATE) >= CAST(GETDATE() AS DATE)
+      AND dbo.fn_EspecialidadSinCobertura(t.IdEspecialidad, CAST(t.Fecha AS DATE)) = 1
+    ORDER BY t.Fecha ASC, t.Horario ASC;
+END;
+
+GO
+
+-- Sugerencias de horarios retiradas de FrmTurnoEspecialidad
+DROP PROCEDURE IF EXISTS sp_SugerirHorariosLibres;
 
 /* =========================================================================
 ** Procedimiento : sp_BuscarTurnoActivoEmergencia
@@ -2661,8 +3043,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosEspecialidad
 ** Sección       : 5.8
-** Propósito     : Obtiene los turnos registrados para una especialidad médica determinada en consultorios externos (`TipoTurno = 'Consulta'`), incluyendo fecha y horario combinados, prioridad y descripción de especialidad.
-** Entidad/Tablas: `Turnos`, `Especialidades`, `Prioridades`
+** Propósito     : Obtiene los turnos registrados para una especialidad médica determinada en consultorios externos (`TipoTurno = 'Especialidad'`), incluyendo fecha y horario combinados, prioridad, descripción de especialidad y teléfono de contacto del paciente.
+** Entidad/Tablas: `Turnos`, `Especialidades`, `Prioridades`, `Salas`, `Pacientes`
 ** Invocado por  : `FrmListaTurnos` (Cambio de especialidad (`cmbEspecialidades_SelectedIndexChanged`))
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
@@ -2686,13 +3068,15 @@ BEGIN
         e.Nombre AS NombreEspecialidad,
         ISNULL(p.Descripcion, 'Normal') AS PrioridadTexto,
         t.IdPrioridad,
-        ISNULL(s.NombreSala, '--') AS NombreSala
+        ISNULL(s.NombreSala, '--') AS NombreSala,
+        pac.Telefono
     FROM Turnos t
     INNER JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
-    WHERE t.Activo = 1 
-      AND t.TipoTurno = 'Consulta'
+    LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
+    WHERE t.Activo = 1
+      AND t.TipoTurno = 'Especialidad'
       AND (e.Nombre = @NombreEspecialidad OR @NombreEspecialidad IS NULL OR @NombreEspecialidad = '')
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
@@ -2735,7 +3119,7 @@ BEGIN
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     WHERE t.Activo = 1 
-      AND t.TipoTurno = 'Consulta'
+      AND t.TipoTurno = 'Especialidad'
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
@@ -2870,6 +3254,7 @@ BEGIN
         pr.Descripcion AS PrioridadTexto,
         t.IdPrioridad,
         ISNULL(s.NombreSala, '--') AS NombreSala,
+        pac.Telefono,
         -- Datos del comprobante del turno (se mapean a DatosComprobanteTurno)
         CASE WHEN t.TipoTurno = 'Especialidad' THEN 'NORMAL' ELSE ISNULL(pr.Descripcion, 'MEDIA') END AS Prioridad,
         CASE WHEN t.TipoTurno = 'Emergencia' THEN 'Emergencia' ELSE ISNULL(e.Nombre, '') END AS Seccion,
@@ -3378,7 +3763,7 @@ GO
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
 ** Parámetros   :
-**                `@TipoTurno` (`NVARCHAR(50)`, IN) - 'Consulta' o 'Emergencia'.
+**                `@TipoTurno` (`NVARCHAR(50)`, IN) - 'Especialidad' o 'Emergencia'.
 **                `@DiagRapido` (`NVARCHAR(255)`, IN) - Diagnóstico presuntivo obligatorio.
 **                `@DescripHistoriaClinica` (`NVARCHAR(MAX)`, IN) - Evolución médica.
 **                `@RecetaMedicamentos` (`NVARCHAR(MAX)`, IN) - Recetas y posología.
@@ -4266,7 +4651,7 @@ BEGIN
                 WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN CAST(1 AS BIT) 
                 ELSE CAST(0 AS BIT) 
             END AS EsParticular,
-            ISNULL(t.TipoTurno, 'Consulta') AS TipoTurno,
+            ISNULL(t.TipoTurno, 'Especialidad') AS TipoTurno,
             ISNULL(e.Nombre, 'General') AS Especialidad,
             ISNULL(t.Monto, 0.00) AS MontoCobrado,
             ISNULL(t.Estado, 'En Espera') AS Estado,

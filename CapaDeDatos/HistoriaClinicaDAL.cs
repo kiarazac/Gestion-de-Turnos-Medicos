@@ -26,7 +26,7 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         {
             using (var context = new dbTurnosMedicos())
             {
-                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno ?? "Consulta");
+                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno ?? "Especialidad");
                 var pDiagRapido = new SqlParameter("@DiagRapido", (object)(diagRapido ?? string.Empty));
                 var pDescrip = new SqlParameter("@DescripHistoriaClinica", (object)(descripHistoriaClinica ?? string.Empty));
                 var pReceta = new SqlParameter("@RecetaMedicamentos", (object)(recetaMedicamentos ?? string.Empty));

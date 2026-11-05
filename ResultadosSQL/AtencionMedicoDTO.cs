@@ -14,7 +14,7 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Fecha y hora en que se efectuó la atención.</summary>
         public DateTime Fecha { get; set; }
 
-        /// <summary>Modalidad o tipo de atención ('Emergencia' o 'Consulta').</summary>
+        /// <summary>Modalidad o tipo de atención ('Emergencia' o 'Especialidad').</summary>
         public string TipoTurno { get; set; } = string.Empty;
 
         /// <summary>Diagnóstico rápido o presuntivo determinado por el profesional.</summary>

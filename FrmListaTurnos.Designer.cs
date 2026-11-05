@@ -55,6 +55,7 @@
             Fecha = new DataGridViewTextBoxColumn();
             dataGridViewTextBoxColumn4 = new DataGridViewTextBoxColumn();
             dataGridViewTextBoxColumn5 = new DataGridViewTextBoxColumn();
+            colTelefono = new DataGridViewTextBoxColumn();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
@@ -265,7 +266,8 @@
             dgvEspecialidades.BackgroundColor = SystemColors.ActiveCaption;
             dgvEspecialidades.BorderStyle = BorderStyle.None;
             dgvEspecialidades.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvEspecialidades.Columns.AddRange(new DataGridViewColumn[] { dataGridViewTextBoxColumn1, dataGridViewTextBoxColumn3, Fecha, dataGridViewTextBoxColumn4, dataGridViewTextBoxColumn5 });
+            dgvEspecialidades.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvEspecialidades.Columns.AddRange(new DataGridViewColumn[] { dataGridViewTextBoxColumn1, dataGridViewTextBoxColumn3, Fecha, dataGridViewTextBoxColumn4, dataGridViewTextBoxColumn5, colTelefono });
             dgvEspecialidades.Location = new Point(612, 250);
             dgvEspecialidades.Name = "dgvEspecialidades";
             dgvEspecialidades.ReadOnly = true;
@@ -303,7 +305,13 @@
             dataGridViewTextBoxColumn5.HeaderText = "Sala";
             dataGridViewTextBoxColumn5.Name = "dataGridViewTextBoxColumn5";
             dataGridViewTextBoxColumn5.ReadOnly = true;
-            // 
+            //
+            // colTelefono
+            //
+            colTelefono.HeaderText = "Teléfono";
+            colTelefono.Name = "colTelefono";
+            colTelefono.ReadOnly = true;
+            //
             // FrmListaTurnos
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -365,5 +373,6 @@
         private DataGridViewTextBoxColumn Fecha;
         private DataGridViewTextBoxColumn dataGridViewTextBoxColumn4;
         private DataGridViewTextBoxColumn dataGridViewTextBoxColumn5;
+        private DataGridViewTextBoxColumn colTelefono;
     }
 }

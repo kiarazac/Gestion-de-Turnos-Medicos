@@ -217,7 +217,7 @@ namespace Gestion_de_Turnos_Medicos
                             estado = "En Atención";
                         }
 
-                        dgvEspecialidades.Rows.Add(turno, hora, fecha, estado, sala);
+                        dgvEspecialidades.Rows.Add(turno, hora, fecha, estado, sala, t.Telefono ?? "--");
                     }
                 }
 

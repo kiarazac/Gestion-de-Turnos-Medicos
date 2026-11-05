@@ -359,6 +359,24 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
+        /// Indica si la especialidad tiene al menos un profesional disponible en la fecha (no todos ausentes ni sin médicos activos).
+        /// </summary>
+        /// <param name="nombreEspecialidad">Nombre de la especialidad.</param>
+        /// <param name="fecha">Fecha consultada.</param>
+        public bool EspecialidadTieneCobertura(string nombreEspecialidad, DateTime fecha)
+        {
+            return _turnoDAL.EspecialidadTieneCobertura(nombreEspecialidad, fecha);
+        }
+
+        /// <summary>
+        /// Obtiene los turnos de especialidad vigentes que quedaron sin profesional disponible y deben reprogramarse.
+        /// </summary>
+        public List<TurnoAReprogramarDTO> ListarTurnosAReprogramar()
+        {
+            return _turnoDAL.ListarTurnosAReprogramar();
+        }
+
+        /// <summary>
         /// Consulta si un paciente posee un turno de emergencia activo (sin atender).
         /// </summary>
         /// <param name="idPaciente">Identificador único del paciente.</param>

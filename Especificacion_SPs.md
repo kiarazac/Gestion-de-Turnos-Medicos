@@ -30,7 +30,7 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | `@IncluirInactivas` | `BIT` | IN | Si es 1 lista también obras sociales dadas de baja lógica. |
 
 ### 2. `sp_GuardarPaciente`
-- **Descripción**: Busca al paciente por su DNI. Si ya existe, actualiza sus datos básicos y su cobertura (`IdObraSocial`) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y devuelve el nuevo `IdPaciente`.
+- **Descripción**: Busca al paciente por su DNI. Si ya existe, actualiza sus datos básicos, su cobertura (`IdObraSocial`) y su `Telefono` (solo si se envía no vacío) y retorna su `IdPaciente`. Si no existe, lo inserta en `Pacientes` y devuelve el nuevo `IdPaciente`.
 - **Nota de reutilización**: Este procedimiento es **reutilizado** por `FrmTurnoEspecialidad`.
 - **Tablas involucradas**: `Pacientes`, `ObrasSociales`
 - **Parámetros**:
@@ -40,6 +40,7 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | `@Apellido` | `VARCHAR(100)` | IN | Apellido del paciente. |
   | `@Dni` | `VARCHAR(20)` | IN | Número de documento del paciente. |
   | `@IdObraSocial` | `INT` | IN | Clave foránea de la obra social seleccionada. |
+  | `@Telefono` | `NVARCHAR(20)` | IN | Teléfono de contacto (opcional, `NULL` por defecto). |
   | `@IdPaciente` | `INT` | OUT | ID único autoincremental del paciente. |
 
 ### 3. `sp_CrearTurno`
@@ -95,7 +96,7 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 - **Parámetros**: Ninguno. Retorna un conjunto de resultados con `Nombre` (y opcionalmente `IdEspecialidad`).
 
 ### 2. `sp_ObtenerHorariosConEstado`
-- **Descripción**: Retorna todos los horarios estándar de atención médica (libres y ocupados) junto a su estado de disponibilidad (`EstaDisponible`) y los detalles del turno asignado (paciente, DNI, obra social, número de orden y palabra clave 2FA).
+- **Descripción**: Retorna todos los horarios estándar de atención médica (libres y ocupados) junto a su estado de disponibilidad (`EstaDisponible`) y los detalles del turno asignado (paciente, DNI, obra social, teléfono, número de orden y palabra clave 2FA).
 - **Tablas involucradas**: `Turnos`, `Especialidades`, `Pacientes`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
@@ -126,6 +127,46 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
   | :--- | :--- | :--- | :--- |
   | `@IdTurno` | `INT` | IN | Identificador del turno a cancelar. |
   | `@CodigoCancelacion` | `VARCHAR(50)` | IN | Palabra clave alfanumérica del comprobante para verificación 2FA. |
+
+### 5. `sp_VerificarCoberturaEspecialidad`
+- **Descripción**: Indica si la especialidad tiene al menos un médico activo, con la especialidad asignada, sin ausencia en la fecha. Si no, la fecha queda bloqueada para turnos nuevos (también lo valida `sp_CrearTurnoEspecialidad`, error `50100`).
+- **Tablas involucradas**: `Especialidades`, `MedicosEspecialidades`, `Usuarios`, `AusenciasMedicas` (vía `fn_EspecialidadSinCobertura`)
+- **Parámetros**: `@NombreEspecialidad` (`NVARCHAR(100)`, IN), `@Fecha` (`DATE`, IN). Retorna: `TieneCobertura`.
+
+### 6. `sp_ListarTurnosAReprogramar`
+- **Descripción**: Turnos de especialidad 'En Espera' (desde hoy) en fechas sin profesional disponible, con teléfono del paciente y próximo horario libre. Alimenta el botón de aviso y `FrmTurnosAReprogramar`; un turno cancelado deja de figurar.
+- **Tablas involucradas**: `Turnos`, `Especialidades`, `Pacientes`, `ObrasSociales`
+- **Parámetros**: Ninguno. Retorna: `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `Especialidad`, `Paciente`, `Dni`, `Telefono`, `ObraSocial`, `ProximoHorarioLibre`.
+
+---
+
+## FrmMisAusencias
+
+### 1. `sp_RegistrarAusencias`
+- **Descripción**: Registra un día de ausencia por cada fecha del rango (mínimo desde mañana, máximo 90 días, omite días ya cargados). Solo médicos activos con especialidades.
+- **Tablas involucradas**: `AusenciasMedicas`, `Usuarios`, `MedicosEspecialidades`, `Turnos`
+- **Parámetros**:
+  | Parámetro | Tipo | Dirección | Descripción |
+  | :--- | :--- | :--- | :--- |
+  | `@IdUsuario` | `INT` | IN | Médico que se ausenta. |
+  | `@FechaDesde` | `DATE` | IN | Primer día de ausencia. |
+  | `@FechaHasta` | `DATE` | IN | Último día de ausencia. |
+  | `@Motivo` | `NVARCHAR(200)` | IN | Motivo opcional. |
+- Retorna: `DiasRegistrados`, `TurnosSinCobertura`.
+
+### 2. `sp_ListarAusenciasPorMedico`
+- **Descripción**: Ausencias vigentes (desde hoy) del médico.
+- **Parámetros**: `@IdUsuario` (`INT`, IN). Retorna: `IdAusencia`, `Fecha`, `Motivo`.
+
+### 3. `sp_AnularAusencia`
+- **Descripción**: Baja lógica de una ausencia propia con fecha a partir de mañana.
+- **Parámetros**: `@IdAusencia` (`INT`, IN), `@IdUsuario` (`INT`, IN).
+
+---
+
+## FrmTurnosAReprogramar
+
+- Usa `sp_ListarTurnosAReprogramar` y `sp_CancelarTurnoEspecialidad` (clave 2FA). "Cancelar y reprogramar" devuelve el turno a `FrmTurnoEspecialidad`, que precarga paciente y especialidad (fecha y horario se eligen manualmente). Mientras la reprogramación esté pendiente, `FrmRecepcionista` impide cambiar de módulo o cerrar sesión; el botón "Cancelar reprogramación" la descarta (el turno original queda cancelado).
 
 ---
 
@@ -207,8 +248,8 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 - **Parámetros**: Ninguno. Retorna: `Turno`, `Prioridad`, `Hora`, `Estado`, `Sala`.
 
 ### 2. `sp_ListarTurnosEspecialidad`
-- **Descripción**: Obtiene los turnos registrados para una especialidad seleccionada.
-- **Tablas involucradas**: `Turnos`, `Especialidades`, `Salas`
+- **Descripción**: Obtiene los turnos registrados para una especialidad seleccionada, incluyendo el teléfono de contacto del paciente (`Telefono`).
+- **Tablas involucradas**: `Turnos`, `Especialidades`, `Salas`, `Pacientes`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |

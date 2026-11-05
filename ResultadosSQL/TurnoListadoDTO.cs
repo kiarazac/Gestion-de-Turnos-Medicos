@@ -34,5 +34,8 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
 
         /// <summary>Nombre del consultorio o sala física asignada.</summary>
         public string? NombreSala { get; set; }
+
+        /// <summary>Teléfono de contacto del paciente.</summary>
+        public string? Telefono { get; set; }
     }
 }

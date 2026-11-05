@@ -147,6 +147,7 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
+                    txtTelefono.Text = paciente.Telefono ?? string.Empty;
 
                     if (paciente.IdObraSocial.HasValue && paciente.IdObraSocial.Value > 0)
                     {
@@ -187,6 +188,7 @@ namespace Gestion_de_Turnos_Medicos
                     idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
+                    txtTelefono.Clear();
                     if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
                     txtNombre.ReadOnly = false;
@@ -215,13 +217,21 @@ namespace Gestion_de_Turnos_Medicos
                     return;
                 }
 
+                string telefono = txtTelefono.Text.Trim();
+                if (telefono.Length > 0 && !Validaciones.EsTelefono(telefono))
+                {
+                    MessageBox.Show("El teléfono ingresado no es válido. Debe contener solo números (entre 7 y 15 dígitos).", "Teléfono inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    txtTelefono.Focus();
+                    return;
+                }
+
                 int idObraSocial = cmbObraSocial.SelectedValue is int val ? val : 1;
                 string obraSocial = cmbObraSocial.Text;
 
                 int idPacienteFinal;
 
                 // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
-                idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial);
+                idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial, telefono);
                 idPacienteActual = idPacienteFinal;
 
                 // Validación de Regla de Negocio: No permitir más de un turno sin atender para el mismo paciente en emergencia
@@ -585,6 +595,7 @@ namespace Gestion_de_Turnos_Medicos
             txtDNI.Clear();
             txtNombre.Clear();
             txtApellido.Clear();
+            txtTelefono.Clear();
             if (cmbObraSocial.Items.Count > 0) cmbObraSocial.SelectedIndex = 0;
 
             txtNombre.ReadOnly = false;
