@@ -67,14 +67,8 @@ namespace Gestion_de_Turnos_Medicos
             }
 
             formularioActivo = formHijo;
-            formHijo.TopLevel = false;
-            formHijo.FormBorderStyle = FormBorderStyle.None;
-            formHijo.Dock = DockStyle.Fill;
-
-            panelContenedor.Controls.Add(formHijo);
             panelContenedor.Tag = formHijo;
-            formHijo.BringToFront();
-            formHijo.Show();
+            EscaladoFormularios.Embeber(formHijo, panelContenedor); // Adapta la vista al tamaño de la pantalla
         }
 
         /// <summary>
