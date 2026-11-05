@@ -32,8 +32,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="idPrioridad">Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja).</param>
         /// <param name="monto">Arancel cobrado en caja (opcional).</param>
         /// <param name="codigoCancelacion">Palabra clave alfanumérica de seguridad 2FA para cancelación (opcional).</param>
+        /// <param name="arancelBase">Arancel completo vigente, registrado en el turno para los reportes históricos (opcional).</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del turno creado y el número de orden asignado.</returns>
-        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad, decimal? monto = null, string? codigoCancelacion = null)
+        public ResultadoTurnoDTO CrearTurnoEmergenciaCompleto(int idPaciente, int idPrioridad, decimal? monto = null, string? codigoCancelacion = null, decimal? arancelBase = null)
         {
             // Instanciamos el contexto de base de datos para ejecutar el procedimiento
             using (var context = new dbTurnosMedicos())
@@ -43,10 +44,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pIdPrioridad = new SqlParameter("@IdPrioridad", idPrioridad);
                 var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
                 var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
+                var pArancel = new SqlParameter("@ArancelBase", (object?)arancelBase ?? DBNull.Value);
 
                 // Ejecutamos sp_CrearTurnoEmergencia pasando los parámetros requeridos
                 var resultado = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad, @Monto, @CodigoCancelacion", pIdPaciente, pIdPrioridad, pMonto, pCodigo)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEmergencia @IdPaciente, @IdPrioridad, @Monto, @CodigoCancelacion, @ArancelBase", pIdPaciente, pIdPrioridad, pMonto, pCodigo, pArancel)
                     .AsEnumerable()
                     .FirstOrDefault();
 
@@ -246,8 +248,9 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="horario">Horario asignado.</param>
         /// <param name="estado">Estado inicial del turno.</param>
         /// <param name="codigoCancelacion">Palabra clave alfanumérica de 2FA para cancelación.</param>
+        /// <param name="arancelBase">Arancel completo vigente, registrado en el turno para los reportes históricos (opcional).</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del nuevo turno y número de orden.</returns>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null)
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null, decimal? arancelBase = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -258,10 +261,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pEstado = new SqlParameter("@Estado", estado);
                 var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
                 var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
+                var pArancel = new SqlParameter("@ArancelBase", (object?)arancelBase ?? DBNull.Value);
 
                 var res = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion, @Monto",
-                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo, pMonto)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion, @Monto, @ArancelBase",
+                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo, pMonto, pArancel)
                     .AsEnumerable()
                     .FirstOrDefault();
 

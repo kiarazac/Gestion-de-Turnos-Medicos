@@ -1,9 +1,16 @@
 namespace Gestion_de_Turnos_Medicos
 {
-    partial class FrmGerente
+    partial class FrmPrincipal
     {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -15,101 +22,63 @@ namespace Gestion_de_Turnos_Medicos
 
         #region Windows Form Designer generated code
 
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmPrincipal));
             panel1 = new Panel();
             pnlNav = new Panel();
-            btnReportes = new Button();
-            btnSalas = new Button();
             pnlFooterSidebar = new Panel();
             btnSalir = new Button();
             pnlHeaderSidebar = new Panel();
             pnlSeparador = new Panel();
-            LUsuarioInfo = new Label();
-            LTituloRol = new Label();
+            lblUsuario = new Label();
+            lblRolTitulo = new Label();
             lblClinica = new Label();
             pnlContenedor = new Panel();
             panel1.SuspendLayout();
-            pnlNav.SuspendLayout();
             pnlFooterSidebar.SuspendLayout();
             pnlHeaderSidebar.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // panel1
-            // 
+            //
             panel1.AutoScroll = true;
-            panel1.BackColor = Color.FromArgb(13, 37, 34);
+            panel1.BackColor = Color.FromArgb(15, 23, 42);
             panel1.Controls.Add(pnlNav);
             panel1.Controls.Add(pnlFooterSidebar);
             panel1.Controls.Add(pnlHeaderSidebar);
             panel1.Dock = DockStyle.Left;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(240, 560);
+            panel1.Size = new Size(240, 524);
             panel1.TabIndex = 0;
-            // 
+            //
             // pnlNav
-            // 
+            //
             pnlNav.AutoScroll = true;
             pnlNav.BackColor = Color.Transparent;
-            pnlNav.Controls.Add(btnReportes);
-            pnlNav.Controls.Add(btnSalas);
             pnlNav.Dock = DockStyle.Fill;
             pnlNav.Location = new Point(0, 105);
             pnlNav.Name = "pnlNav";
-            pnlNav.Size = new Size(240, 385);
+            pnlNav.Size = new Size(240, 349);
             pnlNav.TabIndex = 2;
-            // 
-            // btnReportes
-            // 
-            btnReportes.BackColor = Color.FromArgb(19, 56, 52);
-            btnReportes.Cursor = Cursors.Hand;
-            btnReportes.FlatAppearance.BorderSize = 0;
-            btnReportes.FlatAppearance.MouseDownBackColor = Color.FromArgb(13, 148, 136);
-            btnReportes.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 118, 110);
-            btnReportes.FlatStyle = FlatStyle.Flat;
-            btnReportes.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
-            btnReportes.ForeColor = Color.White;
-            btnReportes.Location = new Point(15, 12);
-            btnReportes.Name = "btnReportes";
-            btnReportes.Padding = new Padding(12, 0, 0, 0);
-            btnReportes.Size = new Size(210, 46);
-            btnReportes.TabIndex = 0;
-            btnReportes.Text = "📊  Auditoría y Reportes";
-            btnReportes.TextAlign = ContentAlignment.MiddleLeft;
-            btnReportes.UseVisualStyleBackColor = false;
             //
-            // btnSalas
-            //
-            btnSalas.BackColor = Color.FromArgb(19, 56, 52);
-            btnSalas.Cursor = Cursors.Hand;
-            btnSalas.FlatAppearance.BorderSize = 0;
-            btnSalas.FlatAppearance.MouseDownBackColor = Color.FromArgb(13, 148, 136);
-            btnSalas.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 118, 110);
-            btnSalas.FlatStyle = FlatStyle.Flat;
-            btnSalas.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
-            btnSalas.ForeColor = Color.White;
-            btnSalas.Location = new Point(15, 66);
-            btnSalas.Name = "btnSalas";
-            btnSalas.Padding = new Padding(12, 0, 0, 0);
-            btnSalas.Size = new Size(210, 46);
-            btnSalas.TabIndex = 1;
-            btnSalas.Text = "🏥  Salas y Consultorios";
-            btnSalas.TextAlign = ContentAlignment.MiddleLeft;
-            btnSalas.UseVisualStyleBackColor = false;
-            // 
             // pnlFooterSidebar
-            // 
-            pnlFooterSidebar.BackColor = Color.FromArgb(7, 22, 20);
+            //
+            pnlFooterSidebar.BackColor = Color.FromArgb(10, 15, 29);
             pnlFooterSidebar.Controls.Add(btnSalir);
             pnlFooterSidebar.Dock = DockStyle.Bottom;
-            pnlFooterSidebar.Location = new Point(0, 490);
+            pnlFooterSidebar.Location = new Point(0, 454);
             pnlFooterSidebar.Name = "pnlFooterSidebar";
             pnlFooterSidebar.Size = new Size(240, 70);
             pnlFooterSidebar.TabIndex = 1;
-            // 
+            //
             // btnSalir
-            // 
+            //
             btnSalir.BackColor = Color.FromArgb(127, 29, 29);
             btnSalir.Cursor = Cursors.Hand;
             btnSalir.FlatAppearance.BorderSize = 0;
@@ -126,83 +95,81 @@ namespace Gestion_de_Turnos_Medicos
             btnSalir.Text = "🚪  Cerrar Sesión";
             btnSalir.TextAlign = ContentAlignment.MiddleLeft;
             btnSalir.UseVisualStyleBackColor = false;
-            // 
+            //
             // pnlHeaderSidebar
-            // 
-            pnlHeaderSidebar.BackColor = Color.FromArgb(7, 22, 20);
+            //
+            pnlHeaderSidebar.BackColor = Color.FromArgb(10, 15, 29);
             pnlHeaderSidebar.Controls.Add(pnlSeparador);
-            pnlHeaderSidebar.Controls.Add(LUsuarioInfo);
-            pnlHeaderSidebar.Controls.Add(LTituloRol);
+            pnlHeaderSidebar.Controls.Add(lblUsuario);
+            pnlHeaderSidebar.Controls.Add(lblRolTitulo);
             pnlHeaderSidebar.Controls.Add(lblClinica);
             pnlHeaderSidebar.Dock = DockStyle.Top;
             pnlHeaderSidebar.Location = new Point(0, 0);
             pnlHeaderSidebar.Name = "pnlHeaderSidebar";
             pnlHeaderSidebar.Size = new Size(240, 105);
             pnlHeaderSidebar.TabIndex = 0;
-            // 
+            //
             // pnlSeparador
-            // 
-            pnlSeparador.BackColor = Color.FromArgb(20, 83, 76);
+            //
+            pnlSeparador.BackColor = Color.FromArgb(51, 65, 85);
             pnlSeparador.Location = new Point(15, 96);
             pnlSeparador.Name = "pnlSeparador";
             pnlSeparador.Size = new Size(210, 1);
             pnlSeparador.TabIndex = 3;
-            // 
-            // LUsuarioInfo
-            // 
-            LUsuarioInfo.AutoEllipsis = true;
-            LUsuarioInfo.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            LUsuarioInfo.ForeColor = Color.FromArgb(240, 253, 244);
-            LUsuarioInfo.Location = new Point(15, 65);
-            LUsuarioInfo.Name = "LUsuarioInfo";
-            LUsuarioInfo.Size = new Size(210, 20);
-            LUsuarioInfo.TabIndex = 2;
-            LUsuarioInfo.Text = "Gerente";
-            // 
-            // LTituloRol
-            // 
-            LTituloRol.AutoSize = true;
-            LTituloRol.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            LTituloRol.ForeColor = Color.FromArgb(52, 211, 153);
-            LTituloRol.Location = new Point(15, 38);
-            LTituloRol.Name = "LTituloRol";
-            LTituloRol.Size = new Size(183, 20);
-            LTituloRol.TabIndex = 1;
-            LTituloRol.Text = "👔 DIRECCIÓN GERENCIAL";
-            // 
+            //
+            // lblUsuario
+            //
+            lblUsuario.AutoEllipsis = true;
+            lblUsuario.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblUsuario.ForeColor = Color.FromArgb(241, 245, 249);
+            lblUsuario.Location = new Point(15, 65);
+            lblUsuario.Name = "lblUsuario";
+            lblUsuario.Size = new Size(210, 20);
+            lblUsuario.TabIndex = 2;
+            lblUsuario.Text = "Usuario";
+            //
+            // lblRolTitulo
+            //
+            lblRolTitulo.AutoSize = true;
+            lblRolTitulo.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblRolTitulo.ForeColor = Color.FromArgb(56, 189, 248);
+            lblRolTitulo.Location = new Point(15, 38);
+            lblRolTitulo.Name = "lblRolTitulo";
+            lblRolTitulo.Size = new Size(160, 20);
+            lblRolTitulo.TabIndex = 1;
+            lblRolTitulo.Text = "ROL";
+            //
             // lblClinica
-            // 
+            //
             lblClinica.AutoSize = true;
             lblClinica.Font = new Font("Segoe UI", 8.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblClinica.ForeColor = Color.FromArgb(110, 231, 183);
+            lblClinica.ForeColor = Color.FromArgb(148, 163, 184);
             lblClinica.Location = new Point(15, 16);
             lblClinica.Name = "lblClinica";
             lblClinica.Size = new Size(125, 13);
             lblClinica.TabIndex = 0;
             lblClinica.Text = "GESTIÓN HOSPITALARIA";
-            // 
+            //
             // pnlContenedor
-            // 
-            pnlContenedor.BackgroundImage = Properties.Resources.fondo_admin;
+            //
             pnlContenedor.Dock = DockStyle.Fill;
             pnlContenedor.Location = new Point(240, 0);
             pnlContenedor.Name = "pnlContenedor";
-            pnlContenedor.Size = new Size(768, 560);
+            pnlContenedor.Size = new Size(925, 524);
             pnlContenedor.TabIndex = 1;
-            // 
-            // FrmGerente
-            // 
+            //
+            // FrmPrincipal
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackgroundImage = Properties.Resources.fondo_admin;
-            ClientSize = new Size(1008, 560);
+            ClientSize = new Size(1165, 524);
             Controls.Add(pnlContenedor);
             Controls.Add(panel1);
-            Name = "FrmGerente";
-            Text = "Panel de Dirección Gerencial";
+            Icon = (Icon)resources.GetObject("$this.Icon");
+            Name = "FrmPrincipal";
+            Text = "Pantalla Principal";
             WindowState = FormWindowState.Maximized;
             panel1.ResumeLayout(false);
-            pnlNav.ResumeLayout(false);
             pnlFooterSidebar.ResumeLayout(false);
             pnlHeaderSidebar.ResumeLayout(false);
             pnlHeaderSidebar.PerformLayout();
@@ -214,12 +181,10 @@ namespace Gestion_de_Turnos_Medicos
         private Panel panel1;
         private Panel pnlHeaderSidebar;
         private Label lblClinica;
-        private Label LTituloRol;
-        private Label LUsuarioInfo;
+        private Label lblRolTitulo;
+        private Label lblUsuario;
         private Panel pnlSeparador;
         private Panel pnlNav;
-        private Button btnReportes;
-        private Button btnSalas;
         private Panel pnlFooterSidebar;
         private Button btnSalir;
         private Panel pnlContenedor;

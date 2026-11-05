@@ -182,7 +182,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             codigoCancelacion = GenerarCodigoCancelacion();
 
             // Invocamos al procedimiento almacenado sp_CrearTurnoEmergencia con la prioridad, el monto y la clave 2FA
-            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada, monto, codigoCancelacion);
+            var resultadoTurno = _turnoDAL.CrearTurnoEmergenciaCompleto(idPaciente, prioridadDeterminada, monto, codigoCancelacion, ObtenerArancelBase("Emergencia"));
 
             if (resultadoTurno.IdNuevoTurno <= 0)
                 throw new Exception("Error al generar el turno en la base de datos.");
@@ -338,7 +338,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 codigoCancelacion = GenerarCodigoCancelacion();
             }
 
-            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion, monto);
+            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion, monto, ObtenerArancelBase("Especialidad"));
         }
 
         /// <summary>
@@ -512,7 +512,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 throw new InvalidOperationException($"El turno {datos.NroOrden} es del {fechaTurno:dd/MM/yyyy}. Solo se puede descargar el comprobante de turnos de hoy en adelante.");
 
             // El % se deriva de lo efectivamente cobrado, así el comprobante no cambia si luego se edita la obra social
-            decimal arancelBase = ObtenerArancelBase(datos.Seccion);
+            decimal arancelBase = datos.ArancelBase ?? ObtenerArancelBase(datos.Seccion);
             decimal porcentajeCobertura = 100m - Math.Round((datos.MontoCobrado ?? arancelBase) * 100m / arancelBase, 2);
             datos.DetalleArancel = ObtenerCondicionCobroTexto(datos.ObraSocial, porcentajeCobertura);
             return datos;

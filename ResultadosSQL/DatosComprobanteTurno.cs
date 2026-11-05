@@ -42,6 +42,9 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Arancel monetario cobrado o a abonar en caja.</summary>
         public decimal? MontoCobrado { get; set; }
 
+        /// <summary>Arancel completo registrado al emitir el turno (solo se completa al re-descargar el comprobante desde la base).</summary>
+        public decimal? ArancelBase { get; set; }
+
         /// <summary>Detalle de la condición arancelaria (ej. 'Particular (100% Arancel Completo)' o 'Copago 30% (Obra Social)').</summary>
         public string? DetalleArancel { get; set; }
 

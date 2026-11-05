@@ -77,10 +77,10 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         /// <returns>Monto total cubierto por obras sociales.</returns>
         public static decimal CalcularCoberturaObraSocial(List<ReporteCierreCajaDetalleDTO> detalles)
         {
-            // shortcut: asume aranceles base fijos (15000/25000) de TurnoBLL; si cambian, guardar el arancel base por turno
+            // Arancel registrado en el turno; el vigente solo para turnos sin snapshot
             return detalles
                 .Where(d => !d.EsParticular)
-                .Sum(d => Math.Max(0m, TurnoBLL.ObtenerArancelBase(d.TipoTurno) - d.MontoCobrado));
+                .Sum(d => Math.Max(0m, (d.ArancelBase ?? TurnoBLL.ObtenerArancelBase(d.TipoTurno)) - d.MontoCobrado));
         }
     }
 }

@@ -315,7 +315,7 @@ namespace Gestion_de_Turnos_Medicos
 
                 // Cerrar la ventana del Administrador y regresar a FrmLogin
                 Form? formPadre = this.ParentForm;
-                if (formPadre != null && formPadre is FrmAdmin)
+                if (formPadre != null && formPadre is FrmPrincipal)
                 {
                     formPadre.Close();
                 }

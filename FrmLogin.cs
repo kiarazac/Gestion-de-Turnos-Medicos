@@ -94,19 +94,19 @@ namespace Gestion_de_Turnos_Medicos
 
             if (rolNombre.Contains("geren") || usuario.IdRol == 5)
             {
-                formularioDestino = new FrmGerente(usuario);
+                formularioDestino = new FrmPrincipal(usuario, RolSistema.Gerente);
             }
             else if (rolNombre.Contains("admin") || usuario.IdRol == 3)
             {
-                formularioDestino = new FrmAdmin(usuario);
+                formularioDestino = new FrmPrincipal(usuario, RolSistema.Administrador);
             }
             else if (rolNombre.Contains("médic") || rolNombre.Contains("medic") || usuario.IdRol == 1)
             {
-                formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO(usuario);
+                formularioDestino = new FrmPrincipal(usuario, RolSistema.Medico);
             }
             else if (rolNombre.Contains("recep") || usuario.IdRol == 2)
             {
-                formularioDestino = new FrmRecepcionista(usuario);
+                formularioDestino = new FrmPrincipal(usuario, RolSistema.Recepcionista);
             }
             else if (rolNombre.Contains("ventan") || rolNombre.Contains("pantalla") || rolNombre.Contains("visor") || rolNombre.Contains("totem") || usuario.IdRol == 4)
             {
@@ -117,19 +117,19 @@ namespace Gestion_de_Turnos_Medicos
                 switch (usuario.IdRol)
                 {
                     case 1:
-                        formularioDestino = new Pantalla_Principal_PERSONAL_MEDICO(usuario);
+                        formularioDestino = new FrmPrincipal(usuario, RolSistema.Medico);
                         break;
                     case 2:
-                        formularioDestino = new FrmRecepcionista(usuario);
+                        formularioDestino = new FrmPrincipal(usuario, RolSistema.Recepcionista);
                         break;
                     case 3:
-                        formularioDestino = new FrmAdmin(usuario);
+                        formularioDestino = new FrmPrincipal(usuario, RolSistema.Administrador);
                         break;
                     case 4:
                         formularioDestino = new FrmUsuarioVentana(usuario);
                         break;
                     case 5:
-                        formularioDestino = new FrmGerente(usuario);
+                        formularioDestino = new FrmPrincipal(usuario, RolSistema.Gerente);
                         break;
                     default:
                         MessageBox.Show($"El rol '{usuario.NombreRol}' (ID {usuario.IdRol}) no cuenta con una pantalla asignada en el sistema.",

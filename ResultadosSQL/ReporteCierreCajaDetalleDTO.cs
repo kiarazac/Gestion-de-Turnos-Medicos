@@ -19,6 +19,8 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public string TipoTurno { get; set; } = string.Empty;
         public string Especialidad { get; set; } = string.Empty;
         public decimal MontoCobrado { get; set; }
+        /// <summary>Arancel completo registrado al emitir el turno (null en turnos sin snapshot).</summary>
+        public decimal? ArancelBase { get; set; }
         public string Estado { get; set; } = string.Empty;
         public string MedicoAsignado { get; set; } = string.Empty;
     }

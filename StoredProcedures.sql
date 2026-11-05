@@ -1517,6 +1517,31 @@ END;
 
 GO
 
+-- Snapshot histórico por turno: arancel base y obra social vigentes al emitirlo.
+-- Los reportes leen estos valores, así un cambio de precios o de cobertura del paciente no altera lo ya registrado.
+IF OBJECT_ID('Turnos') IS NOT NULL AND COL_LENGTH('Turnos', 'ArancelBase') IS NULL
+BEGIN
+    ALTER TABLE Turnos ADD ArancelBase DECIMAL(18,2) NULL;
+    -- Turnos previos: aranceles vigentes hasta hoy ($25.000 Emergencia / $15.000 Especialidad)
+    EXEC('UPDATE Turnos SET ArancelBase = CASE WHEN TipoTurno LIKE ''%Emergencia%'' OR TipoTurno LIKE ''%Guardia%'' THEN 25000.00 ELSE 15000.00 END');
+END;
+
+IF OBJECT_ID('Turnos') IS NOT NULL AND COL_LENGTH('Turnos', 'IdObraSocial') IS NULL
+BEGIN
+    ALTER TABLE Turnos ADD IdObraSocial INT NULL;
+    -- Turnos previos: no hay registro de la cobertura al emitirlos, se toma la actual del paciente
+    IF COL_LENGTH('Pacientes', 'IdObraSocial') IS NOT NULL
+        EXEC('UPDATE t SET t.IdObraSocial = p.IdObraSocial FROM Turnos t INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente');
+END;
+
+GO
+
+IF OBJECT_ID('ObrasSociales') IS NOT NULL AND COL_LENGTH('Turnos', 'IdObraSocial') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Turnos_ObrasSociales')
+    ALTER TABLE Turnos WITH CHECK ADD CONSTRAINT FK_Turnos_ObrasSociales FOREIGN KEY (IdObraSocial) REFERENCES ObrasSociales (IdObraSocial);
+
+GO
+
 /* =========================================================================
 ** Procedimiento : sp_ListarObrasSociales
 ** Sección       : 4.0
@@ -2091,12 +2116,14 @@ GO
 **                `@IdPrioridad` (`INT`, IN) - Nivel de prioridad calculado (1=Alta, 2=Media, 3=Baja).
 **                `@Monto` (`DECIMAL(18,2)`, IN, opcional) - Arancel aplicable en caja según obra social.
 **                `@CodigoCancelacion` (`NVARCHAR(50)`, IN, opcional) - Palabra clave alfanumérica de seguridad 2FA para cancelación.
+**                `@ArancelBase` (`DECIMAL(18,2)`, IN, opcional) - Arancel completo vigente (TurnoBLL); se guarda en el turno para los reportes históricos.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEmergencia
     @IdPaciente INT,
     @IdPrioridad INT,
     @Monto DECIMAL(18,2) = NULL,
-    @CodigoCancelacion NVARCHAR(50) = NULL
+    @CodigoCancelacion NVARCHAR(50) = NULL,
+    @ArancelBase DECIMAL(18,2) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2121,11 +2148,17 @@ BEGIN
             THROW 50002, 'No se encontró configurada una especialidad activa para "Emergencia" en la base de datos.', 1;
         END
 
+        SET @ArancelBase = ISNULL(@ArancelBase, 25000.00);
+
+        -- Obra social del paciente al momento de emitir el turno (queda registrada en el turno)
+        DECLARE @IdObraSocial INT;
+        SELECT @IdObraSocial = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+
         -- Si no se proveyó un monto explícito, se calcula según si el paciente tiene obra social o es particular
         IF @Monto IS NULL
         BEGIN
-            -- Arancel base $25.000 menos el % que cubre la obra social del paciente (Particular = 0%)
-            SELECT @Monto = ROUND(25000.00 * (100 - ISNULL(os.PorcentajeCobertura, 0)) / 100, 2)
+            -- Arancel base menos el % que cubre la obra social del paciente (Particular = 0%)
+            SELECT @Monto = ROUND(@ArancelBase * (100 - ISNULL(os.PorcentajeCobertura, 0)) / 100, 2)
             FROM Pacientes p
             LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
             WHERE p.IdPaciente = @IdPaciente;
@@ -2157,8 +2190,8 @@ BEGIN
             SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
         END;
 
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
-        VALUES (@NroOrden, 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, ArancelBase, IdObraSocial, Activo, FechaCreacion)
+        VALUES (@NroOrden, 'En Espera', CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), 'Emergencia', @IdPrioridad, @IdPaciente, @IdEspecialidadEmergencia, @CodigoCancelacion, ISNULL(@Monto, 0.00), @ArancelBase, @IdObraSocial, 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
 
@@ -2377,6 +2410,8 @@ GO
 **                `@Horario` (`NVARCHAR(10)`, IN) - Horario asignado (ej. '10:30').
 **                `@Estado` (`NVARCHAR(50)`, IN) - Estado inicial ('En Espera').
 **                `@CodigoCancelacion` (`NVARCHAR(50)`, IN) - Clave alfanumérica de confirmación de doble factor (2FA).
+**                `@Monto` (`DECIMAL(18,2)`, IN, opcional) - Monto a cobrar en caja.
+**                `@ArancelBase` (`DECIMAL(18,2)`, IN, opcional) - Arancel completo vigente (TurnoBLL); se guarda en el turno para los reportes históricos.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @IdPaciente INT,
@@ -2385,7 +2420,8 @@ CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @Horario NVARCHAR(10),
     @Estado NVARCHAR(50) = 'En Espera',
     @CodigoCancelacion NVARCHAR(50) = NULL,
-    @Monto DECIMAL(18,2) = NULL
+    @Monto DECIMAL(18,2) = NULL,
+    @ArancelBase DECIMAL(18,2) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2463,9 +2499,13 @@ BEGIN
             SET @NroOrden = CONCAT(@Prefijo, '-', RIGHT('000' + CAST(@Secuencia AS VARCHAR(10)), 3));
         END;
 
+        -- Obra social del paciente al momento de emitir el turno (queda registrada en el turno)
+        DECLARE @IdObraSocial INT;
+        SELECT @IdObraSocial = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
+
         -- Insertamos directamente con el NroOrden definitivo
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, Activo, FechaCreacion)
-        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Especialidad', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, ArancelBase, IdObraSocial, Activo, FechaCreacion)
+        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Especialidad', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), ISNULL(@ArancelBase, 15000.00), @IdObraSocial, 1, GETDATE());
 
         SET @IdTurno = SCOPE_IDENTITY();
 
@@ -2799,6 +2839,8 @@ GO
 
 -- Sugerencias de horarios retiradas de FrmTurnoEspecialidad
 DROP PROCEDURE IF EXISTS sp_SugerirHorariosLibres;
+
+GO
 
 /* =========================================================================
 ** Procedimiento : sp_BuscarTurnoActivoEmergencia
@@ -3266,13 +3308,15 @@ BEGIN
         CASE WHEN t.TipoTurno = 'Especialidad' THEN LEFT(CONVERT(VARCHAR(8), t.Horario, 108), 5) END AS HorarioTurnoProgramado,
         t.CodigoCancelacion,
         t.Monto AS MontoCobrado,
+        t.ArancelBase,
         CAST(NULL AS NVARCHAR(100)) AS DetalleArancel
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
-    LEFT JOIN ObrasSociales os ON pac.IdObraSocial = os.IdObraSocial
+    -- Obra social registrada al emitir el turno (la actual del paciente solo si el turno no la tiene)
+    LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, pac.IdObraSocial)
     WHERE t.Activo = 1
       AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
       AND (@Estado IS NULL OR t.Estado = @Estado)
@@ -3997,8 +4041,8 @@ BEGIN
         ) AS SintomasTriage
     FROM HistoriasClinicas hc
     INNER JOIN Pacientes p ON hc.IdPaciente = p.IdPaciente
-    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
     LEFT JOIN Turnos t ON hc.IdTurno = t.IdTurno
+    LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
     LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
@@ -4372,7 +4416,7 @@ BEGIN
             ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+        LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
         LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
         LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
         WHERE t.TipoTurno = 'Emergencia'
@@ -4599,7 +4643,7 @@ BEGIN
             ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEspecialidad
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+        LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
         WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
                OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
           AND t.Activo = 1
@@ -4621,7 +4665,7 @@ GO
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
 ** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
 ** Estado        : `EN USO`
-** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `ArancelBase`, `Estado`, `MedicoAsignado`
 ** Parámetros   :
 **                `@Fecha` (`DATE`, IN, OPT) - Fecha consultada para el detalle de caja.
 **                `@Especialidad` (`NVARCHAR(100)`, IN, OPT) - Especialidad a filtrar.
@@ -4654,11 +4698,12 @@ BEGIN
             ISNULL(t.TipoTurno, 'Especialidad') AS TipoTurno,
             ISNULL(e.Nombre, 'General') AS Especialidad,
             ISNULL(t.Monto, 0.00) AS MontoCobrado,
+            t.ArancelBase,
             ISNULL(t.Estado, 'En Espera') AS Estado,
             ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado
         FROM Turnos t
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+        LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
         LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
         WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
@@ -4744,11 +4789,12 @@ RETURN
         END AS ACobrarObraSocial
     FROM Turnos t
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-    LEFT JOIN ObrasSociales os ON p.IdObraSocial = os.IdObraSocial
+    -- Obra social y arancel registrados al emitir el turno; los parámetros solo cubren turnos sin snapshot
+    LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
     CROSS APPLY (
         SELECT
             CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN 1 ELSE 0 END AS EsEmergencia,
-            CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN @ArancelEmergencia ELSE @ArancelEspecialidad END AS ArancelBase,
+            COALESCE(t.ArancelBase, CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN @ArancelEmergencia ELSE @ArancelEspecialidad END) AS ArancelBase,
             CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN 1 ELSE 0 END AS EsObraSocial
     ) x
     WHERE CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) BETWEEN @FechaDesde AND @FechaHasta
