@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Gestion_de_Turnos_Medicos.CapaNegocio;
 using Gestion_de_Turnos_Medicos.Negocio;
 using Gestion_de_Turnos_Medicos.ResultadosSQL;
 using Gestion_de_Turnos_Medicos.Servicios;
@@ -52,6 +53,13 @@ namespace Gestion_de_Turnos_Medicos
 
         private (Label Valor, Label Detalle) _kpiFacturado, _kpiCaja, _kpiObraSocial, _kpiTicket, _kpiTurnos, _kpiAusentismo;
 
+        // Pestaña Devoluciones (creada por código para no tocar el diseñador)
+        private readonly CajaBLL _cajaBLL = new CajaBLL();
+        private readonly DataGridView dgvDevoluciones = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, BorderStyle = BorderStyle.None };
+        private readonly Button btnMarcarRevisada = new Button { Text = "✔ Marcar como revisada", AutoSize = true, Location = new Point(8, 8), Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+        private readonly Label lblResumenDevoluciones = new Label { AutoSize = true, Location = new Point(200, 13), Font = new Font("Segoe UI", 9F), ForeColor = ColorGris };
+        private TabPage? _tabDevoluciones;
+
         public FrmReportesGerente() : this(null)
         {
         }
@@ -71,6 +79,7 @@ namespace Gestion_de_Turnos_Medicos
         {
             CrearTarjetasKpi();
             ConfigurarGrillas();
+            CrearPestanaDevoluciones();
             CargarEspecialidades();
             cmbPeriodo.SelectedIndex = 0; // "Hoy" por defecto para controlar la recaudación del día
             CargarDatos();
@@ -461,6 +470,7 @@ namespace Gestion_de_Turnos_Medicos
 
                 lblLeyendaCobertura.Visible = _rankingObrasSociales.Any(o => o.CoberturaConDiferencia);
                 ActualizarKpis();
+                CargarDevoluciones();
             }
             catch (Exception ex)
             {
@@ -477,6 +487,101 @@ namespace Gestion_de_Turnos_Medicos
         {
             dgv.DataSource = null;
             dgv.DataSource = datos;
+        }
+
+        #endregion
+
+        #region Devoluciones
+
+        private void CrearPestanaDevoluciones()
+        {
+            ConfigurarGrillaBase(dgvDevoluciones);
+            AgregarColumna(dgvDevoluciones, "colFechaDev", "Fecha Devolución", nameof(DevolucionDTO.FechaDevolucion), 125, "dd/MM/yyyy HH:mm");
+            AgregarColumna(dgvDevoluciones, "colNro", "N° Turno", nameof(DevolucionDTO.NroOrden), 75, alineacion: DataGridViewContentAlignment.MiddleCenter, negrita: true);
+            AgregarColumna(dgvDevoluciones, "colFechaTurno", "Turno Programado", nameof(DevolucionDTO.FechaTurno), 125, "dd/MM/yyyy HH:mm");
+            AgregarColumna(dgvDevoluciones, "colEsp", "Especialidad", nameof(DevolucionDTO.Especialidad), 120);
+            AgregarColumna(dgvDevoluciones, "colPaciente", "Paciente", nameof(DevolucionDTO.Paciente), 170, negrita: true);
+            AgregarColumna(dgvDevoluciones, "colDni", "DNI", nameof(DevolucionDTO.Dni), 85);
+            AgregarColumna(dgvDevoluciones, "colOS", "Cobertura", nameof(DevolucionDTO.ObraSocial), 140);
+            AgregarColumnaMonto(dgvDevoluciones, "colMonto", "Monto Devuelto", nameof(DevolucionDTO.Monto), ColorRojo);
+            AgregarColumna(dgvDevoluciones, "colMotivo", "Motivo", nameof(DevolucionDTO.Motivo), 240);
+            AgregarColumna(dgvDevoluciones, "colRevisadaPor", "Revisada por", nameof(DevolucionDTO.RevisadaPor), 140);
+            AgregarColumna(dgvDevoluciones, "colFechaRev", "Fecha Revisión", nameof(DevolucionDTO.FechaRevision), 120, "dd/MM/yyyy HH:mm");
+
+            // Pendientes resaltadas; revisadas atenuadas
+            dgvDevoluciones.DataBindingComplete += (s, e) =>
+            {
+                foreach (DataGridViewRow fila in dgvDevoluciones.Rows)
+                {
+                    if (fila.DataBoundItem is DevolucionDTO d)
+                        fila.DefaultCellStyle.BackColor = d.Revisada ? Color.FromArgb(241, 245, 249) : Color.FromArgb(254, 242, 242);
+                }
+            };
+
+            btnMarcarRevisada.Click += BtnMarcarRevisada_Click;
+
+            var barra = new Panel { Dock = DockStyle.Top, Height = 40 };
+            barra.Controls.Add(btnMarcarRevisada);
+            barra.Controls.Add(lblResumenDevoluciones);
+
+            _tabDevoluciones = new TabPage("Devoluciones") { BackColor = Color.White };
+            _tabDevoluciones.Controls.Add(dgvDevoluciones); // Fill primero: el panel superior se acopla antes
+            _tabDevoluciones.Controls.Add(barra);
+            tabReportes.TabPages.Add(_tabDevoluciones);
+        }
+
+        /// <summary>
+        /// Carga las devoluciones del período elegido. Un fallo aquí no debe impedir ver el resto de los reportes.
+        /// </summary>
+        private void CargarDevoluciones()
+        {
+            try
+            {
+                var devoluciones = _cajaBLL.ListarDevoluciones(_desde, _hasta);
+                Enlazar(dgvDevoluciones, devoluciones);
+
+                int pendientes = devoluciones.Count(d => !d.Revisada);
+                lblResumenDevoluciones.Text = $"{devoluciones.Count} devoluciones en el período · $ {devoluciones.Sum(d => d.Monto):N2} devueltos · {pendientes} pendientes de revisión";
+                btnMarcarRevisada.Enabled = pendientes > 0;
+                if (_tabDevoluciones != null)
+                    _tabDevoluciones.Text = pendientes > 0 ? $"Devoluciones ({pendientes})" : "Devoluciones";
+            }
+            catch (Exception ex)
+            {
+                lblResumenDevoluciones.Text = "No se pudieron cargar las devoluciones: " + ex.Message;
+                btnMarcarRevisada.Enabled = false;
+            }
+        }
+
+        private void BtnMarcarRevisada_Click(object? sender, EventArgs e)
+        {
+            if (dgvDevoluciones.CurrentRow?.DataBoundItem is not DevolucionDTO dev || !dgvDevoluciones.CurrentRow.Selected)
+            {
+                MessageBox.Show("Seleccione una devolución de la lista.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (dev.Revisada)
+            {
+                MessageBox.Show("Esa devolución ya fue revisada.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var confirmacion = MessageBox.Show(
+                $"¿Marcar como revisada la devolución de $ {dev.Monto:N2} a {dev.Paciente} (turno #{dev.NroOrden})?",
+                "Revisar Devolución", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            try
+            {
+                _cajaBLL.MarcarDevolucionRevisada(dev.IdDevolucion, _usuarioActual?.IdUsuario);
+                CargarDevoluciones();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo marcar la devolución:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         #endregion

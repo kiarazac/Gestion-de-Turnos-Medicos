@@ -23,5 +23,7 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         public decimal? ArancelBase { get; set; }
         public string Estado { get; set; } = string.Empty;
         public string MedicoAsignado { get; set; } = string.Empty;
+        /// <summary>Fila de devolución de dinero (monto negativo): no es un turno emitido, solo descuenta de la caja del día.</summary>
+        public bool EsDevolucion { get; set; }
     }
 }

@@ -39,6 +39,28 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         }
 
         /// <summary>
+        /// Devoluciones de dinero (turnos programados cancelados sin reprogramar) registradas en el período, para revisión del gerente.
+        /// </summary>
+        public List<DevolucionDTO> ListarDevoluciones(DateTime desde, DateTime hasta)
+        {
+            if (desde.Date > hasta.Date)
+                throw new ArgumentException("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'.");
+
+            return _cajaDAL.ListarDevoluciones(desde.Date, hasta.Date);
+        }
+
+        /// <summary>
+        /// Marca una devolución como revisada por el gerente.
+        /// </summary>
+        public void MarcarDevolucionRevisada(int idDevolucion, int? idUsuario)
+        {
+            if (idDevolucion <= 0)
+                throw new ArgumentException("Seleccione una devolución válida.");
+
+            _cajaDAL.MarcarDevolucionRevisada(idDevolucion, idUsuario);
+        }
+
+        /// <summary>
         /// Consolida dinámicamente un resumen financiero a partir de una lista filtrada de turnos.
         /// Permite calcular con precisión los KPIs de caja para cualquier subconjunto o especialidad.
         /// </summary>
@@ -52,18 +74,21 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
                 return new ReporteCierreCajaResumenDTO { FechaCaja = fecha.Date };
             }
 
+            // Las devoluciones (montos negativos) restan de los importes pero no cuentan como turnos
+            var turnos = detalles.Where(d => !d.EsDevolucion).ToList();
+
             return new ReporteCierreCajaResumenDTO
             {
                 FechaCaja = fecha.Date,
-                TotalTurnos = detalles.Count,
+                TotalTurnos = turnos.Count,
                 TotalRecaudado = detalles.Sum(d => d.MontoCobrado),
-                TurnosParticulares = detalles.Count(d => d.EsParticular),
+                TurnosParticulares = turnos.Count(d => d.EsParticular),
                 MontoParticulares = detalles.Where(d => d.EsParticular).Sum(d => d.MontoCobrado),
-                TurnosObraSocial = detalles.Count(d => !d.EsParticular),
+                TurnosObraSocial = turnos.Count(d => !d.EsParticular),
                 MontoObraSocial = detalles.Where(d => !d.EsParticular).Sum(d => d.MontoCobrado),
-                TurnosEmergencia = detalles.Count(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
+                TurnosEmergencia = turnos.Count(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
                 MontoEmergencia = detalles.Where(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado),
-                TurnosEspecialidad = detalles.Count(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
+                TurnosEspecialidad = turnos.Count(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
                 MontoEspecialidad = detalles.Where(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado)
             };
         }
@@ -77,10 +102,15 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         /// <returns>Monto total cubierto por obras sociales.</returns>
         public static decimal CalcularCoberturaObraSocial(List<ReporteCierreCajaDetalleDTO> detalles)
         {
-            // Arancel registrado en el turno; el vigente solo para turnos sin snapshot
+            // Arancel registrado en el turno; el vigente solo para turnos sin snapshot.
+            // Una devolución (importes negativos) revierte la cobertura del turno devuelto.
             return detalles
                 .Where(d => !d.EsParticular)
-                .Sum(d => Math.Max(0m, (d.ArancelBase ?? TurnoBLL.ObtenerArancelBase(d.TipoTurno)) - d.MontoCobrado));
+                .Sum(d =>
+                {
+                    decimal cobertura = Math.Max(0m, Math.Abs(d.ArancelBase ?? TurnoBLL.ObtenerArancelBase(d.TipoTurno)) - Math.Abs(d.MontoCobrado));
+                    return d.EsDevolucion ? -cobertura : cobertura;
+                });
         }
     }
 }

@@ -572,14 +572,26 @@ namespace Gestion_de_Turnos_Medicos
                 string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial, porcentajeCobertura);
 
                 // Registro del turno con generación automática de palabra clave 2FA y arancel
-                var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera", null, montoArancel);
+                // Reprogramación: el turno nuevo reutiliza lo abonado en el cancelado (el SP hereda monto y cobertura y anula su devolución)
+                var turnoOrigen = _turnoEnReprogramacion;
+                var resultadoTurno = _turnoBLL.CrearTurnoEspecialidad(idPaciente, especialidad, fecha, horario, "En Espera", null, montoArancel, turnoOrigen?.IdTurno);
                 string nroOrden = resultadoTurno.NroOrden ?? $"T-{resultadoTurno.IdNuevoTurno:D3}";
                 string codigoCancelacion = resultadoTurno.CodigoCancelacion ?? string.Empty;
 
+                if (turnoOrigen != null)
+                {
+                    var heredado = _turnoBLL.ObtenerDatosComprobante(resultadoTurno.IdNuevoTurno);
+                    montoArancel = heredado.MontoCobrado ?? 0m;
+                    obraSocial = heredado.ObraSocial;
+                    condicionCobro = $"Abonado en el turno #{turnoOrigen.NroOrden} (reprogramado)";
+                }
+
                 Lid_turno.Text = $"# {nroOrden}";
                 Ldescrip_turno_especialidad.Text = especialidad;
-                lblMontoCobro.Text = $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? $"Copago {100 - porcentajeCobertura:0.##}%" : "Particular 100%")})";
-                lblMontoCobro.ForeColor = tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
+                lblMontoCobro.Text = turnoOrigen != null
+                    ? $"YA ABONADO: $ {montoArancel:N2}\n(No cobrar: reprogramación)"
+                    : $"COBRAR: $ {montoArancel:N2}\n({(tieneOS ? $"Copago {100 - porcentajeCobertura:0.##}%" : "Particular 100%")})";
+                lblMontoCobro.ForeColor = turnoOrigen != null ? Color.FromArgb(22, 101, 52) : tieneOS ? Color.FromArgb(0, 70, 140) : Color.FromArgb(178, 34, 34);
 
                 // Guardamos los datos del comprobante para su exportación a .txt incluyendo la clave 2FA y arancel
                 _ultimoTurnoEmitido = new DatosComprobanteTurno
@@ -603,7 +615,9 @@ namespace Gestion_de_Turnos_Medicos
 
                 string mensajeCobro =
                     "==============================================\n" +
-                    $" 💰 COBRAR EN CAJA: $ {montoArancel:N2}\n" +
+                    (turnoOrigen != null
+                        ? $" ✔ NO COBRAR: ya abonado $ {montoArancel:N2}\n"
+                        : $" 💰 COBRAR EN CAJA: $ {montoArancel:N2}\n") +
                     $" Condición: {condicionCobro}\n" +
                     "==============================================\n\n" +
                     $"¡Turno programado con éxito!\n\n" +

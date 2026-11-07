@@ -79,6 +79,13 @@ namespace Gestion_de_Turnos_Medicos
             dgv.ReadOnly = true;
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
 
+            // Las devoluciones (montos negativos que descuentan de la caja) se muestran en rojo
+            dgv.CellFormatting += (s, e) =>
+            {
+                if (e.RowIndex >= 0 && e.CellStyle != null && dgv.Rows[e.RowIndex].DataBoundItem is ReporteCierreCajaDetalleDTO { EsDevolucion: true })
+                    e.CellStyle.ForeColor = Color.FromArgb(185, 28, 28);
+            };
+
             dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colNroOrden",

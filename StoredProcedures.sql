@@ -1597,6 +1597,93 @@ IF OBJECT_ID('ObrasSociales') IS NOT NULL AND COL_LENGTH('Turnos', 'IdObraSocial
 
 GO
 
+-- Reprogramación: el turno de reemplazo apunta al turno cancelado cuyo pago reutiliza.
+-- Que un origen se reutilice una sola vez lo valida sp_CrearTurnoEspecialidad (50111): un índice único filtrado
+-- exigiría QUOTED_IDENTIFIER ON en todos los SP que modifican Turnos.
+IF OBJECT_ID('Turnos') IS NOT NULL AND COL_LENGTH('Turnos', 'IdTurnoOrigen') IS NULL
+    ALTER TABLE Turnos ADD IdTurnoOrigen INT NULL CONSTRAINT FK_Turnos_TurnoOrigen REFERENCES Turnos (IdTurno);
+
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Turnos_IdTurnoOrigen')
+    DROP INDEX UX_Turnos_IdTurnoOrigen ON Turnos;
+
+GO
+
+-- Devoluciones de dinero por turnos programados cancelados (manual o automáticamente) sin reprogramar.
+-- La caja descuenta cada devolución el día en que se registra; el gerente las revisa en FrmReportesGerente.
+IF OBJECT_ID('Devoluciones') IS NULL
+BEGIN
+    CREATE TABLE Devoluciones (
+        IdDevolucion INT IDENTITY(1,1) PRIMARY KEY,
+        IdTurno INT NOT NULL CONSTRAINT FK_Devoluciones_Turnos REFERENCES Turnos (IdTurno),
+        Monto DECIMAL(18,2) NOT NULL,
+        Motivo NVARCHAR(100) NOT NULL,
+        FechaDevolucion DATETIME NOT NULL DEFAULT GETDATE(),
+        Revisada BIT NOT NULL DEFAULT 0,
+        FechaRevision DATETIME NULL,
+        IdUsuarioRevision INT NULL,
+        Activo BIT NOT NULL DEFAULT 1
+    );
+END;
+
+GO
+
+/* =========================================================================
+** Procedimiento : sp_CancelarTurnosVencidos
+** Sección       : 3.9
+** Propósito     : Cancela automáticamente los turnos programados que siguen 'En Espera' después de su fecha
+**                 (nunca fueron llamados ni reprogramados/cancelados a mano) y registra la devolución de lo cobrado.
+**                 No hay SQL Agent en SQLEXPRESS: se ejecuta al inicio de los listados de uso diario, así se pone al día solo.
+** Entidad/Tablas: `Turnos`, `Devoluciones`
+** Invocado por  : `sp_ListarTurnosAtencion`, `sp_ListarTurnosGeneralesPantalla`, `sp_ReporteCierreCajaDetalle`, `sp_ListarDevoluciones`
+** Estado        : `EN USO`
+** Retorno       : Ninguno.
+** Parámetros   : Ninguno.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_CancelarTurnosVencidos
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Turnos
+        WHERE Activo = 1 AND TipoTurno = 'Especialidad' AND Estado = 'En Espera'
+          AND CAST(Fecha AS DATE) < CAST(GETDATE() AS DATE)
+    )
+        RETURN;
+
+    DECLARE @Cancelados TABLE (IdTurno INT, Monto DECIMAL(18,2));
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- El UPDATE revalida la condición por fila: dos ejecuciones simultáneas no cancelan (ni devuelven) dos veces el mismo turno
+        UPDATE Turnos
+        SET Estado = 'Cancelado',
+            Activo = 0,
+            FechaBaja = GETDATE(),
+            FechaModificacion = GETDATE()
+        OUTPUT inserted.IdTurno, ISNULL(inserted.Monto, 0) INTO @Cancelados
+        WHERE Activo = 1 AND TipoTurno = 'Especialidad' AND Estado = 'En Espera'
+          AND CAST(Fecha AS DATE) < CAST(GETDATE() AS DATE);
+
+        INSERT INTO Devoluciones (IdTurno, Monto, Motivo)
+        SELECT IdTurno, Monto, 'Vencido sin atención (cancelación automática)'
+        FROM @Cancelados
+        WHERE Monto > 0;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+
+GO
+
 /* =========================================================================
 ** Procedimiento : sp_ListarObrasSociales
 ** Sección       : 4.0
@@ -2467,6 +2554,8 @@ GO
 **                `@CodigoCancelacion` (`NVARCHAR(50)`, IN) - Clave alfanumérica de confirmación de doble factor (2FA).
 **                `@Monto` (`DECIMAL(18,2)`, IN, opcional) - Monto a cobrar en caja.
 **                `@ArancelBase` (`DECIMAL(18,2)`, IN, opcional) - Arancel completo vigente (TurnoBLL); se guarda en el turno para los reportes históricos.
+**                `@IdTurnoOrigen` (`INT`, IN, opcional) - Reprogramación: turno cancelado cuyo pago se reutiliza. El nuevo turno hereda
+**                                 monto, arancel, obra social y fecha de cobro del original, y se anula la devolución del original.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @IdPaciente INT,
@@ -2476,7 +2565,8 @@ CREATE OR ALTER PROCEDURE sp_CrearTurnoEspecialidad
     @Estado NVARCHAR(50) = 'En Espera',
     @CodigoCancelacion NVARCHAR(50) = NULL,
     @Monto DECIMAL(18,2) = NULL,
-    @ArancelBase DECIMAL(18,2) = NULL
+    @ArancelBase DECIMAL(18,2) = NULL,
+    @IdTurnoOrigen INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2558,17 +2648,47 @@ BEGIN
         DECLARE @IdObraSocial INT;
         SELECT @IdObraSocial = IdObraSocial FROM Pacientes WHERE IdPaciente = @IdPaciente;
 
+        DECLARE @FechaCobro DATETIME = GETDATE();
+
+        -- Reprogramación: lo abonado en el turno original se reutiliza (no se cobra de nuevo ni se devuelve).
+        -- La fecha de cobro también se hereda, así la caja de cada día sigue reflejando el dinero que ingresó ese día.
+        IF @IdTurnoOrigen IS NOT NULL
+        BEGIN
+            SELECT @Monto = o.Monto, @ArancelBase = o.ArancelBase, @IdObraSocial = o.IdObraSocial, @FechaCobro = ISNULL(o.FechaCreacion, GETDATE())
+            FROM Turnos o
+            WHERE o.IdTurno = @IdTurnoOrigen AND o.TipoTurno = 'Especialidad' AND o.Estado = 'Cancelado' AND o.IdPaciente = @IdPaciente;
+
+            IF @@ROWCOUNT = 0
+                THROW 50110, 'El turno original a reprogramar no es válido (debe ser un turno programado cancelado del mismo paciente).', 1;
+
+            IF EXISTS (SELECT 1 FROM Turnos WHERE IdTurnoOrigen = @IdTurnoOrigen)
+                THROW 50111, 'El turno original ya fue reprogramado anteriormente.', 1;
+
+            IF EXISTS (SELECT 1 FROM Devoluciones WHERE IdTurno = @IdTurnoOrigen AND Activo = 1 AND Revisada = 1)
+                THROW 50112, 'La devolución del turno original ya fue revisada por gerencia. Emita un turno nuevo con su cobro.', 1;
+        END
+
+        BEGIN TRANSACTION;
+
         -- Insertamos directamente con el NroOrden definitivo
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, ArancelBase, IdObraSocial, Activo, FechaCreacion)
-        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Especialidad', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), ISNULL(@ArancelBase, 15000.00), @IdObraSocial, 1, GETDATE());
+        INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, ArancelBase, IdObraSocial, Activo, FechaCreacion, IdTurnoOrigen)
+        VALUES (@NroOrden, @Estado, @Fecha, CAST(@Horario AS TIME), 'Especialidad', 3, @IdPaciente, @IdEspecialidad, @CodigoCancelacion, ISNULL(@Monto, 0.00), ISNULL(@ArancelBase, 15000.00), @IdObraSocial, 1, @FechaCobro, @IdTurnoOrigen);
 
         SET @IdTurno = SCOPE_IDENTITY();
+
+        IF @IdTurnoOrigen IS NOT NULL
+            UPDATE Devoluciones SET Activo = 0 WHERE IdTurno = @IdTurnoOrigen AND Activo = 1;
+
+        COMMIT TRANSACTION;
 
         -- Retornamos los datos requeridos por el DTO
         SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden;
 
     END TRY
     BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
         -- Capturamos el error y lo propagamos limpiamente a C#
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
@@ -2630,13 +2750,23 @@ BEGIN
             THROW 50054, 'La palabra clave o código 2FA ingresado es incorrecto. No se puede cancelar el turno.', 1;
         END
 
+        BEGIN TRANSACTION;
+
         UPDATE Turnos
-        SET 
+        SET
             Estado = 'Cancelado',
             Activo = 0,
             FechaBaja = GETDATE(),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno;
+
+        -- Devolución de lo cobrado; si el turno se reprograma, sp_CrearTurnoEspecialidad la anula y el pago pasa al nuevo turno
+        INSERT INTO Devoluciones (IdTurno, Monto, Motivo)
+        SELECT IdTurno, Monto, 'Cancelación manual (recepción)'
+        FROM Turnos
+        WHERE IdTurno = @IdTurno AND TipoTurno = 'Especialidad' AND ISNULL(Monto, 0) > 0;
+
+        COMMIT TRANSACTION;
 
         SELECT @IdTurno AS IdTurnoCancelado, 'Turno cancelado exitosamente' AS Mensaje;
     END TRY
@@ -3202,6 +3332,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Cancelación automática de turnos programados vencidos; un fallo no debe impedir mostrar la pantalla
+    BEGIN TRY EXEC sp_CancelarTurnosVencidos; END TRY BEGIN CATCH END CATCH;
+
     BEGIN TRY
 
     SELECT 
@@ -3214,8 +3347,9 @@ BEGIN
     FROM Turnos t
     LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
     LEFT JOIN Salas s ON t.IdSala = s.IdSala
-    WHERE t.Activo = 1 
+    WHERE t.Activo = 1
       AND t.TipoTurno = 'Especialidad'
+      AND CAST(t.Fecha AS DATE) = CAST(GETDATE() AS DATE) -- Solo turnos programados para hoy
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
@@ -3401,6 +3535,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Cancelación automática de turnos programados vencidos; un fallo no debe impedir mostrar la cola de atención
+    BEGIN TRY EXEC sp_CancelarTurnosVencidos; END TRY BEGIN CATCH END CATCH;
+
     BEGIN TRY
 
     SELECT 
@@ -3435,7 +3572,9 @@ BEGIN
     WHERE t.Activo = 1 
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
-    ORDER BY 
+      -- Programados en espera: solo los de hoy. Emergencias siempre; los ya llamados/en consulta siguen visibles para poder cerrarlos.
+      AND NOT (t.TipoTurno = 'Especialidad' AND t.Estado = 'En Espera' AND CAST(t.Fecha AS DATE) <> CAST(GETDATE() AS DATE))
+    ORDER BY
         CASE WHEN t.Estado IN ('Llamado', 'En Consulta', 'En Atención', 'En Atencion') THEN 0 ELSE 1 END ASC,
         t.IdPrioridad ASC, 
         t.FechaCreacion ASC;
@@ -3601,7 +3740,14 @@ BEGIN
         -- 3. Validar si el turno es de Emergencia y el médico tiene especialidad Clínico
         DECLARE @TipoTurno NVARCHAR(50);
         DECLARE @IdEspecialidadTurno INT;
-        SELECT @TipoTurno = TipoTurno, @IdEspecialidadTurno = IdEspecialidad FROM Turnos WHERE IdTurno = @IdTurno;
+        DECLARE @FechaTurno DATE;
+        SELECT @TipoTurno = TipoTurno, @IdEspecialidadTurno = IdEspecialidad, @FechaTurno = CAST(Fecha AS DATE) FROM Turnos WHERE IdTurno = @IdTurno;
+
+        -- Un turno programado solo puede llamarse en la fecha pactada
+        IF @TipoTurno = 'Especialidad' AND @FechaTurno <> CAST(GETDATE() AS DATE)
+        BEGIN
+            THROW 50088, 'El turno programado no corresponde a la fecha de hoy y no puede ser llamado.', 1;
+        END
 
         IF (@TipoTurno = 'Emergencia' OR EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidadTurno AND Nombre = 'Emergencia'))
            AND @IdUsuario IS NOT NULL
@@ -4719,7 +4865,7 @@ GO
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
 ** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
 ** Estado        : `EN USO`
-** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `ArancelBase`, `Estado`, `MedicoAsignado`
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `ArancelBase`, `Estado`, `MedicoAsignado`, `EsDevolucion` (filas de devolución con monto negativo, solo con `@SoloEmitidosHoy = 1`)
 ** Parámetros   :
 **                `@Fecha` (`DATE`, IN, OPT) - Fecha consultada para el detalle de caja.
 **                `@Especialidad` (`NVARCHAR(100)`, IN, OPT) - Especialidad a filtrar.
@@ -4733,44 +4879,63 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Cancelación automática de turnos programados vencidos (sus devoluciones deben figurar en la caja)
+    BEGIN TRY EXEC sp_CancelarTurnosVencidos; END TRY BEGIN CATCH END CATCH;
+
     BEGIN TRY
         IF @Fecha IS NULL SET @Fecha = CAST(GETDATE() AS DATE);
 
-        SELECT 
+        -- Caja por fecha de emisión (@SoloEmitidosHoy = 1): flujo de dinero del día.
+        --   * Un turno cancelado con devolución sigue sumando el día en que se cobró (ese día ingresó el dinero).
+        --   * Cada devolución resta (fila negativa, EsDevolucion = 1) el día en que se registró.
+        SELECT
             t.IdTurno,
-            ISNULL(t.NroOrden, 'S/N') AS NroOrden,
+            CASE WHEN mov.EsDevolucion = 1 THEN CONCAT('DEV ', ISNULL(t.NroOrden, 'S/N')) ELSE ISNULL(t.NroOrden, 'S/N') END AS NroOrden,
             CAST(t.Fecha AS DATE) AS Fecha,
             t.Horario,
             ISNULL(t.FechaCreacion, t.Fecha) AS FechaEmision,
             ISNULL(CONCAT(p.Apellido, ', ', p.Nombre), 'Sin Paciente') AS PacienteCompleto,
             ISNULL(p.Dni, '--') AS DniPaciente,
             ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-            CASE 
-                WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN CAST(1 AS BIT) 
-                ELSE CAST(0 AS BIT) 
+            CASE
+                WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN CAST(1 AS BIT)
+                ELSE CAST(0 AS BIT)
             END AS EsParticular,
             ISNULL(t.TipoTurno, 'Especialidad') AS TipoTurno,
             ISNULL(e.Nombre, 'General') AS Especialidad,
-            ISNULL(t.Monto, 0.00) AS MontoCobrado,
-            t.ArancelBase,
-            ISNULL(t.Estado, 'En Espera') AS Estado,
-            ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado
-        FROM Turnos t
+            CASE WHEN mov.EsDevolucion = 1 THEN -mov.Monto ELSE ISNULL(t.Monto, 0.00) END AS MontoCobrado,
+            CASE WHEN mov.EsDevolucion = 1 THEN -t.ArancelBase ELSE t.ArancelBase END AS ArancelBase,
+            CASE WHEN mov.EsDevolucion = 1 THEN 'Devolución' ELSE ISNULL(t.Estado, 'En Espera') END AS Estado,
+            ISNULL(CONCAT('Dr. ', u.Apellido, ' ', u.Nombre), 'Sin Asignar') AS MedicoAsignado,
+            mov.EsDevolucion
+        FROM (
+            SELECT t.IdTurno, CAST(0 AS BIT) AS EsDevolucion, CAST(NULL AS DECIMAL(18,2)) AS Monto
+            FROM Turnos t
+            WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
+                   OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
+              AND ((t.Activo = 1 AND t.Estado <> 'Cancelado')
+                   OR (@SoloEmitidosHoy = 1 AND EXISTS (SELECT 1 FROM Devoluciones d WHERE d.IdTurno = t.IdTurno AND d.Activo = 1)))
+
+            UNION ALL
+
+            SELECT d.IdTurno, CAST(1 AS BIT), d.Monto
+            FROM Devoluciones d
+            WHERE @SoloEmitidosHoy = 1
+              AND d.Activo = 1
+              AND CAST(d.FechaDevolucion AS DATE) = @Fecha
+        ) mov
+        INNER JOIN Turnos t ON t.IdTurno = mov.IdTurno
         INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
         LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
         LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
         LEFT JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
-        WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
-               OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
-          AND (@Especialidad IS NULL 
-               OR @Especialidad = '' 
-               OR @Especialidad = 'Todas' 
+        WHERE (@Especialidad IS NULL
+               OR @Especialidad = ''
+               OR @Especialidad = 'Todas'
                OR @Especialidad = 'Todas las Especialidades'
-               OR e.Nombre = @Especialidad 
+               OR e.Nombre = @Especialidad
                OR (@Especialidad = 'Emergencia' AND t.TipoTurno = 'Emergencia'))
-          AND t.Activo = 1
-          AND t.Estado <> 'Cancelado'
-        ORDER BY t.Horario ASC, t.IdTurno ASC;
+        ORDER BY t.Horario ASC, t.IdTurno ASC, mov.EsDevolucion ASC;
 
     END TRY
     BEGIN CATCH
@@ -4778,6 +4943,84 @@ BEGIN
             ROLLBACK TRANSACTION;
         THROW;
     END CATCH;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_ListarDevoluciones
+** Sección       : 7.2.1
+** Propósito     : Lista las devoluciones de dinero (turnos programados cancelados sin reprogramar) registradas en el período,
+**                 con los datos del turno y del paciente, para su revisión por el Gerente.
+** Entidad/Tablas: `Devoluciones`, `Turnos`, `Pacientes`, `Especialidades`, `ObrasSociales`, `Usuarios`
+** Invocado por  : `FrmReportesGerente` (Pestaña Devoluciones)
+** Estado        : `EN USO`
+** Retorno       : `IdDevolucion`, `FechaDevolucion`, `NroOrden`, `FechaTurno`, `Especialidad`, `Paciente`, `Dni`, `ObraSocial`, `Monto`, `Motivo`, `Revisada`, `FechaRevision`, `RevisadaPor`
+** Parámetros   :
+**                `@FechaDesde` (`DATE`, IN) - Fecha inicial de la devolución.
+**                `@FechaHasta` (`DATE`, IN) - Fecha final de la devolución.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_ListarDevoluciones
+    @FechaDesde DATE,
+    @FechaHasta DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY EXEC sp_CancelarTurnosVencidos; END TRY BEGIN CATCH END CATCH;
+
+    SELECT
+        d.IdDevolucion,
+        d.FechaDevolucion,
+        ISNULL(t.NroOrden, 'S/N') AS NroOrden,
+        CAST(CAST(t.Fecha AS DATE) AS DATETIME) + CAST(ISNULL(t.Horario, '00:00') AS DATETIME) AS FechaTurno,
+        ISNULL(e.Nombre, 'General') AS Especialidad,
+        CONCAT(p.Apellido, ', ', p.Nombre) AS Paciente,
+        ISNULL(p.Dni, '--') AS Dni,
+        ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
+        d.Monto,
+        d.Motivo,
+        d.Revisada,
+        d.FechaRevision,
+        CASE WHEN u.IdUsuario IS NULL THEN '' ELSE CONCAT(u.Apellido, ', ', u.Nombre) END AS RevisadaPor
+    FROM Devoluciones d
+    INNER JOIN Turnos t ON t.IdTurno = d.IdTurno
+    INNER JOIN Pacientes p ON p.IdPaciente = t.IdPaciente
+    LEFT JOIN Especialidades e ON e.IdEspecialidad = t.IdEspecialidad
+    LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
+    LEFT JOIN Usuarios u ON u.IdUsuario = d.IdUsuarioRevision
+    WHERE d.Activo = 1
+      AND CAST(d.FechaDevolucion AS DATE) BETWEEN @FechaDesde AND @FechaHasta
+    ORDER BY d.Revisada ASC, d.FechaDevolucion DESC;
+END;
+GO
+
+/* =========================================================================
+** Procedimiento : sp_MarcarDevolucionRevisada
+** Sección       : 7.2.2
+** Propósito     : Registra que el Gerente revisó una devolución (fecha y usuario de la revisión).
+** Entidad/Tablas: `Devoluciones`
+** Invocado por  : `FrmReportesGerente` (Botón "Marcar como revisada")
+** Estado        : `EN USO`
+** Retorno       : Ninguno.
+** Parámetros   :
+**                `@IdDevolucion` (`INT`, IN) - Devolución revisada.
+**                `@IdUsuario` (`INT`, IN, OPT) - Gerente que la revisó.
+** ========================================================================= */
+CREATE OR ALTER PROCEDURE sp_MarcarDevolucionRevisada
+    @IdDevolucion INT,
+    @IdUsuario INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM Devoluciones WHERE IdDevolucion = @IdDevolucion AND Activo = 1)
+        THROW 50113, 'La devolución no existe o fue anulada.', 1;
+
+    UPDATE Devoluciones
+    SET Revisada = 1,
+        FechaRevision = GETDATE(),
+        IdUsuarioRevision = @IdUsuario
+    WHERE IdDevolucion = @IdDevolucion AND Activo = 1 AND Revisada = 0;
 END;
 GO
 

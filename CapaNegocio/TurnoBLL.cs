@@ -304,7 +304,8 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID de turno, código de orden generado y clave 2FA.</returns>
         /// <exception cref="ArgumentException">Se lanza si faltan datos o la fecha es anterior al día actual.</exception>
         /// <exception cref="InvalidOperationException">Se lanza si ya existe un turno asignado para la misma fecha, horario y especialidad.</exception>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null)
+        /// <param name="idTurnoOrigen">Reprogramación: turno cancelado cuyo pago se reutiliza (no se cobra de nuevo ni se devuelve).</param>
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null, int? idTurnoOrigen = null)
         {
             if (idPaciente <= 0 || string.IsNullOrWhiteSpace(nombreEspecialidad) || string.IsNullOrWhiteSpace(horario))
                 throw new ArgumentException("Todos los datos del turno programado son obligatorios.");
@@ -338,7 +339,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
                 codigoCancelacion = GenerarCodigoCancelacion();
             }
 
-            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion, monto, ObtenerArancelBase("Especialidad"));
+            return _turnoDAL.CrearTurnoEspecialidad(idPaciente, nombreEspecialidad, fecha, horario, estado, codigoCancelacion, monto, ObtenerArancelBase("Especialidad"), idTurnoOrigen);
         }
 
         /// <summary>

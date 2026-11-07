@@ -137,5 +137,32 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 }
             }
         }
+
+        /// <summary>
+        /// Ejecuta <c>sp_ListarDevoluciones</c>: devoluciones registradas entre las fechas dadas.
+        /// </summary>
+        public List<DevolucionDTO> ListarDevoluciones(DateTime desde, DateTime hasta)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                return context.Database
+                    .SqlQueryRaw<DevolucionDTO>("EXEC sp_ListarDevoluciones @FechaDesde, @FechaHasta",
+                        new SqlParameter("@FechaDesde", desde.Date), new SqlParameter("@FechaHasta", hasta.Date))
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta <c>sp_MarcarDevolucionRevisada</c>: registra la revisión de la devolución por el gerente.
+        /// </summary>
+        public void MarcarDevolucionRevisada(int idDevolucion, int? idUsuario)
+        {
+            using (var context = new dbTurnosMedicos())
+            {
+                context.Database.ExecuteSqlRaw("EXEC sp_MarcarDevolucionRevisada @IdDevolucion, @IdUsuario",
+                    new SqlParameter("@IdDevolucion", idDevolucion),
+                    new SqlParameter("@IdUsuario", (object?)idUsuario ?? DBNull.Value));
+            }
+        }
     }
 }

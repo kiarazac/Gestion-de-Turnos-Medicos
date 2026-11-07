@@ -250,7 +250,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         /// <param name="codigoCancelacion">Palabra clave alfanumérica de 2FA para cancelación.</param>
         /// <param name="arancelBase">Arancel completo vigente, registrado en el turno para los reportes históricos (opcional).</param>
         /// <returns>Objeto <see cref="ResultadoTurnoDTO"/> con el ID del nuevo turno y número de orden.</returns>
-        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null, decimal? arancelBase = null)
+        /// <param name="idTurnoOrigen">Reprogramación: turno cancelado cuyo pago se reutiliza (opcional).</param>
+        public ResultadoTurnoDTO CrearTurnoEspecialidad(int idPaciente, string nombreEspecialidad, DateTime fecha, string horario, string estado = "En Espera", string? codigoCancelacion = null, decimal? monto = null, decimal? arancelBase = null, int? idTurnoOrigen = null)
         {
             using (var context = new dbTurnosMedicos())
             {
@@ -262,10 +263,11 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
                 var pCodigo = new SqlParameter("@CodigoCancelacion", (object?)codigoCancelacion ?? DBNull.Value);
                 var pMonto = new SqlParameter("@Monto", (object?)monto ?? DBNull.Value);
                 var pArancel = new SqlParameter("@ArancelBase", (object?)arancelBase ?? DBNull.Value);
+                var pOrigen = new SqlParameter("@IdTurnoOrigen", (object?)idTurnoOrigen ?? DBNull.Value);
 
                 var res = context.Database
-                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion, @Monto, @ArancelBase",
-                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo, pMonto, pArancel)
+                    .SqlQueryRaw<ResultadoTurnoDTO>("EXEC sp_CrearTurnoEspecialidad @IdPaciente, @NombreEspecialidad, @Fecha, @Horario, @Estado, @CodigoCancelacion, @Monto, @ArancelBase, @IdTurnoOrigen",
+                        pIdPaciente, pEspecialidad, pFecha, pHorario, pEstado, pCodigo, pMonto, pArancel, pOrigen)
                     .AsEnumerable()
                     .FirstOrDefault();
 
