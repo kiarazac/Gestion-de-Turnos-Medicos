@@ -713,6 +713,11 @@ namespace Gestion_de_Turnos_Medicos
                 CargarUsuariosDesdeBD();
                 BloquearFormularioEnPaso1();
             }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50036 || ex.Number == 50107)
+            {
+                // Regla de negocio de sp_EliminarUsuario: paciente en atención o turnos sin cobertura
+                MessageBox.Show(ex.Message, "Baja Bloqueada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             catch (Exception ex)
             {
                 MessageBox.Show("Error al desactivar el usuario:\n" + ex.Message,
