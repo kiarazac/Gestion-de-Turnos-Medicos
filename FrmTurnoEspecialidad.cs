@@ -190,6 +190,14 @@ namespace Gestion_de_Turnos_Medicos
                         if (idx >= 0) cmbObraSocial.SelectedIndex = idx;
                     }
 
+                    // La obra social del paciente no está en el combo (solo lista activas): fue dada de baja
+                    if (cmbObraSocial.SelectedIndex < 0)
+                    {
+                        MessageBox.Show($"La obra social del paciente ({paciente.ObraSocial ?? "sin datos"}) fue dada de baja y ya no puede usarse.\n\nConsulte al paciente y seleccione su cobertura actual antes de confirmar el turno.",
+                            "Obra Social Dada de Baja", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        cmbObraSocial.Focus();
+                    }
+
                     txtNombre.ReadOnly = true;
                     txtApellido.ReadOnly = true;
                     cmbObraSocial.Enabled = true; // Permite actualizar o asignar obra social si el paciente cambió de cobertura
