@@ -307,6 +307,8 @@ GO
   | :--- | :--- | :--- |
   | `50011` | *Ya existe un paciente registrado en el sistema con este mismo número de DNI. Un usuario del sistema no puede duplicar el DNI de un paciente.* | `@Dni` coincide con un paciente activo en `Pacientes`. |
   | `50012` | *Ya existe otro usuario registrado con este número de DNI.* | `@Dni` ya asignado a un usuario activo en `Usuarios`. |
+  | `50013` | *La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.* | `@Correo` ya asignado a un usuario activo en `Usuarios`. |
+  | `50014` | *El número de teléfono ingresado ya se encuentra registrado por otro usuario.* | `@Telefono` (no vacío) ya asignado a un usuario activo en `Usuarios`. No se compara contra `Pacientes`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_InsertarUsuario
@@ -333,6 +335,19 @@ BEGIN
         IF EXISTS (SELECT 1 FROM Usuarios WHERE Dni = @Dni AND Activo = 1)
         BEGIN
             THROW 50012, 'Ya existe otro usuario registrado con este número de DNI.', 1;
+        END
+
+        -- Validar que el correo no esté usado por otro usuario activo
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Activo = 1)
+        BEGIN
+            THROW 50013, 'La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.', 1;
+        END
+
+        -- Validar que el teléfono no esté usado por otro usuario activo (no se compara contra Pacientes)
+        IF @Telefono IS NOT NULL AND LTRIM(RTRIM(@Telefono)) <> ''
+           AND EXISTS (SELECT 1 FROM Usuarios WHERE Telefono = @Telefono AND Activo = 1)
+        BEGIN
+            THROW 50014, 'El número de teléfono ingresado ya se encuentra registrado por otro usuario.', 1;
         END
 
         INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
@@ -382,6 +397,7 @@ GO
   | `50032` | *El número de DNI ingresado ya pertenece a otro usuario registrado en el sistema.* | `@Dni` ya asignado a otro usuario activo. |
   | `50033` | *El número de DNI ingresado ya se encuentra registrado para un paciente en el sistema.* | `@Dni` coincide con un paciente activo. |
   | `50034` | *La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.* | `@Correo` ya asignado a otro usuario activo. |
+  | `50015` | *El número de teléfono ingresado ya se encuentra registrado por otro usuario.* | `@Telefono` (no vacío) ya asignado a otro usuario activo. No se compara contra `Pacientes`. |
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ModificarUsuario
@@ -440,6 +456,13 @@ BEGIN
         IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND IdUsuario <> @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50034, 'La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.', 1;
+        END
+
+        -- 5b. Validar que el teléfono no esté duplicado en otro usuario activo (no se compara contra Pacientes)
+        IF @Telefono IS NOT NULL AND LTRIM(RTRIM(@Telefono)) <> ''
+           AND EXISTS (SELECT 1 FROM Usuarios WHERE Telefono = @Telefono AND IdUsuario <> @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50015, 'El número de teléfono ingresado ya se encuentra registrado por otro usuario.', 1;
         END
 
         -- 6. Actualización en la tabla Usuarios

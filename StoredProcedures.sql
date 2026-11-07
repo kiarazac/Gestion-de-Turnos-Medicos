@@ -294,6 +294,19 @@ BEGIN
             THROW 50012, 'Ya existe otro usuario registrado con este número de DNI.', 1;
         END
 
+        -- Validar que el correo no esté usado por otro usuario activo
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND Activo = 1)
+        BEGIN
+            THROW 50013, 'La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.', 1;
+        END
+
+        -- Validar que el teléfono no esté usado por otro usuario activo (no se compara contra Pacientes)
+        IF @Telefono IS NOT NULL AND LTRIM(RTRIM(@Telefono)) <> ''
+           AND EXISTS (SELECT 1 FROM Usuarios WHERE Telefono = @Telefono AND Activo = 1)
+        BEGIN
+            THROW 50014, 'El número de teléfono ingresado ya se encuentra registrado por otro usuario.', 1;
+        END
+
         INSERT INTO Usuarios (Nombre, Apellido, Correo, Contrasena, Dni, Telefono, NroMatricula, IdRol, Activo, FechaCreacion)
         VALUES (@Nombre, @Apellido, @Correo, @Contrasena, @Dni, @Telefono, @NroMatricula, @IdRol, 1, GETDATE());
 
@@ -384,6 +397,13 @@ BEGIN
         IF EXISTS (SELECT 1 FROM Usuarios WHERE Correo = @Correo AND IdUsuario <> @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50034, 'La dirección de correo electrónico ingresada ya se encuentra registrada por otro usuario.', 1;
+        END
+
+        -- 5b. Validar que el teléfono no esté duplicado en otro usuario activo (no se compara contra Pacientes)
+        IF @Telefono IS NOT NULL AND LTRIM(RTRIM(@Telefono)) <> ''
+           AND EXISTS (SELECT 1 FROM Usuarios WHERE Telefono = @Telefono AND IdUsuario <> @IdUsuario AND Activo = 1)
+        BEGIN
+            THROW 50015, 'El número de teléfono ingresado ya se encuentra registrado por otro usuario.', 1;
         END
 
         -- 6. Actualización en la tabla Usuarios
