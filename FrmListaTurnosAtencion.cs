@@ -50,6 +50,7 @@ namespace Gestion_de_Turnos_Medicos
         private BindingList<Turno>? _turnosVisibles;
         private Turno? _turnoActual;
         private EstadoPuesto _estadoActual = EstadoPuesto.SinPaciente;
+        private bool _recargaPendiente = false; // Hubo cambios en turnos durante una atención: recargar al liberar el puesto
 
         /// <summary>Indica si el médico tiene una atención médica iniciada en curso ('En Consulta').</summary>
         public bool TieneAtencionIniciada => _estadoActual == EstadoPuesto.EnConsulta && _turnoActual != null;
@@ -112,13 +113,7 @@ namespace Gestion_de_Turnos_Medicos
                     "Sala Requerida para Atención", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
 
-            // Iniciar refresco automático de la cola del médico
-            tmrRefrescoCola.Start();
-            this.FormClosing += (s, ev) =>
-            {
-                tmrRefrescoCola.Stop();
-                tmrRefrescoCola.Dispose();
-            };
+            NotificadorCambios.Escuchar(this, AlCambiarTurnos, "Turnos");
         }
 
         /// <summary>
@@ -986,22 +981,20 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Temporizador de refresco automático periódico de la cola de espera del médico.
+        /// Recarga la cola de espera ante cambios en los turnos. Con un paciente llamado o en consulta la recarga
+        /// se posterga hasta que el puesto vuelva a quedar libre, para no alterar la atención en curso.
         /// </summary>
-        private void tmrRefrescoCola_Tick(object? sender, EventArgs e)
+        private void AlCambiarTurnos()
         {
-            try
+            if (_estadoActual != EstadoPuesto.SinPaciente)
             {
-                if (_estadoActual == EstadoPuesto.SinPaciente)
-                {
-                    CargarTurnosDesdeBD();
-                    RefrescarListado();
-                }
+                _recargaPendiente = true;
+                return;
             }
-            catch
-            {
-                // Silencioso en segundo plano para no interrumpir el flujo del usuario
-            }
+
+            _recargaPendiente = false;
+            CargarTurnosDesdeBD();
+            RefrescarListado();
         }
 
         private void CambiarEstadoPuesto(EstadoPuesto nuevoEstado)
@@ -1011,6 +1004,10 @@ namespace Gestion_de_Turnos_Medicos
             switch (nuevoEstado)
             {
                 case EstadoPuesto.SinPaciente:
+                    // Diferido: CargarTurnosDesdeBD puede volver a cambiar el estado del puesto
+                    if (_recargaPendiente)
+                        BeginInvoke(new Action(AlCambiarTurnos));
+
                     bool salaDisponible = TieneSalaDisponible();
                     btnSiguientePaciente.Enabled = salaDisponible && _turnosVisibles != null && _turnosVisibles.Count > 0;
                     btnIniciarAtencion.Enabled = false;

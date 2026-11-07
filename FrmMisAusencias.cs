@@ -38,6 +38,9 @@ namespace Gestion_de_Turnos_Medicos
             dtpHasta.Value = manana;
 
             CargarAusencias();
+            NotificadorCambios.Escuchar(this,
+                () => NotificadorCambios.RecargarConservandoSeleccion(dgvAusencias, f => (f.DataBoundItem as AusenciaMedicaDTO)?.IdAusencia, CargarAusencias),
+                "AusenciasMedicas");
         }
 
         private void CargarAusencias()

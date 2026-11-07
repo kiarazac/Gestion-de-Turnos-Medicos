@@ -22,7 +22,13 @@ namespace Gestion_de_Turnos_Medicos
         {
             InitializeComponent();
 
-            this.Load += (s, e) => CargarTurnos();
+            this.Load += (s, e) =>
+            {
+                CargarTurnos();
+                NotificadorCambios.Escuchar(this,
+                    () => NotificadorCambios.RecargarConservandoSeleccion(dgvTurnos, f => (f.DataBoundItem as TurnoAReprogramarDTO)?.IdTurno, CargarTurnos),
+                    "Turnos", "AusenciasMedicas", "MedicosEspecialidades", "Usuarios");
+            };
             btnCopiarMensaje.Click += BtnCopiarMensaje_Click;
             btnCancelarYReprogramar.Click += (s, e) => CancelarSeleccionado(reprogramar: true);
             btnSoloCancelar.Click += (s, e) => CancelarSeleccionado(reprogramar: false);

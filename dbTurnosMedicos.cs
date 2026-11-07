@@ -93,6 +93,15 @@ namespace Gestion_de_Turnos_Medicos
             modelBuilder.Entity<Sala>().HasQueryFilter(s => s.Activo);
             modelBuilder.Entity<Especialidad>().HasQueryFilter(e => e.Activo);
             modelBuilder.Entity<ObraSocial>().HasQueryFilter(o => o.Activo);
+
+            // Tablas con trigger de aviso de cambios (StoredProcedures.sql): EF no puede usar OUTPUT sin INTO al guardar en ellas
+            string[] tablasNotificadas = { "Turnos", "AusenciasMedicas", "Usuarios", "MedicosEspecialidades", "Salas", "DetallesSalas", "Especialidades", "ObrasSociales", "HistoriasClinicas" };
+            foreach (var entidad in modelBuilder.Model.GetEntityTypes().ToList())
+            {
+                string? tabla = entidad.GetTableName();
+                if (tabla != null && tablasNotificadas.Contains(tabla))
+                    modelBuilder.Entity(entidad.ClrType).ToTable(tb => tb.HasTrigger($"trg_{tabla}_Notificar"));
+            }
         }
 
         /// <summary>

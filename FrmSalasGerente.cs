@@ -47,6 +47,16 @@ namespace Gestion_de_Turnos_Medicos
             chkMostrarInactivas.CheckedChanged += (s, e) => CargarSalasDesdeBD();
             btnReactivar.Enabled = false;
             CargarSalasDesdeBD();
+
+            NotificadorCambios.Escuchar(this, () =>
+            {
+                CargarSalasDesdeBD();
+
+                // Que "Eliminar" no actúe sobre otra fila; la edición en curso sigue identificada por _idSalaSeleccionada
+                _cargandoDatos = true;
+                dgvSalas.CurrentCell = null;
+                _cargandoDatos = false;
+            }, "Salas", "DetallesSalas", "Usuarios");
         }
 
         private void ConfigurarDataGrid()

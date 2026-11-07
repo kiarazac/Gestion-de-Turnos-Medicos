@@ -204,8 +204,8 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
                     try
                     {
-                        // 2. Ejecutar restauración con reemplazo
-                        string restoreSql = $"RESTORE DATABASE [{BaseDatosNombre}] FROM DISK = @RutaBackup WITH REPLACE, STATS = 10;";
+                        // 2. Ejecutar restauración con reemplazo (NEW_BROKER: el restore deja Service Broker deshabilitado y sin él no llegan los avisos de NotificadorCambios)
+                        string restoreSql = $"RESTORE DATABASE [{BaseDatosNombre}] FROM DISK = @RutaBackup WITH REPLACE, NEW_BROKER, STATS = 10;";
                         using (var cmdRestore = new SqlCommand(restoreSql, conn))
                         {
                             cmdRestore.Parameters.Add(new SqlParameter("@RutaBackup", rutaParaSql));

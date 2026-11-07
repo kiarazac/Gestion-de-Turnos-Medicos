@@ -64,6 +64,9 @@ namespace Gestion_de_Turnos_Medicos
 
             // Al inicio, el formulario de datos permanece deshabilitado hasta verificar el DNI
             BloquearFormularioEnPaso1();
+
+            // Solo la grilla: los datos en edición quedan identificados por _idUsuarioSeleccionado
+            NotificadorCambios.Escuchar(this, CargarUsuariosDesdeBD, "Usuarios", "MedicosEspecialidades", "DetallesSalas");
         }
 
         // ---------------------------------------------------------------------

@@ -43,7 +43,6 @@ namespace Gestion_de_Turnos_Medicos
             this.Load += FrmCierreCaja_Load;
 
             // Eventos Pestaña 1: Turnos de Hoy
-            this.btnActualizarHoy.Click += (s, e) => CargarTurnosHoy();
             this.btnExportarPdfHoy.Click += BtnExportarPdfHoy_Click;
 
             // Eventos Pestaña 2: Búsqueda Histórica
@@ -63,6 +62,12 @@ namespace Gestion_de_Turnos_Medicos
 
             CargarTurnosHoy();
             CargarTurnosFiltro();
+
+            NotificadorCambios.Escuchar(this, () =>
+            {
+                CargarTurnosHoy();
+                CargarTurnosFiltro();
+            }, "Turnos");
         }
 
         private void ConfigurarGrilla(DataGridView dgv)

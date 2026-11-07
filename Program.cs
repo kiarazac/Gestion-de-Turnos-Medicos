@@ -38,8 +38,13 @@ namespace Gestion_de_Turnos_Medicos
             // Inicializa la configuración de la aplicación (DPI, renderizado de texto, fuentes del sistema)
             ApplicationConfiguration.Initialize();
 
+            // Avisos de cambios en la base para que los listados abiertos se actualicen al instante
+            NotificadorCambios.Iniciar();
+
             // Inicia el bucle de mensajes de Windows ejecutando el formulario de autenticación inicial
             Application.Run(new FrmLogin());
+
+            NotificadorCambios.Detener();
         }
 
         private static void EjecutarPruebasPdf()

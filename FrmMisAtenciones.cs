@@ -80,6 +80,10 @@ namespace Gestion_de_Turnos_Medicos
             {
                 cmbPeriodo.SelectedIndex = 1; // "Últimos 7 días", dispara CmbPeriodo_SelectedIndexChanged
             }
+
+            NotificadorCambios.Escuchar(this,
+                () => NotificadorCambios.RecargarConservandoSeleccion(dgvAtenciones, f => (f.DataBoundItem as AtencionMedicoDTO)?.IdHistoria, CargarAtencionesDesdeBD),
+                "HistoriasClinicas");
         }
 
         private void ConfigurarGrillaAtenciones()

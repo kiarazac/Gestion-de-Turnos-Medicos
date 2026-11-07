@@ -22,20 +22,17 @@ namespace Gestion_de_Turnos_Medicos
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
         private bool _fechaSinCobertura = false; // La fecha elegida no tiene profesionales disponibles: no se emiten turnos nuevos
         private TurnoAReprogramarDTO? _turnoEnReprogramacion = null; // Turno cancelado cuyo reemplazo aún no se generó ni se descartó
-        private readonly System.Windows.Forms.Timer _tmrAvisoReprogramar = new System.Windows.Forms.Timer { Interval = 60000 };
 
         public FrmTurnoEspecialidad()
         {
             InitializeComponent();
 
             this.Load += FrmTurnoEspecialidad_Load;
-            this.FormClosed += (s, e) => _tmrAvisoReprogramar.Dispose();
             this.button1.Click += BtnGenerarTurno_Click;
             this.btnDescargarTxt.Click += BtnDescargarTxt_Click;
             this.btnCancelarTurno.Click += BtnCancelarTurno_Click;
             this.btnTurnosAReprogramar.Click += BtnTurnosAReprogramar_Click;
             this.btnCancelarReprogramacion.Click += BtnCancelarReprogramacion_Click;
-            _tmrAvisoReprogramar.Tick += (s, e) => ActualizarAvisoReprogramar();
 
             txtDNI.Leave += TxtDNI_Leave;
             txtDNI.KeyDown += TxtDNI_KeyDown;
@@ -53,7 +50,13 @@ namespace Gestion_de_Turnos_Medicos
             lblMontoCobro.ForeColor = SystemColors.ControlDarkDark;
 
             ActualizarAvisoReprogramar();
-            _tmrAvisoReprogramar.Start();
+
+            // Turnos tomados/cancelados en otro puesto, ausencias o bajas de médicos cambian la agenda y los turnos a reprogramar
+            NotificadorCambios.Escuchar(this, () =>
+            {
+                ActualizarAvisoReprogramar();
+                RecargarHorariosPorCambio();
+            }, "Turnos", "AusenciasMedicas", "MedicosEspecialidades", "Usuarios");
         }
 
         /// <summary>
@@ -298,7 +301,8 @@ namespace Gestion_de_Turnos_Medicos
         /// </summary>
         /// <param name="especialidad">Nombre de la especialidad seleccionada.</param>
         /// <param name="fechaElegida">Fecha seleccionada en el calendario.</param>
-        private void CargarHorariosDisponibles(string especialidad, DateTime fechaElegida)
+        /// <param name="silencioso">Recarga por un cambio hecho desde otro puesto: no muestra avisos emergentes.</param>
+        private void CargarHorariosDisponibles(string especialidad, DateTime fechaElegida, bool silencioso = false)
         {
             cmbHorarios.Items.Clear();
             _fechaSinCobertura = false;
@@ -335,7 +339,7 @@ namespace Gestion_de_Turnos_Medicos
                         cmbHorarios.Items.Add(h);
                     }
 
-                    if (_fechaSinCobertura)
+                    if (_fechaSinCobertura && !silencioso)
                     {
                         MessageBox.Show(
                             $"No hay profesionales de {especialidad} disponibles el {fechaElegida:dd/MM/yyyy} (ausencia programada o sin médicos activos).\n\n" +
@@ -353,7 +357,7 @@ namespace Gestion_de_Turnos_Medicos
                     }
                     else
                     {
-                        if (esHoy && !_fechaSinCobertura)
+                        if (!silencioso && esHoy && !_fechaSinCobertura)
                         {
                             MessageBox.Show(
                                 "No quedan más horarios de atención disponibles para el día de hoy.\nPor favor, seleccione una fecha posterior en el calendario.",
@@ -362,7 +366,7 @@ namespace Gestion_de_Turnos_Medicos
                                 MessageBoxIcon.Information
                             );
                         }
-                        else if (!_fechaSinCobertura) // La falta de profesionales ya se informó arriba
+                        else if (!silencioso && !_fechaSinCobertura) // La falta de profesionales ya se informó arriba
                         {
                             MessageBox.Show(
                                 "No hay turnos disponibles para esta fecha y especialidad.",
@@ -376,15 +380,40 @@ namespace Gestion_de_Turnos_Medicos
                 }
                 else
                 {
-                    MessageBox.Show("No hay turnos configurados para esta fecha y especialidad.", "Sin turnos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (!silencioso)
+                        MessageBox.Show("No hay turnos configurados para esta fecha y especialidad.", "Sin turnos", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     ActualizarEstadoHorarioSeleccionado();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudieron consultar los horarios:\n" + ex.Message, "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!silencioso)
+                    MessageBox.Show("No se pudieron consultar los horarios:\n" + ex.Message, "Error de Horarios", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 ActualizarEstadoHorarioSeleccionado();
             }
+        }
+
+        /// <summary>
+        /// Vuelve a consultar los horarios en pantalla conservando el horario elegido y la clave de cancelación que se esté escribiendo.
+        /// </summary>
+        private void RecargarHorariosPorCambio()
+        {
+            if (cmbEspecialidad.SelectedIndex <= 0 || calFechaTurno.SelectionStart.Date < DateTime.Today)
+                return; // No hay horarios en pantalla
+
+            var previo = cmbHorarios.SelectedItem as HorarioDisponibleDTO;
+            string clave = txtClaveCancelacion.Text;
+
+            CargarHorariosDisponibles(cmbEspecialidad.SelectedItem?.ToString() ?? string.Empty, calFechaTurno.SelectionStart.Date, silencioso: true);
+
+            var horarios = cmbHorarios.Items.OfType<HorarioDisponibleDTO>().ToList();
+            int indice = horarios.FindIndex(h => h.Horario == previo?.Horario);
+            if (indice < 0)
+                return;
+
+            cmbHorarios.SelectedIndex = indice;
+            if (horarios[indice].IdTurno == previo?.IdTurno)
+                txtClaveCancelacion.Text = clave;
         }
 
         /// <summary>

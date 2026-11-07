@@ -43,7 +43,6 @@ namespace Gestion_de_Turnos_Medicos
             lblTituloTurnosHoy = new Label();
             pnlFiltrosHoy = new Panel();
             btnExportarPdfHoy = new Button();
-            btnActualizarHoy = new Button();
             lblHoyFechaValor = new Label();
             lblHoyFecha = new Label();
             tabConsultaHistorica = new TabPage();
@@ -374,7 +373,6 @@ namespace Gestion_de_Turnos_Medicos
             // 
             pnlFiltrosHoy.BackColor = Color.White;
             pnlFiltrosHoy.Controls.Add(btnExportarPdfHoy);
-            pnlFiltrosHoy.Controls.Add(btnActualizarHoy);
             pnlFiltrosHoy.Controls.Add(lblHoyFechaValor);
             pnlFiltrosHoy.Controls.Add(lblHoyFecha);
             pnlFiltrosHoy.Dock = DockStyle.Top;
@@ -397,20 +395,6 @@ namespace Gestion_de_Turnos_Medicos
             btnExportarPdfHoy.TabIndex = 3;
             btnExportarPdfHoy.Text = "📄 Exportar Turnos Emitidos a PDF";
             btnExportarPdfHoy.UseVisualStyleBackColor = false;
-            // 
-            // btnActualizarHoy
-            // 
-            btnActualizarHoy.BackColor = Color.SteelBlue;
-            btnActualizarHoy.Cursor = Cursors.Hand;
-            btnActualizarHoy.FlatStyle = FlatStyle.Flat;
-            btnActualizarHoy.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnActualizarHoy.ForeColor = Color.White;
-            btnActualizarHoy.Location = new Point(310, 10);
-            btnActualizarHoy.Name = "btnActualizarHoy";
-            btnActualizarHoy.Size = new Size(160, 30);
-            btnActualizarHoy.TabIndex = 2;
-            btnActualizarHoy.Text = "🔄 Actualizar Jornada";
-            btnActualizarHoy.UseVisualStyleBackColor = false;
             // 
             // lblHoyFechaValor
             // 
@@ -798,7 +782,6 @@ namespace Gestion_de_Turnos_Medicos
         private Panel pnlFiltrosHoy;
         private Label lblHoyFecha;
         private Label lblHoyFechaValor;
-        private Button btnActualizarHoy;
         private Button btnExportarPdfHoy;
         private Panel pnlKpisHoy;
         private Panel pnlKpiTurnosHoy;

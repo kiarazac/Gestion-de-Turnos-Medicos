@@ -20,7 +20,6 @@ namespace Gestion_de_Turnos_Medicos
             components = new System.ComponentModel.Container();
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             tmrTiempoTranscurrido = new System.Windows.Forms.Timer(components);
-            tmrRefrescoCola = new System.Windows.Forms.Timer(components);
             pnlHeader = new Panel();
             lblTituloPrincipal = new Label();
             pnlSubHeader = new Panel();
@@ -63,11 +62,6 @@ namespace Gestion_de_Turnos_Medicos
             // 
             tmrTiempoTranscurrido.Interval = 1000;
             tmrTiempoTranscurrido.Tick += tmrTiempoTranscurrido_Tick;
-            // 
-            // tmrRefrescoCola
-            // 
-            tmrRefrescoCola.Interval = 5000;
-            tmrRefrescoCola.Tick += tmrRefrescoCola_Tick;
             // 
             // pnlHeader
             // 
@@ -449,7 +443,6 @@ namespace Gestion_de_Turnos_Medicos
         #endregion
 
         private System.Windows.Forms.Timer tmrTiempoTranscurrido;
-        private System.Windows.Forms.Timer tmrRefrescoCola;
 
         private System.Windows.Forms.Panel pnlHeader;
         private System.Windows.Forms.Label lblTituloPrincipal;

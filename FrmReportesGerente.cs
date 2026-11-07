@@ -75,6 +75,13 @@ namespace Gestion_de_Turnos_Medicos
             cmbPeriodo.SelectedIndex = 0; // "Hoy" por defecto para controlar la recaudación del día
             CargarDatos();
             cmbEspecialidad.SelectedIndexChanged += CmbEspecialidad_SelectedIndexChanged;
+
+            // Con un rango inválido a medio cargar no se recarga: CargarDatos lo informaría con un aviso emergente en cada cambio
+            NotificadorCambios.Escuchar(this, () =>
+            {
+                if (dtpDesde.Value.Date <= dtpHasta.Value.Date)
+                    CargarDatos();
+            }, "Turnos");
         }
 
         #region Tarjetas KPI

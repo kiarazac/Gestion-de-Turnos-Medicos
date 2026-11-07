@@ -48,6 +48,9 @@ namespace Gestion_de_Turnos_Medicos
             dgvMisSalas.MultiSelect = false;
 
             CargarMisSalas();
+            NotificadorCambios.Escuchar(this,
+                () => NotificadorCambios.RecargarConservandoSeleccion(dgvMisSalas, f => f.Cells["ID"].Value, CargarMisSalas),
+                "Salas", "DetallesSalas");
         }
 
         /// <summary>

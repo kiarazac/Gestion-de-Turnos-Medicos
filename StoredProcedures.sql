@@ -5358,3 +5358,67 @@ BEGIN
     ORDER BY u.Apellido, u.Nombre;
 END;
 GO
+
+/* =========================================================================
+** Objeto        : Avisos de cambios en tiempo real
+** Sección       : 9.1
+** Propósito     : Cada tabla vigilada tiene una versión en `CambiosSistema` que su trigger incrementa en cada INSERT/UPDATE/DELETE.
+**                 La aplicación suscribe esa consulta con SqlDependency (requiere Service Broker) y recarga los listados abiertos al instante.
+** Entidad/Tablas: `CambiosSistema`, `Turnos`, `AusenciasMedicas`, `Usuarios`, `MedicosEspecialidades`, `Salas`, `DetallesSalas`, `Especialidades`, `ObrasSociales`, `HistoriasClinicas`
+** Invocado por  : `NotificadorCambios` (todas las pantallas con listados)
+** Estado        : `EN USO`
+** ========================================================================= */
+
+-- NEW_BROKER en lugar de ENABLE_BROKER: no falla si la base es una copia restaurada con el mismo identificador de broker.
+-- Requiere acceso exclusivo: corta las sesiones abiertas (solo la primera vez, mientras el broker esté deshabilitado).
+IF EXISTS (SELECT 1 FROM sys.databases WHERE database_id = DB_ID() AND is_broker_enabled = 0)
+    ALTER DATABASE CURRENT SET NEW_BROKER WITH ROLLBACK IMMEDIATE;
+
+GO
+
+IF OBJECT_ID('dbo.CambiosSistema') IS NULL
+BEGIN
+    CREATE TABLE dbo.CambiosSistema (
+        Tabla SYSNAME NOT NULL PRIMARY KEY,
+        Version BIGINT NOT NULL DEFAULT 0
+    );
+END;
+
+GO
+
+INSERT INTO dbo.CambiosSistema (Tabla)
+SELECT v.Tabla
+FROM (VALUES ('Turnos'), ('AusenciasMedicas'), ('Usuarios'), ('MedicosEspecialidades'), ('Salas'),
+             ('DetallesSalas'), ('Especialidades'), ('ObrasSociales'), ('HistoriasClinicas')) AS v (Tabla)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.CambiosSistema c WHERE c.Tabla = v.Tabla);
+
+GO
+
+-- Un trigger por tabla vigilada (trg_<Tabla>_Notificar); los nombres coinciden con los declarados en dbTurnosMedicos.OnModelCreating
+DECLARE @Tabla SYSNAME, @Sql NVARCHAR(MAX);
+DECLARE curTablas CURSOR LOCAL FAST_FORWARD FOR SELECT Tabla FROM dbo.CambiosSistema;
+OPEN curTablas;
+FETCH NEXT FROM curTablas INTO @Tabla;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @Sql = N'CREATE OR ALTER TRIGGER dbo.' + QUOTENAME(N'trg_' + @Tabla + N'_Notificar') + N' ON dbo.' + QUOTENAME(@Tabla) + N'
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM inserted) AND NOT EXISTS (SELECT 1 FROM deleted)
+        RETURN;
+
+    UPDATE dbo.CambiosSistema SET Version = Version + 1 WHERE Tabla = ' + QUOTENAME(@Tabla, '''') + N';
+END;';
+
+    EXEC sp_executesql @Sql;
+    FETCH NEXT FROM curTablas INTO @Tabla;
+END;
+
+CLOSE curTablas;
+DEALLOCATE curTablas;
+
+GO

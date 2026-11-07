@@ -34,6 +34,7 @@ namespace Gestion_de_Turnos_Medicos
             dgvEspecialidades.SelectionChanged += DgvEspecialidades_SelectionChanged;
             dgvEspecialidades.CellClick += DgvEspecialidades_CellClick;
             CargarEspecialidadesDesdeBD();
+            NotificadorCambios.Escuchar(this, () => CargarEspecialidadesDesdeBD(conservarEdicion: true), "Especialidades");
         }
 
         private void ConfigurarDataGrid()
@@ -89,7 +90,8 @@ namespace Gestion_de_Turnos_Medicos
         /// Obtiene el catálogo de especialidades desde la Capa de Negocio (BLL).
         /// Admite listar inactivas según el estado de chkMostrarInactivas.
         /// </summary>
-        private void CargarEspecialidadesDesdeBD()
+        /// <param name="conservarEdicion">Recarga por un cambio de otro puesto: no limpia lo que se está editando.</param>
+        private void CargarEspecialidadesDesdeBD(bool conservarEdicion = false)
         {
             _cargandoDatos = true;
             dgvEspecialidades.Rows.Clear();
@@ -128,8 +130,14 @@ namespace Gestion_de_Turnos_Medicos
             }
             finally
             {
+                // Sin fila resaltada: la edición en curso sigue identificada por _idEspecialidadSeleccionada
+                if (conservarEdicion)
+                    dgvEspecialidades.CurrentCell = null;
+
                 _cargandoDatos = false;
-                LimpiarCampos();
+
+                if (!conservarEdicion)
+                    LimpiarCampos();
             }
         }
 

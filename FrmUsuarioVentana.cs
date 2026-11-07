@@ -26,10 +26,6 @@ namespace Gestion_de_Turnos_Medicos
         // Color usado para resaltar el estado "en atención" o "llamado" en ambas grillas
         private static readonly Color ColorEstadoResaltado = Color.FromArgb(91, 155, 213);
 
-        // Contador de ciclos para refresco automático cada 5 segundos
-        private int _segundosTranscurridos = 0;
-        private const int IntervaloRefrescoSegundos = 5;
-
         /// <summary>
         /// Constructor sin parámetros (utilizado desde la interfaz de Recepción o apertura directa del visor).
         /// </summary>
@@ -59,6 +55,7 @@ namespace Gestion_de_Turnos_Medicos
         private void FrmUsuarioVentana_Load(object? sender, EventArgs e)
         {
             CargarTurnosDesdeBD();
+            NotificadorCambios.Escuchar(this, CargarTurnosDesdeBD, "Turnos");
         }
 
         /// <summary>
@@ -231,20 +228,12 @@ namespace Gestion_de_Turnos_Medicos
         }
 
         /// <summary>
-        /// Tick del Timer (cada 1000 ms):
-        /// 1. Actualiza el reloj del footer.
-        /// 2. Cada 5 segundos refresca automáticamente los turnos desde la base de datos.
+        /// Tick del Timer (cada 1000 ms): actualiza el reloj del footer.
+        /// Los turnos se recargan al instante ante cada cambio (<see cref="NotificadorCambios"/>).
         /// </summary>
         private void timerReloj_Tick(object sender, EventArgs e)
         {
             ActualizarPieDePagina();
-
-            _segundosTranscurridos++;
-            if (_segundosTranscurridos >= IntervaloRefrescoSegundos)
-            {
-                _segundosTranscurridos = 0;
-                CargarTurnosDesdeBD();
-            }
         }
     }
 }

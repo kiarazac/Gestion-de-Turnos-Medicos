@@ -14,7 +14,6 @@ namespace Gestion_de_Turnos_Medicos
         // 1. Invocación exclusiva de la Capa de Negocio (BLL)
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly EspecialidadBLL _especialidadBLL = new EspecialidadBLL();
-        private System.Windows.Forms.Timer? _tmrRefresco;
 
         public FrmListaTurnos()
         {
@@ -26,30 +25,11 @@ namespace Gestion_de_Turnos_Medicos
             CargarTurnosEmergencia();
             CargarEspecialidades();
 
-            // Configuración del temporizador de refresco automático
-            _tmrRefresco = new System.Windows.Forms.Timer();
-            _tmrRefresco.Interval = 5000;
-            _tmrRefresco.Tick += tmrRefresco_Tick;
-            _tmrRefresco.Start();
-
-            this.FormClosing += (s, ev) =>
-            {
-                _tmrRefresco?.Stop();
-                _tmrRefresco?.Dispose();
-            };
-        }
-
-        private void tmrRefresco_Tick(object? sender, EventArgs e)
-        {
-            try
+            NotificadorCambios.Escuchar(this, () =>
             {
                 CargarTurnosEmergencia();
                 CargarTurnosEspecialidadSeleccionada();
-            }
-            catch
-            {
-                // Silencioso en background
-            }
+            }, "Turnos");
         }
 
         /// <summary>
