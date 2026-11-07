@@ -1057,9 +1057,8 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoTurno.Text = $"N° Turno: {t.NroOrden ?? t.IdTurno.ToString()}";
             lblInfoPaciente.Text = t.Paciente != null ? $"Paciente: {t.Paciente.Apellido}, {t.Paciente.Nombre}" : "Paciente: -";
             string dni = t.Paciente?.Dni ?? "-";
-            string edad = "-";
             string cobertura = t.Paciente?.ObraSocial?.Nombre ?? "-";
-            lblInfoDni.Text = $"DNI / Edad / Cobertura: {dni} / {edad} / {cobertura}";
+            lblInfoDni.Text = $"DNI / Cobertura: {dni} / {cobertura}";
 
             string prioridad = t.Prioridad?.Descripcion ?? "MEDIA";
             bool esEmergencia = t.TipoTurno?.Equals("Emergencia", StringComparison.OrdinalIgnoreCase) == true
@@ -1102,7 +1101,7 @@ namespace Gestion_de_Turnos_Medicos
         {
             lblInfoTurno.Text = "N° Turno: -";
             lblInfoPaciente.Text = "Paciente: -";
-            lblInfoDni.Text = "DNI / Edad / Cobertura: -";
+            lblInfoDni.Text = "DNI / Cobertura: -";
             lblInfoMotivo.Text = "Motivo / Prioridad: -";
             lblInfoPrioridadValor.Text = "";
             lblInfoPrioridadValor.Location = new Point(lblInfoMotivo.Right + 4, lblInfoMotivo.Top);

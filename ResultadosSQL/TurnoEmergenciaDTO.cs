@@ -47,9 +47,6 @@ namespace Gestion_de_Turnos_Medicos.ResultadosSQL
         /// <summary>Nombre y apellido del paciente.</summary>
         public string? Paciente { get; set; }
 
-        /// <summary>Edad del paciente (si aplica).</summary>
-        public int? Edad { get; set; }
-
         /// <summary>Clasificación de triage.</summary>
         public string? Triage { get; set; }
     }

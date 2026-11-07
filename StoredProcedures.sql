@@ -3025,7 +3025,7 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ListarTurnosEmergencia
 ** Sección       : 5.7
-** Propósito     : Obtiene los turnos activos de guardia y del día para el monitor de recepción, triages y contadores de prioridad. Mapea todas las propiedades de `TurnoEmergenciaDTO`, incluyendo la columna `Edad` requerida por Entity Framework Core.
+** Propósito     : Obtiene los turnos activos de guardia y del día para el monitor de recepción, triages y contadores de prioridad. Mapea todas las propiedades de `TurnoEmergenciaDTO`.
 ** Entidad/Tablas: `Turnos`, `Prioridades`, `Salas`, `Pacientes`
 ** Invocado por  : `FrmListaTurnos`, `FrmUsuarioVentana` (Monitor de guardia / Pantalla pública de emergencias (`dgvEmergencias`))
 ** Estado        : `EN USO`
@@ -3053,8 +3053,7 @@ BEGIN
         t.IdPrioridad,
         t.IdPaciente,
         t.IdEspecialidad,
-        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
-        CAST(NULL AS INT) AS Edad
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente
     FROM Turnos t
     INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad

@@ -136,8 +136,7 @@ BEGIN
         t.IdPrioridad,
         t.IdPaciente,
         t.IdEspecialidad,
-        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
-        CAST(NULL AS INT) AS Edad
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente
     FROM Turnos t
     INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad

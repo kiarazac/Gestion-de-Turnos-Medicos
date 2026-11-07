@@ -2915,14 +2915,14 @@ GO
 ---
 
 ### 5.7 `sp_ListarTurnosEmergencia`
-- **Descripción:** Obtiene los turnos activos de guardia y del día para el monitor de recepción, triages y contadores de prioridad. Mapea todas las propiedades de `TurnoEmergenciaDTO`, incluyendo la columna `Edad` requerida por Entity Framework Core.
+- **Descripción:** Obtiene los turnos activos de guardia y del día para el monitor de recepción, triages y contadores de prioridad. Mapea todas las propiedades de `TurnoEmergenciaDTO`.
 - **Entidad:** Turno / Prioridad / Sala / Paciente
 - **Operación:** Listado / Monitor
 - **Tablas:** `Turnos`, `Prioridades`, `Salas`, `Pacientes`
 - **Forms que lo utilizan:** `FrmListaTurnos`, `FrmUsuarioVentana`
 - **Acción:** Monitor de guardia / Pantalla pública de emergencias (`dgvEmergencias`)
 - **Estado:** `EN USO`
-- **Devuelve:** `IdTurno`, `NroOrden`, `Turno`, `Prioridad`, `Triage`, `Hora`, `Estado`, `Sala`, `TipoTurno`, `Fecha`, `IdPrioridad`, `IdPaciente`, `IdEspecialidad`, `Paciente`, `Edad`.
+- **Devuelve:** `IdTurno`, `NroOrden`, `Turno`, `Prioridad`, `Triage`, `Hora`, `Estado`, `Sala`, `TipoTurno`, `Fecha`, `IdPrioridad`, `IdPaciente`, `IdEspecialidad`, `Paciente`.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_ListarTurnosEmergencia
@@ -2946,8 +2946,7 @@ BEGIN
         t.IdPrioridad,
         t.IdPaciente,
         t.IdEspecialidad,
-        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente,
-        CAST(NULL AS INT) AS Edad
+        CONCAT(pac.Apellido, ', ', pac.Nombre) AS Paciente
     FROM Turnos t
     INNER JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
     LEFT JOIN Prioridades p ON t.IdPrioridad = p.IdPrioridad

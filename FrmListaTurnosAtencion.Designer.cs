@@ -225,7 +225,7 @@ namespace Gestion_de_Turnos_Medicos
             lblInfoDni.Name = "lblInfoDni";
             lblInfoDni.Size = new Size(164, 17);
             lblInfoDni.TabIndex = 3;
-            lblInfoDni.Text = "DNI / Edad / Cobertura: -";
+            lblInfoDni.Text = "DNI / Cobertura: -";
             // 
             // lblInfoMotivo
             // 
