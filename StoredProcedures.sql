@@ -431,8 +431,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_EliminarUsuario
 ** Sección       : 1.7
-** Propósito     : Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja (`FechaBaja = GETDATE()`). Protege a la cuenta principal `admin@gmail.com` con inmunidad total y **preserva íntegramente los atributos y asignaciones de salas y especialidades** sin eliminarlos ni borrarlos, permitiendo reactivaciones futuras completas.
-** Entidad/Tablas: `Usuarios`, `Turnos`, `HistoriasClinicas`
+** Propósito     : Realiza el borrado lógico (`Activo = 0`) del usuario registrando la fecha de baja (`FechaBaja = GETDATE()`). Protege a la cuenta principal `admin@gmail.com` con inmunidad total y **preserva íntegramente los atributos y asignaciones de salas y especialidades** sin eliminarlos ni borrarlos, permitiendo reactivaciones futuras completas. Bloquea la baja (50036) si el médico tiene un paciente 'Llamado' o 'En Consulta', y (50107) si es el único médico activo de una especialidad con turnos 'En Espera' pendientes.
+** Entidad/Tablas: `Usuarios`, `Turnos`, `MedicosEspecialidades`, `Especialidades`
 ** Invocado por  : `FrmGestionUsuarios2` (Botón `btnEliminar`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
@@ -463,17 +463,52 @@ BEGIN
             THROW 50037, 'La cuenta administradora principal (admin@gmail.com) posee inmunidad total y no puede ser desactivada.', 1;
         END
 
-        -- 3. Validar que no tenga turnos activos en atención o llamado en este momento
+        -- 3. Validar que no tenga pacientes llamados o en consulta en este momento.
+        --    El médico queda en Turnos.IdUsuario al llamar; la historia clínica recién existe al finalizar.
         IF EXISTS (
-            SELECT 1 
+            SELECT 1
             FROM Turnos t
-            INNER JOIN HistoriasClinicas hc ON t.IdTurno = hc.IdTurno
-            WHERE hc.IdUsuario = @IdUsuario 
-              AND t.Estado IN ('Llamado', 'En Consulta') 
+            WHERE t.IdUsuario = @IdUsuario
+              AND t.Estado IN ('Llamado', 'En Consulta')
               AND t.Activo = 1
         )
         BEGIN
-            THROW 50036, 'No se puede desactivar el usuario porque actualmente posee turnos en consulta o llamados activos.', 1;
+            THROW 50036, 'No se puede desactivar el médico porque tiene un paciente llamado o en consulta en este momento. Finalice la atención antes de darlo de baja.', 1;
+        END
+
+        -- 3b. Validar turnos futuros: los turnos en espera se asignan por especialidad, así que se bloquea
+        --     si el médico es el único activo de una especialidad que todavía tiene turnos pendientes.
+        DECLARE @EspecialidadesSinCobertura NVARCHAR(MAX), @TurnosHuerfanos INT;
+
+        SELECT @EspecialidadesSinCobertura = STRING_AGG(e.Nombre, ', '),
+               @TurnosHuerfanos = SUM(x.Cant)
+        FROM (
+            SELECT t.IdEspecialidad, COUNT(*) AS Cant
+            FROM Turnos t
+            WHERE t.Activo = 1
+              AND t.Estado = 'En Espera'
+              AND (t.IdUsuario = @IdUsuario
+                   OR (t.Fecha >= CAST(GETDATE() AS DATE)
+                       AND t.IdEspecialidad IN (SELECT me.IdEspecialidad FROM MedicosEspecialidades me
+                                                WHERE me.IdUsuario = @IdUsuario AND me.Activo = 1)))
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM MedicosEspecialidades me2
+                  INNER JOIN Usuarios u2 ON u2.IdUsuario = me2.IdUsuario
+                  WHERE me2.IdEspecialidad = t.IdEspecialidad
+                    AND me2.Activo = 1 AND u2.Activo = 1
+                    AND me2.IdUsuario <> @IdUsuario)
+            GROUP BY t.IdEspecialidad
+        ) x
+        INNER JOIN Especialidades e ON e.IdEspecialidad = x.IdEspecialidad;
+
+        IF @TurnosHuerfanos > 0
+        BEGIN
+            DECLARE @MsgTurnos NVARCHAR(2048) = CONCAT(
+                'No se puede desactivar el médico porque es el único profesional activo de: ', @EspecialidadesSinCobertura,
+                ', y hay ', @TurnosHuerfanos, ' turno(s) pendiente(s) que quedarían sin médico. ',
+                'Asigne otro médico a la especialidad o cancele/reprograme esos turnos antes de darlo de baja.');
+            THROW 50107, @MsgTurnos, 1;
         END
 
         BEGIN TRANSACTION;

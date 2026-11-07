@@ -290,7 +290,9 @@ namespace Gestion_de_Turnos_Medicos
                 }
 
                 // 3. Cálculo de arancel según reglas de negocio (arancel base menos el % que cubre la obra social elegida)
-                decimal porcentajeCobertura = (cmbObraSocial.SelectedItem as ObraSocialDTO)?.PorcentajeCobertura ?? 0m;
+                // Se lee el % vigente de la BD: el combo se cargó al abrir la pantalla y pudo modificarse desde entonces
+                decimal porcentajeCobertura = _obraSocialBLL.ObtenerObrasSociales()
+                    .FirstOrDefault(o => o.IdObraSocial == idObraSocial)?.PorcentajeCobertura ?? 0m;
                 decimal montoArancel = TurnoBLL.CalcularArancelSugerido("Emergencia", porcentajeCobertura);
                 bool tieneOS = TurnoBLL.TieneObraSocial(obraSocial);
                 string condicionCobro = TurnoBLL.ObtenerCondicionCobroTexto(obraSocial, porcentajeCobertura);
