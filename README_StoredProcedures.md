@@ -1436,18 +1436,18 @@ BEGIN
         END
 
         -- 2. Validar que no exista ya activa
-        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND Activo = 1)
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre COLLATE Modern_Spanish_CI_AI = LTRIM(RTRIM(@Nombre)) COLLATE Modern_Spanish_CI_AI AND Activo = 1)
         BEGIN
             THROW 50051, 'Ya existe una especialidad activa registrada con este mismo nombre.', 1;
         END
 
         -- 3. Si existía previamente inactiva, la reactivamos
-        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND Activo = 0)
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre COLLATE Modern_Spanish_CI_AI = LTRIM(RTRIM(@Nombre)) COLLATE Modern_Spanish_CI_AI AND Activo = 0)
         BEGIN
             UPDATE Especialidades
             SET Activo = 1,
                 FechaBaja = NULL
-            WHERE Nombre = @Nombre;
+            WHERE Nombre COLLATE Modern_Spanish_CI_AI = LTRIM(RTRIM(@Nombre)) COLLATE Modern_Spanish_CI_AI;
         END
         ELSE
         BEGIN
@@ -1508,7 +1508,7 @@ BEGIN
         END
 
         -- 3. Validar unicidad entre especialidades activas
-        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre = @Nombre AND IdEspecialidad <> @IdEspecialidad AND Activo = 1)
+        IF EXISTS (SELECT 1 FROM Especialidades WHERE Nombre COLLATE Modern_Spanish_CI_AI = LTRIM(RTRIM(@Nombre)) COLLATE Modern_Spanish_CI_AI AND IdEspecialidad <> @IdEspecialidad AND Activo = 1)
         BEGIN
             THROW 50051, 'Ya existe otra especialidad activa registrada con este mismo nombre.', 1;
         END
