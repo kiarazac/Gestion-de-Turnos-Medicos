@@ -1071,8 +1071,8 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_CerrarSala
 ** Sección       : 2.7
-** Propósito     : Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`) o en `'En Mantenimiento'` (estado que solo administra el Gerente).
-** Entidad/Tablas: `Salas`
+** Propósito     : Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`), si tiene un paciente `'Llamado'` o si está `'En Mantenimiento'` (estado que solo administra el Gerente).
+** Entidad/Tablas: `Salas`, `Turnos`
 ** Invocado por  : `MisSalas_PM` (Botón `btnCerrarSala`)
 ** Estado        : `EN USO`
 ** Retorno       : No retorna conjunto de datos (DML/Update)
@@ -1094,6 +1094,16 @@ BEGIN
     )
     BEGIN
         THROW 50001, 'No se puede cerrar la sala porque hay un paciente siendo atendido actualmente.', 1;
+    END
+
+    -- Al llamar al paciente la sala sigue 'Disponible' hasta iniciar la atención
+    IF EXISTS (
+        SELECT 1
+        FROM Turnos
+        WHERE IdSala = @IdSala AND Estado = 'Llamado' AND Activo = 1
+    )
+    BEGIN
+        THROW 50089, 'No se puede cerrar la sala porque hay un paciente llamado. Inicie la atención o márquelo como ausente antes de cerrarla.', 1;
     END
 
     IF EXISTS (

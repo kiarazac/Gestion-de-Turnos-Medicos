@@ -1179,10 +1179,10 @@ GO
 ---
 
 ### 2.7 `sp_CerrarSala`
-- **Descripción:** Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`) o en `'En Mantenimiento'` (estado que solo administra el Gerente).
+- **Descripción:** Cambia el estado de la sala a `'Cerrada'`. Bloquea si la sala está en consulta con un paciente (`'Ocupada'`), si tiene un paciente `'Llamado'` o si está `'En Mantenimiento'` (estado que solo administra el Gerente).
 - **Entidad:** Sala
 - **Operación:** Cambio de Estado / Validación de Negocio
-- **Tablas:** `Salas`
+- **Tablas:** `Salas`, `Turnos`
 - **Forms que lo utilizan:** `MisSalas_PM`
 - **Acción:** Botón `btnCerrarSala`
 - **Estado:** `EN USO`
@@ -1193,6 +1193,8 @@ GO
 - **Errores controlados:**
   | Código | Mensaje | Causa |
   | :--- | :--- | :--- |
+  | `50001` | *No se puede cerrar la sala porque hay un paciente siendo atendido actualmente.* | La sala está `'Ocupada'` (atención iniciada). |
+  | `50089` | *No se puede cerrar la sala porque hay un paciente llamado. Inicie la atención o márquelo como ausente antes de cerrarla.* | Hay un turno en `'Llamado'` asignado a la sala (la sala sigue `'Disponible'` hasta iniciar la atención). |
   | `50008` | *La sala se encuentra en mantenimiento. Solo el Gerente puede modificar su estado.* | La sala está en `'En Mantenimiento'`; el médico no puede cerrarla. |
 
 ```sql
@@ -1211,6 +1213,16 @@ BEGIN
     )
     BEGIN
         THROW 50001, 'No se puede cerrar la sala porque hay un paciente siendo atendido actualmente.', 1;
+    END
+
+    -- Al llamar al paciente la sala sigue 'Disponible' hasta iniciar la atención
+    IF EXISTS (
+        SELECT 1
+        FROM Turnos
+        WHERE IdSala = @IdSala AND Estado = 'Llamado' AND Activo = 1
+    )
+    BEGIN
+        THROW 50089, 'No se puede cerrar la sala porque hay un paciente llamado. Inicie la atención o márquelo como ausente antes de cerrarla.', 1;
     END
 
     IF EXISTS (
@@ -4679,7 +4691,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 ### `MisSalas_PM`
 - `sp_ObtenerSalas` (`@IdUsuario = médico`) → Carga de la grilla de salas asignadas al médico logueado (`CargarMisSalas`).
 - `sp_AbrirSala` → Botón "Abrir Sala" (`btnAbrirSala_Click`). Habilita la sala a 'Disponible' controlando que el médico no tenga otra abierta y que la sala no esté 'En Mantenimiento'.
-- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa ni 'En Mantenimiento'.
+- `sp_CerrarSala` → Botón "Cerrar Sala" (`btnCerrarSala_Click`). Pasa la sala a 'Cerrada' controlando que no esté ocupada con atención activa, ni con un paciente 'Llamado', ni 'En Mantenimiento'.
 - Si la sala está 'En Mantenimiento' ambos botones quedan deshabilitados: solo el Gerente (`FrmSalasGerente`) puede cambiar ese estado.
 
 ### `FrmAdmin`
