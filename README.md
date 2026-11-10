@@ -54,7 +54,7 @@ El sistema implementa una separación rigurosa de responsabilidades:
   - **Regla de Mayor Gravedad:** En caso de que se seleccionen múltiples síntomas de diferente severidad (ej. un síntoma de gravedad Alta junto con síntomas de gravedad Media o la opción "Otro"), el sistema garantiza que la prioridad asignada al turno corresponda a la del **síntoma con la gravedad más alta** (`1 = Alta`, `2 = Media`, `3 = Baja`).
   - **Persistencia atómica:** Persiste todos los síntomas seleccionados en la tabla `TurnoSintomas` (`sp_GuardarTurnoSintoma`).
   - **Retroalimentación visual:** Informa en pantalla y mediante código de color el nivel de prioridad resultante (Rojo para Alta, Naranja para Media, Verde para Baja).
-  - **Numeración Correlativa Diaria y Unicidad de Turnos:** Generación secuencial diaria (`E-001`, `E-002`...) que impide colisiones entre turnos no atendidos (`Activo = 1 AND Estado NOT IN ('Atendido', 'Cancelado')`), tanto a nivel de SP (`sp_CrearTurnoEmergencia`, `sp_InsertarTurno`) como en la capa BLL (`ExisteNroOrdenNoAtendido`).
+  - **Numeración Correlativa Diaria y Unicidad de Turnos:** Generación secuencial diaria (`E-001`, `E-002`...) que impide colisiones entre turnos no atendidos (`Activo = 1 AND Estado NOT IN ('Atendido', 'Cancelado')`), a nivel de SP (`sp_CrearTurnoEmergencia`, `sp_CrearTurnoEspecialidad`).
   - **Cancelación Ágil con Doble Factor (2FA):**
     - Al emitir cada turno de guardia se autogenera una clave de seguridad (`CAN-XXXX`), persistida en `Turnos.CodigoCancelacion` y exhibida tanto en pantalla como en el comprobante `.txt`.
     - En el propio formulario se incorpora el panel de cancelación directa en 1 solo paso: búsqueda instantánea por N° de orden (`E-001`) o DNI del paciente (`sp_BuscarTurnoActivoEmergencia`).
@@ -89,16 +89,10 @@ El sistema implementa una separación rigurosa de responsabilidades:
 - Monitor visual a pantalla completa (o visor incrustable) para pacientes en sala de espera, con actualización en tiempo real de llamados activos a consultorios y estado de la guardia.
 
 ### 6. Módulos de Reportería Especializada por Perfil
-- **`FrmReporteGuardiaAdmin` (Reporte Operativo de Guardia):** Tablero integral de triage y urgencias con tarjetas de KPIs (Total, Alta, Media, Baja, Tasa de Resolución), colorimetría dinámica por severidad de triage, ranking de síntomas predominantes, búsqueda en vivo y exportación a `.xlsx`, `.csv` y `.txt`.
 - **`FrmMisAtenciones` (Historial y Reportería Especializada del Personal Médico):** Módulo individualizado según el perfil médico:
   - **Médicos Especialistas:** Auditoría de atenciones, detalle individualizado de diagnósticos, evoluciones y prescripciones farmacológicas con exportación oficial a PDF.
   - **Médicos Clínicos (Urgencias):** Incluye pestaña interactiva de **Triage Clínico** con ranking y distribución de pacientes atendidos por severidad (`Alta`, `Media`, `Baja`) y ranking epidemiológico de sintomatología clínica atendida, integrando apéndice estadístico en la exportación a PDF.
 - **Administrador Técnico:** Sin facultades de reportería médica ni gerencial, enfocado en administración de usuarios, salas, especialidades y copias de seguridad.
-
-### 7. Servicios de Exportación Corporativa (`ClosedXML`)
-- **`Servicios/ExportadorExcel.cs`:** Servicio centralizado que confecciona libros nativos de Microsoft Excel (`.xlsx`) mediante OpenXML (`ClosedXML`), aplicando paleta corporativa médica, colores semánticos Manchester (Rojo, Amarillo, Verde), bordes sutiles, auto-ajuste inteligente de columnas y formato numérico tipado sin recortes visuales.
-
----
 
 ## 📋 Documentación Técnica Complementaria
 

@@ -479,17 +479,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene la lista parametrizada de turnos médicos filtrando opcionalmente por especialidad y estado operativo.
-        /// </summary>
-        /// <param name="idEspecialidad">Identificador de especialidad (opcional).</param>
-        /// <param name="estado">Estado de turno a filtrar (opcional).</param>
-        /// <returns>Lista de <see cref="TurnoListadoDTO"/>.</returns>
-        public List<TurnoListadoDTO> ObtenerListaTurnos(int? idEspecialidad = null, string? estado = null)
-        {
-            return _turnoDAL.ObtenerListaTurnos(idEspecialidad, estado);
-        }
-
-        /// <summary>
         /// Obtiene los datos para volver a descargar el comprobante de un turno.
         /// Solo se permite mientras el turno siga 'En Espera' o 'Llamado', y si su fecha es hoy o posterior.
         /// </summary>
@@ -574,29 +563,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene los turnos llamados recientemente para ser mostrados en la pantalla pública de visualización.
-        /// </summary>
-        /// <returns>Lista de <see cref="TurnoPantallaDTO"/>.</returns>
-        public List<TurnoPantallaDTO> ObtenerTurnosPantallaPublica()
-        {
-            return _turnoDAL.ObtenerTurnosPantallaPublica();
-        }
-
-        /// <summary>
-        /// Obtiene los turnos actualmente en estado 'En Espera' ordenados según la cola de atención de una especialidad.
-        /// </summary>
-        /// <param name="idEspecialidad">Identificador único de la especialidad.</param>
-        /// <returns>Lista de <see cref="TurnoEsperaDTO"/>.</returns>
-        /// <exception cref="ArgumentException">Se lanza si el ID de especialidad no es válido.</exception>
-        public List<TurnoEsperaDTO> ObtenerTurnosEnEspera(int idEspecialidad)
-        {
-            if (idEspecialidad <= 0)
-                throw new ArgumentException("Debe indicar una especialidad válida para consultar la cola de espera.");
-
-            return _turnoDAL.ObtenerTurnosEnEspera(idEspecialidad);
-        }
-
-        /// <summary>
         /// Comprueba si el usuario médico cuenta con la especialidad Clínico (o afín a Clínica Médica) activa
         /// para habilitar la atención de turnos de guardia/emergencias.
         /// </summary>
@@ -631,17 +597,5 @@ namespace Gestion_de_Turnos_Medicos.Negocio
             return (lista != null && lista.Count > 0) ? string.Join(", ", lista.Select(s => s.Descripcion)) : string.Empty;
         }
 
-        /// <summary>
-        /// Verifica si existe un turno activo y en estado no atendido/cancelado con el número de orden provisto.
-        /// Garantiza que no se repitan números de turnos entre los no atendidos.
-        /// </summary>
-        /// <param name="nroOrden">Número de orden a verificar (ej. E-001, C-002).</param>
-        /// <param name="idTurnoExcluir">ID opcional de turno a excluir de la validación (para actualizaciones).</param>
-        /// <returns><c>true</c> si existe una colisión con un turno no atendido; de lo contrario, <c>false</c>.</returns>
-        public bool ExisteNroOrdenNoAtendido(string nroOrden, int? idTurnoExcluir = null)
-        {
-            if (string.IsNullOrWhiteSpace(nroOrden)) return false;
-            return _turnoDAL.ExisteNroOrdenNoAtendido(nroOrden, idTurnoExcluir);
-        }
     }
 }

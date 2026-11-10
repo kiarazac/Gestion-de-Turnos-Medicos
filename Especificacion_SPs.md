@@ -170,43 +170,6 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 
 ---
 
-## FrmGestionUsuarios
-
-### 1. `sp_ListarUsuarios`
-- **Descripción**: Obtiene el listado de todos los usuarios activos del sistema para la grilla de administración.
-- **Tablas involucradas**: `Usuarios`, `Roles`, `Medico_especialidad`, `Especialidades`, `detalle_sala`, `Sala`
-- **Parámetros**: Ninguno. Retorna: `id_usuario`, `nombre`, `apellido`, `usuario`, `contrasenia`, `dni`, `email`, `telefono`, `sexo`, `rol`, `nro_matricula`, `especialidades`, `sala`.
-
-### 2. `sp_GuardarUsuario`
-- **Descripción**: Da de alta o actualiza un usuario en la tabla `Usuarios`. Si el rol es "Personal Médico", registra también su matrícula, especialidades asignadas y sala.
-- **Tablas involucradas**: `Usuarios`, `Roles`, `Medico_especialidad`, `detalle_sala`
-- **Parámetros**:
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@Nombre` | `VARCHAR(100)` | IN | Nombre del usuario. |
-  | `@Apellido` | `VARCHAR(100)` | IN | Apellido del usuario. |
-  | `@Usuario` | `VARCHAR(100)` | IN | Nombre de usuario / login. |
-  | `@Contrasenia` | `VARCHAR(100)` | IN | Contraseña. |
-  | `@Dni` | `VARCHAR(20)` | IN | DNI del usuario. |
-  | `@Email` | `VARCHAR(100)` | IN | Correo electrónico (puede ser NULL). |
-  | `@Telefono` | `VARCHAR(50)` | IN | Teléfono de contacto (puede ser NULL). |
-  | `@Sexo` | `VARCHAR(20)` | IN | 'Hombre' o 'Mujer'. |
-  | `@Rol` | `VARCHAR(50)` | IN | Rol asignado (ej. 'Personal Médico'). |
-  | `@NroMatricula` | `VARCHAR(50)` | IN | Matrícula (NULL si no es médico). |
-  | `@Especialidades` | `VARCHAR(255)` | IN | Especialidades separadas por comas (NULL si no es médico). |
-  | `@Sala` | `VARCHAR(100)` | IN | Sala asignada (NULL si no es médico). |
-  | `@IdUsuario` | `INT` | OUT | ID autoincremental del usuario registrado. |
-
-### 3. `sp_DesactivarUsuario`
-- **Descripción**: Realiza la baja lógica (`Activo = 0`, `FechaBaja = GETDATE()`) del usuario especificado.
-- **Tablas involucradas**: `Usuarios`
-- **Parámetros**:
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdUsuario` | `INT` | IN | ID del usuario a desactivar. |
-
----
-
 ## FrmSalasGerente
 
 ### 1. `sp_ListarSalas`
@@ -301,17 +264,6 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 - **Descripción**: Lista las salas asignadas al personal médico logueado, indicando su estado operativo ('Disponible', 'Ocupada', 'En Mantenimiento').
 - **Tablas involucradas**: `Salas`, `detalle_sala`
 - **Parámetros**: Ninguno. Retorna: `id_sala`, `nombreSala`, `descripcion_atencion`, `estadoSala`.
-
-### 2. `sp_ActualizarEstadoSala`
-- **Descripción**: Actualiza el estado de una sala (ej. pasar a 'Disponible' al abrirla o 'En Mantenimiento' al cerrarla).
-- **Tablas involucradas**: `Salas`
-- **Parámetros**:
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
-  | `@NuevoEstado` | `VARCHAR(50)` | IN | Nuevo estado asignado ('Disponible', 'Ocupada', 'En Mantenimiento'). |
-
----
 
 ## FrmGestionEspecialidades
 

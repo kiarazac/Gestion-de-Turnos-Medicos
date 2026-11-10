@@ -15,17 +15,6 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         private readonly CajaDAL _cajaDAL = new CajaDAL();
 
         /// <summary>
-        /// Obtiene las métricas consolidadas del cierre de caja para la fecha dada.
-        /// </summary>
-        /// <param name="fecha">Fecha a auditar.</param>
-        /// <param name="soloEmitidosHoy">Si es true, consolida según la fecha de emisión del turno.</param>
-        /// <returns><see cref="ReporteCierreCajaResumenDTO"/> con los totales de caja.</returns>
-        public ReporteCierreCajaResumenDTO ObtenerResumenCierreCaja(DateTime fecha, bool soloEmitidosHoy = false)
-        {
-            return _cajaDAL.ObtenerResumenCierreCaja(fecha.Date, soloEmitidosHoy);
-        }
-
-        /// <summary>
         /// Obtiene el detalle nominal de todos los turnos emitidos/atendidos durante la jornada de caja,
         /// con filtro opcional por especialidad y por fecha de emisión.
         /// </summary>

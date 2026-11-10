@@ -56,6 +56,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Paso 1 del restore: valida la contraseña del Administrador logueado (BackupBLL.ValidarAdministrador) y recién ahí habilita el panel del Gerente.
+        /// </summary>
         private void BtnVerificarAdmin_Click(object? sender, EventArgs e)
         {
             try
@@ -84,6 +87,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Carga inicial: carpeta destino por defecto (Escritorio), nombre sugerido del .bak, datos del Admin y combo de Gerentes.
+        /// </summary>
         private void FrmBackupRestore_Load(object? sender, EventArgs e)
         {
             // 1. Directorio por defecto en el escritorio del usuario o carpeta segura
@@ -102,6 +108,9 @@ namespace Gestion_de_Turnos_Medicos
             CargarGerentesDesdeBD();
         }
 
+        /// <summary>
+        /// Al volver a la pestaña Backup refresca el nombre sugerido (lleva fecha y hora).
+        /// </summary>
         private void TabContenedor_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (tabContenedor.SelectedTab == tabBackup)
@@ -110,11 +119,17 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Muestra el nombre que tendrá el .bak: dbGestionTurnos_Backup_yyyyMMdd_HHmmss.bak.
+        /// </summary>
         private void ActualizarNomenclaturaSugerida()
         {
             lblNomenclaturaPreview.Text = _backupBLL.GenerarNombreSugeridoBackup();
         }
 
+        /// <summary>
+        /// Llena el combo con los Gerentes activos (sp_ListarGerentes) que pueden dar la segunda autorización.
+        /// </summary>
         private void CargarGerentesDesdeBD()
         {
             try
@@ -145,6 +160,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Abre el selector de carpeta donde se guardará el backup.
+        /// </summary>
         private void BtnExaminarBackup_Click(object? sender, EventArgs e)
         {
             using (var fbd = new FolderBrowserDialog())
@@ -164,6 +182,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Genera el backup completo: UI -> BackupBLL.CrearBackup -> BackupDAL.GenerarBackup -> sp_RealizarBackupBaseDatos (BACKUP DATABASE).
+        /// </summary>
         private void BtnGenerarBackup_Click(object? sender, EventArgs e)
         {
             string directorio = txtRutaDirectorioBackup.Text.Trim();
@@ -214,6 +235,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Abre el selector del archivo .bak a restaurar.
+        /// </summary>
         private void BtnExaminarRestore_Click(object? sender, EventArgs e)
         {
             using (var ofd = new OpenFileDialog())
@@ -229,6 +253,9 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Paso 2 del restore: valida campos, pide confirmación y llama a BackupBLL.RestaurarBaseDatos (doble autorización Admin + Gerente). Al terminar cierra la sesión y vuelve al Login.
+        /// </summary>
         private void BtnIniciarRestauracion_Click(object? sender, EventArgs e)
         {
             string rutaBak = txtRutaArchivoRestore.Text.Trim();

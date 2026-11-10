@@ -18,7 +18,6 @@ namespace Gestion_de_Turnos_Medicos
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL();
         private readonly ObraSocialBLL _obraSocialBLL = new ObraSocialBLL();
 
-        private int? idPacienteActual = null;
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
         private bool _fechaSinCobertura = false; // La fecha elegida no tiene profesionales disponibles: no se emiten turnos nuevos
         private TurnoAReprogramarDTO? _turnoEnReprogramacion = null; // Turno cancelado cuyo reemplazo aún no se generó ni se descartó
@@ -175,7 +174,6 @@ namespace Gestion_de_Turnos_Medicos
                 if (paciente != null)
                 {
                     // CASO 1: Paciente existente -> Autocompleta y bloquea edición
-                    idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
                     txtTelefono.Text = paciente.Telefono ?? string.Empty; // Editable: permite actualizar el teléfono de contacto
@@ -205,7 +203,6 @@ namespace Gestion_de_Turnos_Medicos
                 else
                 {
                     // CASO 2: Paciente nuevo -> Limpia y habilita los campos para el registro
-                    idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
                     txtTelefono.Clear();
@@ -561,7 +558,6 @@ namespace Gestion_de_Turnos_Medicos
 
                 // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
                 idPaciente = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial, txtTelefono.Text);
-                idPacienteActual = idPaciente;
 
                 // Cálculo del arancel según reglas de negocio (arancel base menos el % que cubre la obra social elegida)
                 // Se lee el % vigente de la BD: el combo se cargó al abrir la pantalla y pudo modificarse desde entonces
@@ -832,7 +828,6 @@ namespace Gestion_de_Turnos_Medicos
             txtApellido.ReadOnly = false;
             cmbObraSocial.Enabled = true;
 
-            idPacienteActual = null;
             txtClaveCancelacion.Clear();
             txtDNI.Focus();
         }

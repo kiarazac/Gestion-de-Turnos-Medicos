@@ -549,57 +549,5 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
-        private void ExportarTxt(string rutaArchivo, List<AtencionMedicoDTO> lista)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("================================================================================");
-            sb.AppendLine("                 CENTRO MÉDICO — REPORTE DE ATENCIONES MÉDICAS                  ");
-            sb.AppendLine("================================================================================");
-            sb.AppendLine($"PROFESIONAL MÉDICO : Dr. {_usuarioActual?.Nombre} {_usuarioActual?.Apellido}");
-            sb.AppendLine($"FECHA DE EMISIÓN   : {DateTime.Now:dd/MM/yyyy HH:mm:ss} hs");
-            sb.AppendLine($"PERÍODO CONSULTADO : {dtpDesde.Value:dd/MM/yyyy} al {dtpHasta.Value:dd/MM/yyyy}");
-            sb.AppendLine($"TOTAL ATENCIONES   : {lista.Count}");
-            sb.AppendLine("================================================================================");
-            sb.AppendLine();
-
-            int contador = 1;
-            foreach (var a in lista)
-            {
-                sb.AppendLine($"[{contador:D3}] ----------------------------------------------------------------------------");
-                sb.AppendLine($"FECHA / HORA : {a.Fecha:dd/MM/yyyy HH:mm} hs | TURNO: {a.NroOrden} | SALA: {a.NombreSala}");
-                sb.AppendLine($"PACIENTE     : {a.PacienteCompleto} | DNI: {a.DniPaciente} | COBERTURA: {a.ObraSocial}");
-                sb.AppendLine($"MODALIDAD    : {a.TipoTurno} | ESPECIALIDAD: {a.Especialidad}");
-                sb.AppendLine($"DIAGNÓSTICO  : {a.DiagRapido}");
-                if (!string.IsNullOrWhiteSpace(a.RecetaMedicamentos))
-                {
-                    sb.AppendLine($"RECETA       : {a.RecetaMedicamentos}");
-                }
-                sb.AppendLine();
-                contador++;
-            }
-
-            sb.AppendLine("================================================================================");
-            sb.AppendLine("                            FIN DEL REPORTE                                     ");
-            sb.AppendLine("================================================================================");
-
-            File.WriteAllText(rutaArchivo, sb.ToString(), Encoding.UTF8);
-        }
-
-        private void ExportarCsv(string rutaArchivo, List<AtencionMedicoDTO> lista)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("sep=;");
-            sb.AppendLine("IdHistoria;Fecha;NroOrden;Paciente;DNI;ObraSocial;TipoTurno;Especialidad;Sala;Diagnostico;Receta");
-
-            foreach (var a in lista)
-            {
-                string diagnostico = (a.DiagRapido ?? "").Replace(";", ",").Replace("\r\n", " ");
-                string receta = (a.RecetaMedicamentos ?? "").Replace(";", ",").Replace("\r\n", " ");
-
-                sb.AppendLine($"{a.IdHistoria};{a.Fecha:dd/MM/yyyy HH:mm};{a.NroOrden};{a.PacienteCompleto};{a.DniPaciente};{a.ObraSocial};{a.TipoTurno};{a.Especialidad};{a.NombreSala};{diagnostico};{receta}");
-            }
-
-            File.WriteAllText(rutaArchivo, sb.ToString(), new UTF8Encoding(true));
-        }
     }
 }

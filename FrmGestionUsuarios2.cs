@@ -22,7 +22,6 @@ namespace Gestion_de_Turnos_Medicos
     /// </summary>
     public partial class FrmGestionUsuarios2 : Form
     {
-        private const string ROL_PERSONAL_MEDICO = "Personal Médico";
 
         // Invocación a las capas de negocio
         private readonly UsuarioBLL _usuarioBLL = new UsuarioBLL();

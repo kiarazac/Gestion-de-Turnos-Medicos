@@ -24,7 +24,6 @@ namespace Gestion_de_Turnos_Medicos
         private readonly string nombreClinica = "Hospital San Martín";
 
         // Color usado para resaltar el estado "en atención" o "llamado" en ambas grillas
-        private static readonly Color ColorEstadoResaltado = Color.FromArgb(91, 155, 213);
 
         /// <summary>
         /// Constructor sin parámetros (utilizado desde la interfaz de Recepción o apertura directa del visor).

@@ -541,56 +541,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerListaTurnos</c> con filtros opcionales de especialidad y estado.
-        /// </summary>
-        /// <param name="idEspecialidad">ID de especialidad (opcional).</param>
-        /// <param name="estado">Estado del turno (opcional).</param>
-        /// <returns>Lista de <see cref="TurnoListadoDTO"/>.</returns>
-        public List<TurnoListadoDTO> ObtenerListaTurnos(int? idEspecialidad = null, string? estado = null)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", (object)idEspecialidad ?? DBNull.Value);
-                var pEstado = new SqlParameter("@Estado", (object?)estado ?? DBNull.Value);
-
-                try
-                {
-                    return context.Database
-                        .SqlQueryRaw<TurnoListadoDTO>("EXEC sp_ObtenerListaTurnos @IdEspecialidad, @Estado", pIdEspecialidad, pEstado)
-                        .ToList();
-                }
-                catch (SqlException)
-                {
-                    string sql = @"
-                        SELECT 
-                            t.IdTurno,
-                            t.NroOrden,
-                            t.Estado,
-                            t.TipoTurno,
-                            t.Fecha,
-                            e.Nombre AS NombreEspecialidad,
-                            pr.Descripcion AS PrioridadTexto,
-                            t.IdPrioridad,
-                            ISNULL(s.NombreSala, '--') AS NombreSala,
-                            pac.Telefono
-                        FROM Turnos t
-                        LEFT JOIN Especialidades e ON t.IdEspecialidad = e.IdEspecialidad
-                        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
-                        LEFT JOIN Salas s ON t.IdSala = s.IdSala
-                        LEFT JOIN Pacientes pac ON t.IdPaciente = pac.IdPaciente
-                        WHERE t.Activo = 1
-                          AND (@IdEspecialidad IS NULL OR t.IdEspecialidad = @IdEspecialidad)
-                          AND (@Estado IS NULL OR t.Estado = @Estado)
-                        ORDER BY t.Fecha ASC, t.FechaCreacion ASC;";
-
-                    return context.Database
-                        .SqlQueryRaw<TurnoListadoDTO>(sql, pIdEspecialidad, pEstado)
-                        .ToList();
-                }
-            }
-        }
-
-        /// <summary>
         /// Ejecuta <c>sp_ObtenerListaTurnos</c> filtrando por <c>@IdTurno</c> para recuperar los datos del comprobante de un turno.
         /// </summary>
         /// <param name="idTurno">ID del turno.</param>
@@ -752,18 +702,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerTurnosPantallaPublica</c> para poblar la pantalla de llamados en sala de espera.
-        /// </summary>
-        /// <returns>Lista de <see cref="TurnoPantallaDTO"/>.</returns>
-        public List<TurnoPantallaDTO> ObtenerTurnosPantallaPublica()
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                return context.Database.SqlQueryRaw<TurnoPantallaDTO>("EXEC sp_ObtenerTurnosPantallaPublica").ToList();
-            }
-        }
-
-        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ListarTurnosGeneralesPantalla</c> para alimentar el tablero general de visualización.
         /// </summary>
         /// <returns>Lista de <see cref="TurnoGeneralPantallaDTO"/>.</returns>
@@ -773,23 +711,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             {
                 return context.Database
                     .SqlQueryRaw<TurnoGeneralPantallaDTO>("EXEC sp_ListarTurnosGeneralesPantalla")
-                    .ToList();
-            }
-        }
-
-        /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ObtenerTurnosEnEspera</c> para obtener la cola ordenada de una especialidad.
-        /// </summary>
-        /// <param name="idEspecialidad">Identificador único de la especialidad.</param>
-        /// <returns>Lista de <see cref="TurnoEsperaDTO"/>.</returns>
-        public List<TurnoEsperaDTO> ObtenerTurnosEnEspera(int idEspecialidad)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", idEspecialidad);
-
-                return context.Database
-                    .SqlQueryRaw<TurnoEsperaDTO>("EXEC sp_ObtenerTurnosEnEspera @IdEspecialidad", pIdEspecialidad)
                     .ToList();
             }
         }
@@ -896,44 +817,5 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
             }
         }
 
-        /// <summary>
-        /// Comprueba si ya existe un turno activo y no atendido con el mismo número de orden.
-        /// </summary>
-        /// <param name="nroOrden">Número de orden a verificar (ej. 'E-001', 'C-002').</param>
-        /// <param name="idTurnoExcluir">ID opcional del turno a excluir de la búsqueda (para modificaciones).</param>
-        /// <returns><c>true</c> si ya existe otro turno no atendido con ese número; de lo contrario, <c>false</c>.</returns>
-        public bool ExisteNroOrdenNoAtendido(string nroOrden, int? idTurnoExcluir = null)
-        {
-            if (string.IsNullOrWhiteSpace(nroOrden)) return false;
-
-            using (var context = new dbTurnosMedicos())
-            {
-                return context.Turnos
-                    .Any(t => t.Activo 
-                           && t.NroOrden == nroOrden 
-                           && (!idTurnoExcluir.HasValue || t.IdTurno != idTurnoExcluir.Value)
-                           && t.Estado != "Atendido" 
-                           && t.Estado != "Cancelado");
-            }
-        }
-
-        /// <summary>
-        /// Inserta un turno ejecutando el procedimiento almacenado <c>sp_InsertarTurno</c>.
-        /// </summary>
-        public void InsertarTurno(string nroOrden, string tipoTurno, int idPrioridad, int idPaciente, int idEspecialidad)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pNroOrden = new SqlParameter("@NroOrden", nroOrden);
-                var pTipoTurno = new SqlParameter("@TipoTurno", tipoTurno);
-                var pIdPrioridad = new SqlParameter("@IdPrioridad", idPrioridad);
-                var pIdPaciente = new SqlParameter("@IdPaciente", idPaciente);
-                var pIdEspecialidad = new SqlParameter("@IdEspecialidad", idEspecialidad);
-
-                context.Database.ExecuteSqlRaw(
-                    "EXEC sp_InsertarTurno @NroOrden, @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad",
-                    pNroOrden, pTipoTurno, pIdPrioridad, pIdPaciente, pIdEspecialidad);
-            }
-        }
     }
 }

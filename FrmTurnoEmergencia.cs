@@ -17,7 +17,6 @@ namespace Gestion_de_Turnos_Medicos
         private readonly TurnoBLL _turnoBLL = new TurnoBLL();
         private readonly PacienteBLL _pacienteBLL = new PacienteBLL(); // Instanciamos para guardar pacientes nuevos
         private readonly ObraSocialBLL _obraSocialBLL = new ObraSocialBLL();
-        private int? idPacienteActual = null; // Almacena el ID si el paciente ya existe en la BD
         private DatosComprobanteTurno? _ultimoTurnoEmitido = null; // Almacena los datos del último turno generado para exportar
         private TurnoEmergenciaCancelacionDTO? _turnoACancelar = null; // Almacena el turno localizado para cancelar con 2FA
 
@@ -144,7 +143,6 @@ namespace Gestion_de_Turnos_Medicos
                 if (paciente != null)
                 {
                     // CASO 1: El paciente YA existe en la base de datos
-                    idPacienteActual = paciente.IdPaciente;
                     txtNombre.Text = paciente.Nombre;
                     txtApellido.Text = paciente.Apellido;
                     txtTelefono.Text = paciente.Telefono ?? string.Empty;
@@ -193,7 +191,6 @@ namespace Gestion_de_Turnos_Medicos
                 else
                 {
                     // CASO 2: El paciente NO existe. Permitimos cargar sus datos desde cero.
-                    idPacienteActual = null;
                     txtNombre.Clear();
                     txtApellido.Clear();
                     txtTelefono.Clear();
@@ -249,7 +246,6 @@ namespace Gestion_de_Turnos_Medicos
 
                 // Guarda al paciente nuevo o actualiza su cobertura médica si fue modificada en el sistema
                 idPacienteFinal = _pacienteBLL.GuardarPaciente(nombre, apellido, dni, idObraSocial, telefono);
-                idPacienteActual = idPacienteFinal;
 
                 // Validación de Regla de Negocio: No permitir más de un turno sin atender para el mismo paciente en emergencia
                 var turnoActivoPrevio = _turnoBLL.ObtenerTurnoEmergenciaActivo(idPacienteFinal);
@@ -621,7 +617,6 @@ namespace Gestion_de_Turnos_Medicos
             txtApellido.ReadOnly = false;
             cmbObraSocial.Enabled = true;
 
-            idPacienteActual = null;
             checkBoxBaja.Checked = false;
 
             for (int i = 0; i < checkedListAlta.Items.Count; i++) checkedListAlta.SetItemChecked(i, false);

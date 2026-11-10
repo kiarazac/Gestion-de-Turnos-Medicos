@@ -160,26 +160,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteMedico_RankingDiagnosticosYSintomas</c>
-        /// para obtener los diagnósticos y síntomas más frecuentes atendidos por el médico en su especialidad.
-        /// </summary>
-        public List<ReporteMedicoDiagnosticoFrecuenteDTO> ObtenerRankingDiagnosticosMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pIdUsuario = new SqlParameter("@IdUsuario", idUsuario);
-                var pFechaDesde = new SqlParameter("@FechaDesde", (object?)fechaDesde?.Date ?? DBNull.Value);
-                var pFechaHasta = new SqlParameter("@FechaHasta", (object?)fechaHasta?.Date ?? DBNull.Value);
-
-                return context.Database
-                    .SqlQueryRaw<ReporteMedicoDiagnosticoFrecuenteDTO>(
-                        "EXEC sp_ReporteMedico_RankingDiagnosticosYSintomas @IdUsuario, @FechaDesde, @FechaHasta",
-                        pIdUsuario, pFechaDesde, pFechaHasta)
-                    .ToList();
-            }
-        }
-
-        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ReporteGerencialFinanzasResumen</c> para obtener los totales de
         /// recaudación del período: cobrado en caja, a cobrar a obras sociales, total facturado, ticket promedio y ausentismo.
         /// </summary>

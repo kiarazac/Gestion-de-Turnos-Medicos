@@ -35,7 +35,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │            FrmSalasGerente, FrmGestionEspecialidades,                    │
 │            FrmTurnoEmergencia, FrmTurnoEspecialidad, FrmListaTurnos,    │
 │            FrmListaTurnosAtencion, MisSalas_PM, FrmMisAtenciones,      │
-│            FrmAdmin, FrmBackupRestore, FrmReporteGuardiaAdmin, etc.    │
+│            FrmBackupRestore, FrmCierreCaja, FrmReportesGerente, etc.   │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Captura de eventos visuales (Click, Load, SelectedIndexChanged).   │
@@ -51,7 +51,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │  Namespace: Gestion_de_Turnos_Medicos.Negocio                          │
 │  Archivos: UsuarioBLL, SalaBLL, EspecialidadBLL,                       │
 │            PacienteBLL, TurnoBLL, ObraSocialBLL,                       │
-│            HistoriaClinicaBLL, ReporteBLL, ReporteGuardiaBLL           │
+│            HistoriaClinicaBLL, ReporteBLL, CajaBLL                     │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Aplicar reglas de negocio médicas y administrativas.               │
@@ -68,7 +68,7 @@ Define la separación estricta de responsabilidades entre la **Capa de Presentac
 │  Namespace: Gestion_de_Turnos_Medicos.CapaDeDatos                      │
 │  Archivos: UsuarioDAL, SalaDAL, EspecialidadDAL,                       │
 │            PacienteDAL, TurnoDAL, ObraSocialDAL,                       │
-│            HistoriaClinicaDAL, ReporteDAL, ReporteGuardiaDAL           │
+│            HistoriaClinicaDAL, ReporteDAL, CajaDAL                     │
 │                                                                        │
 │  Responsabilidades:                                                    │
 │  - Uso exclusivo de ConsultorioContext (DbContext EF Core).            │
@@ -106,7 +106,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.2 `UsuarioListadoDTO`
-- **Uso**: Retorno de `sp_ListarUsuarios` para la grilla de `FrmGestionUsuarios`.
+- **Uso**: Retorno de `sp_ListarUsuarios` para la grilla de `FrmGestionUsuarios2`.
 - **Propiedades**:
   ```csharp
   public int IdUsuario { get; set; }
@@ -122,7 +122,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.3 `RolDTO`
-- **Uso**: Retorno de `sp_ListarRoles` para el ComboBox de roles en `FrmGestionUsuarios`.
+- **Uso**: Retorno de `sp_ListarRoles` para el ComboBox de roles en `FrmGestionUsuarios2`.
 - **Propiedades**:
   ```csharp
   public int IdRol { get; set; }
@@ -211,15 +211,6 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public string ObraSocial { get; set; }
   ```
 
-### 3.11 `TurnoPantallaDTO`
-- **Uso**: Retorno de `sp_ObtenerTurnosPantallaPublica`.
-- **Propiedades**:
-  ```csharp
-  public string NroOrden { get; set; }
-  public string NombreSala { get; set; }
-  public string MedicoApellido { get; set; }
-  ```
-
 ### 3.12 `HistoriaClinicaDTO`
 - **Uso**: Retorno de `sp_ObtenerHistoriaClinicaPaciente`.
 - **Propiedades**:
@@ -274,7 +265,7 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   ```
 
 ### 3.16 `UsuarioListadoDTO`
-- **Uso**: Retorno de `sp_ListarUsuarios` para la administración de personal y roles en `FrmGestionUsuarios`.
+- **Uso**: Retorno de `sp_ListarUsuarios` para la administración de personal y roles en `FrmGestionUsuarios2`.
 - **Propiedades**:
   ```csharp
   public int IdUsuario { get; set; }
@@ -333,45 +324,6 @@ Los DTOs se ubican en la carpeta `DTOs/` (compartiendo ámbito con `ResultadosSQ
   public decimal Porcentaje { get; set; }
   ```
 
-### 3.20 `ReporteGuardiaResumenDTO`
-- **Uso**: Retorno de `sp_ReporteGuardiaTriage_Resumen` para las tarjetas de KPIs en `FrmReporteGuardiaAdmin`.
-- **Propiedades**:
-  ```csharp
-  public int TotalIngresos { get; set; }
-  public int PrioridadAlta { get; set; }
-  public int PrioridadMedia { get; set; }
-  public int PrioridadBaja { get; set; }
-  public int Atendidos { get; set; }
-  public int EnEspera { get; set; }
-  public decimal TasaResolucion { get; set; }
-  ```
-
-### 3.21 `ReporteGuardiaSintomaDTO`
-- **Uso**: Retorno de `sp_ReporteGuardiaTriage_RankingSintomas` para el top de sintomatologías en `FrmReporteGuardiaAdmin`.
-- **Propiedades**:
-  ```csharp
-  public int IdSintoma { get; set; }
-  public string Descripcion { get; set; }
-  public int CantidadCasos { get; set; }
-  public decimal PorcentajeDelTotal { get; set; }
-  ```
-
-### 3.22 `ReporteGuardiaDetalleDTO`
-- **Uso**: Retorno de `sp_ReporteGuardiaTriage_Detalle` para la grilla tabular con colorimetría y búsqueda en vivo en `FrmReporteGuardiaAdmin`.
-- **Propiedades**:
-  ```csharp
-  public int IdTurno { get; set; }
-  public string NroOrden { get; set; }
-  public DateTime FechaIngreso { get; set; }
-  public string PacienteNombreCompleto { get; set; }
-  public string DniPaciente { get; set; }
-  public string PrioridadTriage { get; set; }
-  public string SintomasIngreso { get; set; }
-  public string EstadoTurno { get; set; }
-  public string? MedicoAsignado { get; set; }
-  public string? SalaAtencion { get; set; }
-  ```
-
 ### 3.23 `ObraSocialDTO`
 - **Uso**: Retorno de `sp_ListarObrasSociales` para poblar los ComboBox de obras sociales en `FrmTurnoEmergencia` y `FrmTurnoEspecialidad`.
 - **Propiedades**:
@@ -421,7 +373,7 @@ public void EliminarUsuario(int idUsuario)
 ```
 
 ### 4.3 Patrón 3: Inserción que retorna un ID autogenerado (`SCOPE_IDENTITY`)
-Utilizado en procedimientos como `sp_InsertarPaciente` o `sp_RegistrarTurnoEmergencia`:
+Utilizado en procedimientos como `sp_GuardarPaciente`:
 
 ```csharp
 public int InsertarPaciente(string nombre, string apellido, string dni, string obraSocial)
@@ -434,7 +386,7 @@ public int InsertarPaciente(string nombre, string apellido, string dni, string o
         var pObraSocial = new SqlParameter("@ObraSocial", obraSocial);
 
         var result = context.Database
-            .SqlQueryRaw<int>("EXEC sp_InsertarPaciente @Nombre, @Apellido, @Dni, @ObraSocial",
+            .SqlQueryRaw<int>("EXEC sp_GuardarPaciente @Nombre, @Apellido, @Dni, @IdObraSocial",
                 pNombre, pApellido, pDni, pObraSocial)
             .AsEnumerable()
             .FirstOrDefault();
@@ -559,7 +511,7 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | | `EspecialidadBLL.ReactivarEspecialidad`| `EspecialidadDAL.ReactivarEspecialidad` | `sp_ReactivarEspecialidad` |
 | **`FrmTurnoEmergencia`** | `ObraSocialBLL.ObtenerObrasSociales` | `ObraSocialDAL.ListarObrasSociales` | `sp_ListarObrasSociales` |
 | | `TurnoBLL.ObtenerSintomas` | `TurnoDAL.ObtenerSintomas` | `sp_ObtenerSintomas` |
-| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` / `sp_InsertarPaciente` (con `@IdObraSocial`) |
+| | `PacienteBLL.GuardarPaciente` | `PacienteDAL.GuardarPaciente` | `sp_GuardarPaciente` (con `@IdObraSocial`) |
 | | `TurnoBLL.CrearTurnoEmergenciaConSintomas` | `TurnoDAL.CrearTurnoEmergenciaCompleto` | `sp_CrearTurnoEmergencia` (Numeración correlativa diaria E-xxx, unicidad entre no atendidos, generación 2FA) |
 | | `TurnoBLL.RegistrarTurnoSintoma` | `TurnoDAL.RegistrarTurnoSintoma` | `sp_GuardarTurnoSintoma` |
 | | `TurnoBLL.BuscarTurnoActivoEmergencia` | `TurnoDAL.BuscarTurnoActivoEmergencia` | `sp_BuscarTurnoActivoEmergencia` (por NroOrden o DNI) |
@@ -589,9 +541,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 | **`FrmRecepcionista`** | *(Navegación UI / Contenedor)* | N/A | Botón `btnUsuarioVentana` ("Pantalla Turnos") para proyectar o incrustar `FrmUsuarioVentana` |
 | **`FrmUsuarioVentana`** | `TurnoBLL.ListarTurnosEmergencia` | `TurnoDAL.ListarTurnosEmergencia` | `sp_ListarTurnosEmergencia` (Refresco cada 5s) |
 | | `TurnoBLL.ObtenerTurnosPantallaGeneral` | `TurnoDAL.ListarTurnosGeneralesPantalla` | `sp_ListarTurnosGeneralesPantalla` (Refresco cada 5s) |
-| **`FrmReporteGuardiaAdmin`** | `ReporteGuardiaBLL.ObtenerResumen` | `ReporteGuardiaDAL.ObtenerResumen` | `sp_ReporteGuardiaTriage_Resumen` (Tarjetas KPIs: Total, Alta, Media, Baja, Tasa Resolución) |
-| | `ReporteGuardiaBLL.ObtenerRankingSintomas` | `ReporteGuardiaDAL.ObtenerRankingSintomas` | `sp_ReporteGuardiaTriage_RankingSintomas` (Ranking de motivos y síntomas de urgencia) |
-| | `ReporteGuardiaBLL.ObtenerDetalle` | `ReporteGuardiaDAL.ObtenerDetalle` | `sp_ReporteGuardiaTriage_Detalle` (Grilla tabular con filtro de fecha, prioridad, búsqueda en vivo y exportación .csv/.txt) |
 
 ---
 
@@ -603,26 +552,3 @@ namespace Gestion_de_Turnos_Medicos.Negocio
 4. **Paso de contexto de sesión**: Formularios operativos como `MisSalas_PM` y `FrmListaTurnosAtencion` reciben al médico autenticado (`UsuarioLoginResult`) desde su formulario contenedor (`Pantalla_Principal_PERSONAL_MEDICO`), garantizando trazabilidad y filtrado por profesional.
 
 ---
-
-## 8. Servicios Transversales y Exportación Nativa (ClosedXML / OpenXML)
-
-El proyecto incorpora una capa de servicios utilitarios bajo el espacio de nombres `Gestion_de_Turnos_Medicos.Servicios`.
-
-### 8.1 `ExportadorExcel` (`ClosedXML.Excel`)
-Centraliza la generación de planillas corporativas nativas en formato Microsoft Excel (`.xlsx`), implementando estilos visuales médicos y consistencia en los informes:
-- **Paleta de Colores Corporativos:** Encabezados en verde médico (`#0F766E` / `ColorTealPrincipal`), grilla oscura (`#1E293B` / `ColorSlateOscuro`), bordes suaves (`#CBD5E1`) y sombreado zebra alternado (`#F8FAFC`).
-- **Colores Semánticos Manchester / Triage:**
-  - **Alta (Rojo):** Fondo `#FEE2E2`, Texto `#991B1B`.
-  - **Media (Amarillo):** Fondo `#FEF3C7`, Texto `#92400E`.
-  - **Baja (Verde):** Fondo `#DCFCE7`, Texto `#166534`.
-- **Auto-Ajuste Inteligente de Columnas:** Emplea `ws.Columns().AdjustToContents(2, ultimaFila)` para omitir el banner combinado superior y aplica anchos mínimos garantizados para evitar recortes o visualización de `###`.
-
-#### Métodos de Exportación Expuestos:
-1. `ExportarReporteGuardia(...)`: Genera el libro Excel con 2 hojas:
-   - *"Resumen y Triage"*: Banner, metadatos, ficha de KPIs y tabla de ranking de síntomas predominantes.
-   - *"Detalle de Ingresos"*: Listado nominal de turnos con formato condicional de triage según severidad.
-2. `ExportarReporteGerencial(...)`: Genera el libro con 2 hojas:
-   - *"Demanda por Especialidad"*: Totales, atendidos, en espera y porcentaje de resolutividad con formato numérico tipado.
-   - *"Productividad Médica"*: Consultas realizadas y pacientes únicos por profesional con matrícula.
-3. `ExportarAtencionesMedico(...)`: Genera el historial clínico de atenciones del médico con ajuste de texto multilinea (`WrapText`) para diagnósticos y recetas farmacológicas.
-

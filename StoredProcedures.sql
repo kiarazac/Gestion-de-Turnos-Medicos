@@ -144,37 +144,6 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_InsertarRol
-** Sección       : 1.3
-** Propósito     : Da de alta un nuevo perfil de rol en el sistema.
-** Entidad/Tablas: `Roles`
-** Invocado por  : Ninguno actualmente (se inicializan por script de Seeds). (N/A)
-** Estado        : `NO UTILIZADO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@Descripcion` (`NVARCHAR(50)`, IN) - Nombre identificatorio del rol.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_InsertarRol
-    @Descripcion NVARCHAR(50)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
-    VALUES (@Descripcion, 1, GETDATE());
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
 ** Procedimiento : sp_ListarUsuarios
 ** Sección       : 1.4
 ** Propósito     : Obtiene el listado de usuarios del sistema para la grilla de administración, concatenando sus especialidades médicas y salas asignadas. Soporta el parámetro opcional `@IncluirInactivos` para listar tanto usuarios activos como aquellos dados de baja lógica.
@@ -1130,50 +1099,6 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_ActualizarEstadoSala
-** Sección       : 2.8
-** Propósito     : Actualiza de forma genérica el estado operativo de un consultorio o sala física (`Disponible`, `Libre`, `Ocupada`, `En Mantenimiento`, `Cerrada`) con control de transacciones y validaciones de integridad.
-** Entidad/Tablas: `Salas`
-** Invocado por  : Utilizado por la capa DAL/BLL (`SalaDAL.ActualizarEstadoSala`, `SalaBLL.ActualizarEstadoSala`) (Mantenimiento de salas y soporte operativo)
-** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@IdSala` (`INT`, IN) - ID de la sala a modificar.
-**                `@NuevoEstado` (`NVARCHAR(50)`, IN) - Nuevo estado operativo a asignar.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ActualizarEstadoSala
-    @IdSala INT,
-    @NuevoEstado NVARCHAR(50) 
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
-        BEGIN
-            THROW 50048, 'La sala a actualizar no existe o se encuentra inactiva.', 1;
-        END
-
-        IF @NuevoEstado NOT IN ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada')
-        BEGIN
-            THROW 50049, 'El estado operativo asignado a la sala no es válido.', 1;
-        END
-
-        UPDATE Salas
-        SET EstadoSala = @NuevoEstado,
-            FechaModificacion = GETDATE()
-        WHERE IdSala = @IdSala AND Activo = 1;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END;
-
-GO
-
-/* =========================================================================
 ** Procedimiento : sp_ReactivarSala
 ** Sección       : 2.9
 ** Propósito     : Reactiva lógicamente una sala dada de baja previamente (`Activo = 1`, `FechaBaja = NULL`), restaura sus asignaciones históricas en `DetallesSalas` y valida existencia y estado actual.
@@ -2101,50 +2026,6 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_InsertarPaciente
-** Sección       : 4.3
-** Propósito     : Inserción directa de un paciente vinculando IdObraSocial.
-** Entidad/Tablas: `Pacientes`, `ObrasSociales`
-** Invocado por  : Ninguno actualmente (superado por `sp_GuardarPaciente`). (N/A)
-** Estado        : `NO UTILIZADO (SUPERADO POR sp_GuardarPaciente)`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@Nombre` (`NVARCHAR(100)`, IN) - Nombre del paciente.
-**                `@Apellido` (`NVARCHAR(100)`, IN) - Apellido del paciente.
-**                `@Dni` (`NVARCHAR(20)`, IN) - Documento de identidad.
-**                `@IdObraSocial` (`INT`, IN) - Clave foránea de la cobertura médica.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_InsertarPaciente
-    @Nombre NVARCHAR(100),
-    @Apellido NVARCHAR(100),
-    @Dni NVARCHAR(20),
-    @IdObraSocial INT = 1
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        IF @IdObraSocial IS NULL OR @IdObraSocial <= 0
-        BEGIN
-            SELECT TOP 1 @IdObraSocial = IdObraSocial FROM ObrasSociales WHERE Nombre LIKE '%Particular%';
-            IF @IdObraSocial IS NULL SET @IdObraSocial = 1;
-        END
-
-        INSERT INTO Pacientes (Nombre, Apellido, Dni, IdObraSocial, FechaCreacion, Activo)
-        VALUES (@Nombre, @Apellido, @Dni, @IdObraSocial, GETDATE(), 1);
-
-        SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
 ** Procedimiento : sp_ObtenerSintomas
 ** Sección       : 5.1
 ** Propósito     : Retorna el catálogo de síntomas activos con su nivel de gravedad para el triage dinámico de guardia.
@@ -3032,11 +2913,6 @@ END;
 
 GO
 
--- Sugerencias de horarios retiradas de FrmTurnoEspecialidad
-DROP PROCEDURE IF EXISTS sp_SugerirHorariosLibres;
-
-GO
-
 /* =========================================================================
 ** Procedimiento : sp_BuscarTurnoActivoEmergencia
 ** Sección       : 5.6.0.1
@@ -3363,94 +3239,6 @@ BEGIN
       AND t.Estado IN ('En Espera', 'Llamado', 'En Consulta', 'En Atención', 'En Atencion')
       AND t.Estado NOT IN ('Atendido', 'Ausente', 'Cancelado')
     ORDER BY t.Fecha ASC, t.Horario ASC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
-** Procedimiento : sp_InsertarTurno
-** Sección       : 5.10
-** Propósito     : Inserción simple de turno estándar sin prefijos personalizados de especialidad ni triage automático de emergencias. Superado por `sp_CrearTurnoEspecialidad` y `sp_CrearTurnoEmergencia`.
-** Entidad/Tablas: `Turnos`
-** Invocado por  : Ninguno actualmente (superado). (N/A)
-** Estado        : `NO UTILIZADO (SUPERADO POR sp_CrearTurnoEspecialidad y sp_CrearTurnoEmergencia)`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@NroOrden` (`NVARCHAR(50)`, IN) - Código de orden.
-**                `@TipoTurno` (`NVARCHAR(50)`, IN) - Tipo de turno.
-**                `@IdPrioridad` (`INT`, IN) - Nivel de prioridad.
-**                `@IdPaciente` (`INT`, IN) - ID del paciente.
-**                `@IdEspecialidad` (`INT`, IN) - ID de la especialidad.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_InsertarTurno
-    @NroOrden NVARCHAR(50),
-    @TipoTurno NVARCHAR(50),
-    @IdPrioridad INT,
-    @IdPaciente INT,
-    @IdEspecialidad INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        IF EXISTS (
-            SELECT 1 FROM Turnos 
-            WHERE NroOrden = @NroOrden 
-              AND Activo = 1 
-              AND Estado NOT IN ('Atendido', 'Cancelado')
-        )
-        BEGIN
-            THROW 50007, 'Ya existe un turno activo sin atender con el mismo número de orden.', 1;
-        END
-
-        IF NOT EXISTS (SELECT 1 FROM Especialidades WHERE IdEspecialidad = @IdEspecialidad AND Activo = 1)
-        BEGIN
-            THROW 50009, 'La especialidad seleccionada se encuentra inactiva. No se pueden registrar nuevos turnos.', 1;
-        END
-
-        INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-        VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
-** Procedimiento : sp_ObtenerTurnosEnEspera
-** Sección       : 6.1
-** Propósito     : Lista los turnos en espera para una especialidad específica, ordenados por triage (`IdPrioridad ASC`) y orden de llegada (`FechaCreacion ASC`).
-** Entidad/Tablas: `Turnos`
-** Invocado por  : `FrmListaTurnosAtencion` (`RefrescarListado`)
-** Estado        : `EN USO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@IdEspecialidad` (`INT`, IN) - ID de la especialidad.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ObtenerTurnosEnEspera
-    @IdEspecialidad INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    SELECT * 
-    FROM Turnos
-    WHERE Activo = 1 
-      AND Estado = 'En Espera'
-      AND IdEspecialidad = @IdEspecialidad
-    ORDER BY IdPrioridad ASC, FechaCreacion ASC;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -4081,84 +3869,6 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_ObtenerTurnosPantallaPublica
-** Sección       : 6.8
-** Propósito     : Alimenta los monitores públicos de sala de espera con los turnos recién llamados (sin exponer diagnósticos privados).
-** Entidad/Tablas: `Turnos`, `Salas`, `Usuarios`
-** Invocado por  : Pantalla pública de sala de espera. (Consulta periódica (Timer))
-** Estado        : `SIN FORM ASOCIADO / PENDIENTE`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   : Ninguno.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ObtenerTurnosPantallaPublica
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    SELECT 
-        t.NroOrden,
-        s.NombreSala,
-        u.Apellido AS MedicoApellido
-    FROM Turnos t
-    INNER JOIN Salas s ON t.IdSala = s.IdSala
-    INNER JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
-    WHERE t.Estado = 'Llamado' 
-      AND t.Activo = 1
-    ORDER BY t.FechaModificacion DESC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
-** Procedimiento : sp_FinalizarAtencion
-** Sección       : 6.9
-** Propósito     : Versión previa para la finalización de atención de turnos y liberación de salas. Superado por sp_FinalizarAtencionTurno (que incorpora validación con THROW 50084, registro de evolución diagnóstica y control transaccional).
-** Entidad/Tablas: `Turnos`, `Salas`
-** Invocado por  : Ninguno actualmente (superado por `sp_FinalizarAtencionTurno`).
-** Estado        : `NO UTILIZADO`
-** Retorno       : No retorna conjunto de datos (DML/Update)
-** Parámetros   :
-**                `@IdTurno` (`INT`, IN) - ID del turno a finalizar.
-**                `@IdSala` (`INT`, IN) - ID de la sala a liberar.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_FinalizarAtencion
-    @IdTurno INT,
-    @IdSala INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        -- 1. Marcar el turno como Atendido
-        UPDATE Turnos
-        SET Estado = 'Atendido',
-            FechaModificacion = GETDATE()
-        WHERE IdTurno = @IdTurno;
-
-        -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
-        UPDATE Salas
-        SET EstadoSala = 'Libre',
-            FechaModificacion = GETDATE()
-        WHERE IdSala = @IdSala;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
 ** Procedimiento : sp_ObtenerHistoriaClinicaPaciente
 ** Sección       : 6.10
 ** Propósito     : Permite consultar los antecedentes clínicos completos del paciente ordenados cronológicamente.
@@ -4418,235 +4128,6 @@ END;
 
 GO
 
-/* =========================================================================
-** Procedimiento : sp_ReporteGuardiaTriage_Resumen
-** Sección       : 6.14
-** Propósito     : Genera métricas e indicadores clave de guardia (KPIs):
-**                 volumen de ingresos por severidad de triage (Alta, Media, Baja),
-**                 turnos atendidos, pendientes, cancelados y tasa de resolución.
-** Entidad/Tablas: Turnos, Prioridades
-** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
-** Acción        : Carga de tarjetas/indicadores superiores de triage
-** Estado        : EN USO
-** Retorno       : TotalEmergencias, TotalAlta, TotalMedia, TotalBaja, TotalAtendidos, TotalEnEspera, TotalCancelados, TasaResolucion
-** Parámetros   :
-**                @FechaDesde   (DATETIME, IN, OPT) - Fecha y hora mínima de ingreso/turno.
-**                @FechaHasta   (DATETIME, IN, OPT) - Fecha y hora máxima de ingreso/turno.
-**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico (1=Alta, 2=Media, 3=Baja).
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Resumen
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    -- Suprime los mensajes informativos de conteo de filas afectadas para optimizar rendimiento de red
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        SELECT 
-            -- 1. Total general de turnos de guardia registrados en el intervalo seleccionado
-            COUNT(t.IdTurno) AS TotalEmergencias,
-
-            -- 2. Conteo por nivel de Triage Manchester:
-            -- Se utiliza ISNULL(SUM(...), 0) para que, en caso de que no existan turnos en el rango de fechas,
-            -- la función agregada SUM retorne 0 en lugar de NULL, evitando la excepción 'Data is Null' en EF Core.
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END), 0) AS TotalAlta,
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END), 0) AS TotalMedia,
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END), 0) AS TotalBaja,
-
-            -- 3. Conteo según el estado de la atención médica del paciente en guardia:
-            -- Atendidos: Turnos cuya consulta médica fue completada o se encuentra actualmente en curso
-            ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TotalAtendidos,
-            -- En Espera: Pacientes aguardando en sala de espera o con llamado activo a consultorio
-            ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END), 0) AS TotalEnEspera,
-            -- Cancelados: Turnos cancelados por el paciente o bajas administrativas
-            ISNULL(SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END), 0) AS TotalCancelados,
-
-            -- 4. Tasa de resolución médica (% de turnos resueltos respecto al total de ingresos de guardia):
-            -- Se calcula sólo si existen ingresos (> 0) para prevenir división por cero; de lo contrario devuelve 0.00
-            ISNULL(CAST(
-                CASE 
-                    WHEN COUNT(t.IdTurno) > 0 
-                    THEN (CAST(ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
-                    ELSE 0.0 
-                END AS DECIMAL(5,2)
-            ), 0.0) AS TasaResolucion
-        FROM Turnos t
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          -- Normalización de fechas a tipo DATE para comparar únicamente día/mes/año sin sesgo por la hora
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          -- Filtro opcional por nivel de prioridad (1=Alta, 2=Media, 3=Baja)
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
-    END TRY
-    BEGIN CATCH
-        -- Manejo seguro de errores con reversión transaccional si hubiere transacciones abiertas
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
-** Procedimiento : sp_ReporteGuardiaTriage_RankingSintomas
-** Sección       : 6.15
-** Propósito     : Genera el ranking de motivos de consulta y síntomas más frecuentes
-**                 manifestados por los pacientes durante el triage de guardia, con conteo y %.
-** Entidad/Tablas: TurnoSintomas, Sintomas, Turnos
-** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
-** Acción        : Carga de grilla/tabla de síntomas predominantes
-** Estado        : EN USO
-** Retorno       : IdSintoma, Sintoma, Gravedad, CantidadCasos, Porcentaje
-** Parámetros   :
-**                @FechaDesde   (DATETIME, IN, OPT) - Fecha mínima de consulta.
-**                @FechaHasta   (DATETIME, IN, OPT) - Fecha máxima de consulta.
-**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_RankingSintomas
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        -- Variable para calcular la base del porcentaje de participación de cada síntoma
-        DECLARE @TotalSintomas INT = 0;
-
-        -- Paso 1: Computar el total absoluto de síntomas registrados en el período y filtro indicado
-        SELECT @TotalSintomas = COUNT(ts.IdTurnoSintoma)
-        FROM TurnoSintomas ts
-        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          AND ts.Activo = 1
-          AND s.Activo = 1
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
-
-        -- Paso 2: Agrupar por síntoma, contar frecuencias y calcular el porcentaje relativo
-        SELECT 
-            s.IdSintoma,
-            -- Descripción del síntoma con valor por defecto si fuere nula
-            ISNULL(s.Descripcion, 'Sin descripción') AS Sintoma,
-            -- Gravedad tipificada en catálogo ('Alta', 'Media', 'Baja')
-            ISNULL(s.Gravedad, 'Baja') AS Gravedad,
-            -- Conteo de incidencias del síntoma específico en las atenciones
-            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
-            -- Participación porcentual sobre el volumen total de síntomas manifestados
-            ISNULL(CAST(
-                CASE 
-                    WHEN @TotalSintomas > 0 
-                    THEN (CAST(COUNT(ts.IdTurnoSintoma) AS DECIMAL(10,2)) / @TotalSintomas) * 100.0
-                    ELSE 0.0 
-                END AS DECIMAL(5,2)
-            ), 0.0) AS Porcentaje
-        FROM TurnoSintomas ts
-        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          AND ts.Activo = 1
-          AND s.Activo = 1
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
-        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
-        -- Orden descendente por mayor cantidad de casos (ranking de motivos más frecuentes)
-        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
-/* =========================================================================
-** Procedimiento : sp_ReporteGuardiaTriage_Detalle
-** Sección       : 6.16
-** Propósito     : Consulta detallada e individual de turnos de guardia médica:
-**                 número de orden, paciente, DNI, nivel de triage, síntomas asociados,
-**                 estado de atención y consultorio/sala asignada.
-** Entidad/Tablas: Turnos, Pacientes, Prioridades, Salas, TurnoSintomas, Sintomas
-** Invocado por  : FrmReporteGuardiaAdmin (Panel Operativo de Guardia)
-** Acción        : Carga de grilla interactiva de turnos de guardia
-** Estado        : EN USO
-** Retorno       : IdTurno, NroOrden, Fecha, NombrePaciente, ApellidoPaciente, DniPaciente, ObraSocial, Prioridad, IdPrioridad, Sintomas, Estado, NombreSala
-** Parámetros   :
-**                @FechaDesde   (DATETIME, IN, OPT) - Fecha mínima de consulta.
-**                @FechaHasta   (DATETIME, IN, OPT) - Fecha máxima de consulta.
-**                @IdPrioridad  (INT, IN, OPT)      - Filtrar por nivel de prioridad específico.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Detalle
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        SELECT 
-            t.IdTurno,
-            -- Código de orden asignado en guardia (ej. 'E-001') o 'S/N' si faltase
-            ISNULL(t.NroOrden, 'S/N') AS NroOrden,
-            -- Fecha y hora del turno priorizando FechaCreacion o Fecha efectiva
-            COALESCE(t.FechaCreacion, t.Fecha, GETDATE()) AS Fecha,
-            -- Datos del paciente vinculado al turno
-            ISNULL(p.Nombre, '') AS NombrePaciente,
-            ISNULL(p.Apellido, '') AS ApellidoPaciente,
-            ISNULL(p.Dni, '') AS DniPaciente,
-            ISNULL(os.Nombre, 'Particular / Sin Obra Social') AS ObraSocial,
-            -- Prioridad de triage ('Alta', 'Media', 'Baja')
-            ISNULL(pr.Descripcion, 'Baja') AS Prioridad,
-            ISNULL(t.IdPrioridad, 3) AS IdPrioridad,
-            -- Subconsulta correlacionada con STRING_AGG para concatenar los síntomas en una única columna de texto
-            ISNULL(
-                (
-                    SELECT STRING_AGG(s.Descripcion, ', ')
-                    FROM TurnoSintomas ts
-                    INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-                    WHERE ts.IdTurno = t.IdTurno AND ts.Activo = 1 AND s.Activo = 1
-                ),
-                'Sin síntomas registrados'
-            ) AS Sintomas,
-            -- Estado operativo del turno ('En Espera', 'Llamado', 'En Consulta', 'Atendido', 'Cancelado')
-            ISNULL(t.Estado, 'En Espera') AS Estado,
-            -- Consultorio o box físico asignado
-            ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
-        FROM Turnos t
-        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
-        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
-        LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          -- Normalización a DATE para filtrado por fecha
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
-        -- Ordenado prioritariamente por urgencia (1=Alta primero) y luego por fecha más reciente
-        ORDER BY t.IdPrioridad ASC, COALESCE(t.FechaCreacion, t.Fecha) DESC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-
-GO
-
 USE dbGestionTurnos;
 
 GO
@@ -4817,58 +4298,6 @@ GO
 -- =========================================================================
 
 /* =========================================================================
-** Procedimiento : sp_ReporteCierreCajaDiario
-** Sección       : 7.1
-** Propósito     : Calcula y consolida el resumen de recaudación y turnos emitidos para una fecha específica (cierre diario de caja).
-** Entidad/Tablas: `Turnos`, `Pacientes`
-** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
-** Estado        : `EN USO`
-** Retorno       : `FechaCaja`, `TotalTurnos`, `TotalRecaudado`, `TurnosParticulares`, `MontoParticulares`, `TurnosObraSocial`, `MontoObraSocial`, `TurnosEmergencia`, `MontoEmergencia`, `TurnosEspecialidad`, `MontoEspecialidad`
-** Parámetros   :
-**                `@Fecha` (`DATE`, IN, OPT) - Fecha de la jornada para el cierre de caja.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDiario
-    @Fecha DATE = NULL,
-    @SoloEmitidosHoy BIT = 0
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        IF @Fecha IS NULL SET @Fecha = CAST(GETDATE() AS DATE);
-
-        SELECT 
-            @Fecha AS FechaCaja,
-            COUNT(t.IdTurno) AS TotalTurnos,
-            ISNULL(SUM(t.Monto), 0.00) AS TotalRecaudado,
-            -- Totales por Cobertura
-            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosParticulares,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NULL OR os.Nombre LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoParticulares,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN 1 ELSE 0 END), 0) AS TurnosObraSocial,
-            ISNULL(SUM(CASE WHEN os.Nombre IS NOT NULL AND os.Nombre NOT LIKE '%Particular%' THEN t.Monto ELSE 0 END), 0.00) AS MontoObraSocial,
-            -- Totales por Modalidad
-            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEmergencia,
-            ISNULL(SUM(CASE WHEN t.TipoTurno = 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEmergencia,
-            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN 1 ELSE 0 END), 0) AS TurnosEspecialidad,
-            ISNULL(SUM(CASE WHEN t.TipoTurno <> 'Emergencia' THEN t.Monto ELSE 0 END), 0.00) AS MontoEspecialidad
-        FROM Turnos t
-        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
-        WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
-               OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
-          AND t.Activo = 1
-          AND t.Estado <> 'Cancelado';
-
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-
-/* =========================================================================
 ** Procedimiento : sp_ReporteCierreCajaDetalle
 ** Sección       : 7.2
 ** Propósito     : Devuelve el listado detallado de turnos emitidos/atendidos en la fecha con paciente, DNI, cobertura, monto y profesional.
@@ -5035,17 +4464,6 @@ END;
 GO
 
 /* =========================================================================
-** Limpieza : procedimientos gerenciales reemplazados por el módulo de recaudación
-** (detalle de turnos, ingresos/demanda por médico y auditoría de emisión).
-** ========================================================================= */
-DROP PROCEDURE IF EXISTS sp_ReporteGerencialIngresosPorMedico;
-DROP PROCEDURE IF EXISTS sp_ReporteGerencialObrasSocialesVsParticulares;
-DROP PROCEDURE IF EXISTS sp_ReporteGerencialDemandaMedicos;
-DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaResumen;
-DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaDetalle;
-GO
-
-/* =========================================================================
 ** Función       : fn_ReporteGerencialTurnosFacturados
 ** Sección       : 7.3
 ** Propósito     : Base común de los reportes de recaudación del Gerente. Devuelve un turno facturado por fila (no cancelado,
@@ -5055,7 +4473,7 @@ GO
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `HistoriasClinicas`
 ** Invocado por  : SPs 7.4 a 7.9
 ** Estado        : `EN USO`
-** Retorno       : `IdTurno`, `FechaEmision`, `Estado`, `EsEmergencia`, `IdMedico`, `IdEspecialidad`, `EsObraSocial`, `IdObraSocial`, `ObraSocial`, `PorcentajeCoberturaVigente`, `ArancelBase`, `CobradoCaja`, `ACobrarObraSocial`
+** Retorno       : `IdTurno`, `FechaEmision`, `Estado`, `EsEmergencia`, `IdMedico`, `FechaAtencion`, `IdEspecialidad`, `EsObraSocial`, `IdObraSocial`, `ObraSocial`, `PorcentajeCoberturaVigente`, `ArancelBase`, `CobradoCaja`, `ACobrarObraSocial`
 ** Parámetros   :
 **                `@FechaDesde` (`DATE`, IN) - Fecha inicial de emisión.
 **                `@FechaHasta` (`DATE`, IN) - Fecha final de emisión.
@@ -5078,11 +4496,9 @@ RETURN
         CAST(COALESCE(t.FechaCreacion, t.Fecha) AS DATE) AS FechaEmision,
         t.Estado,
         x.EsEmergencia,
-        COALESCE(t.IdUsuario, (
-            SELECT TOP 1 hc.IdUsuario FROM HistoriasClinicas hc
-            WHERE hc.IdTurno = t.IdTurno AND hc.Activo = 1
-            ORDER BY hc.IdHistoria DESC
-        )) AS IdMedico,
+        COALESCE(t.IdUsuario, at.IdUsuario) AS IdMedico,
+        -- Día en que se atendió (historia clínica); sin historia, el día del turno
+        CAST(COALESCE(at.Fecha, t.Fecha) AS DATE) AS FechaAtencion,
         t.IdEspecialidad,
         x.EsObraSocial,
         CASE WHEN x.EsObraSocial = 1 THEN os.IdObraSocial END AS IdObraSocial,
@@ -5098,6 +4514,11 @@ RETURN
     INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
     -- Obra social y arancel registrados al emitir el turno; los parámetros solo cubren turnos sin snapshot
     LEFT JOIN ObrasSociales os ON os.IdObraSocial = COALESCE(t.IdObraSocial, p.IdObraSocial)
+    OUTER APPLY (
+        SELECT TOP 1 hc.IdUsuario, hc.Fecha FROM HistoriasClinicas hc
+        WHERE hc.IdTurno = t.IdTurno AND hc.Activo = 1
+        ORDER BY hc.IdHistoria DESC
+    ) at
     CROSS APPLY (
         SELECT
             CASE WHEN t.TipoTurno LIKE '%Emergencia%' OR t.TipoTurno LIKE '%Guardia%' THEN 1 ELSE 0 END AS EsEmergencia,
@@ -5114,6 +4535,7 @@ GO
 ** Procedimiento : sp_ReporteGerencialFinanzasResumen
 ** Sección       : 7.4
 ** Propósito     : Totales de recaudación del período (KPIs del Gerente): cobrado en caja, a cobrar a obras sociales, total facturado, ticket promedio, atendidos, pendientes y ausentes.
+**                 Todo se filtra por fecha de emisión salvo `TurnosAtendidos`, que cuenta los turnos atendidos en el período.
 ** Entidad/Tablas: `fn_ReporteGerencialTurnosFacturados`
 ** Invocado por  : `FrmReportesGerente` (tarjetas KPI, período actual y anterior)
 ** Estado        : `EN USO`
@@ -5146,7 +4568,11 @@ BEGIN
                  THEN CAST(SUM(f.CobradoCaja + f.ACobrarObraSocial) / COUNT(f.IdTurno) AS DECIMAL(18,2))
                  ELSE 0.00
             END AS TicketPromedio,
-            ISNULL(SUM(CASE WHEN f.Estado IN ('Atendido', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TurnosAtendidos,
+            -- Atendidos se cuenta por día de atención, no de emisión
+            (SELECT COUNT(a.IdTurno)
+             FROM dbo.fn_ReporteGerencialTurnosFacturados('00010101', '99991231', @ArancelEspecialidad, @ArancelEmergencia) a
+             WHERE a.Estado IN ('Atendido', 'Finalizado')
+               AND a.FechaAtencion BETWEEN @FechaDesde AND @FechaHasta) AS TurnosAtendidos,
             ISNULL(SUM(CASE WHEN f.Estado NOT IN ('Atendido', 'Finalizado', 'Ausente') THEN 1 ELSE 0 END), 0) AS TurnosPendientes,
             ISNULL(SUM(CASE WHEN f.Estado = 'Ausente' THEN 1 ELSE 0 END), 0) AS TurnosAusentes,
             ISNULL(SUM(CASE WHEN f.Estado = 'Ausente' THEN f.CobradoCaja + f.ACobrarObraSocial ELSE 0 END), 0.00) AS FacturadoAusentes
@@ -5216,14 +4642,14 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ReporteGerencialRankingMedicos
 ** Sección       : 7.6
-** Propósito     : Ranking de médicos por facturación (caja + obra social) de las atenciones realizadas sobre turnos emitidos en el período. Incluye médicos activos sin facturación.
+** Propósito     : Ranking de médicos por facturación (caja + obra social) de las atenciones realizadas en el período (fecha de atención, no de emisión). Incluye médicos activos sin facturación.
 ** Entidad/Tablas: `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `fn_ReporteGerencialTurnosFacturados`
 ** Invocado por  : `FrmReportesGerente` (Pestaña Ranking de Médicos)
 ** Estado        : `EN USO`
 ** Retorno       : `Posicion`, `Id`, `Nombre`, `Detalle`, `Matricula`, `CantidadTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`, `TicketPromedio`, `PorcentajeParticipacion`, `PorcentajeCoberturaVigente`, `PorcentajeCoberturaAplicada`
 ** Parámetros   :
-**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha inicial de emisión (por defecto hoy).
-**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha final de emisión (por defecto @FechaDesde).
+**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha inicial de atención (por defecto hoy).
+**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha final de atención (por defecto @FechaDesde).
 **                `@ArancelEspecialidad` (`DECIMAL(18,2)`, IN) - Arancel base de especialidad.
 **                `@ArancelEmergencia` (`DECIMAL(18,2)`, IN) - Arancel base de emergencia.
 **                `@IdEspecialidad` (`INT`, IN, OPT) - Filtra por especialidad del turno.
@@ -5248,8 +4674,10 @@ BEGIN
                 COUNT(f.IdTurno) AS CantidadTurnos,
                 SUM(f.CobradoCaja) AS CobradoCaja,
                 SUM(f.ACobrarObraSocial) AS ACobrarObraSocial
-            FROM dbo.fn_ReporteGerencialTurnosFacturados(@FechaDesde, @FechaHasta, @ArancelEspecialidad, @ArancelEmergencia) f
+            -- Rango abierto de emisión: el período se aplica sobre el día de atención
+            FROM dbo.fn_ReporteGerencialTurnosFacturados('00010101', '99991231', @ArancelEspecialidad, @ArancelEmergencia) f
             WHERE f.Estado IN ('Atendido', 'Finalizado')
+              AND f.FechaAtencion BETWEEN @FechaDesde AND @FechaHasta
               AND f.IdMedico IS NOT NULL
               AND (@IdEspecialidad IS NULL OR f.IdEspecialidad = @IdEspecialidad)
             GROUP BY f.IdMedico
@@ -5514,88 +4942,6 @@ END;
 GO
 
 /* =========================================================================
-** Procedimiento : sp_ReporteMedico_RankingDiagnosticosYSintomas
-** Sección       : 6.17
-** Propósito     : Genera el ranking consolidado de diagnósticos clínicos emitidos y síntomas de triage atendidos por un profesional médico.
-** Entidad/Tablas: `HistoriasClinicas`, `TurnoSintomas`, `Sintomas`, `Turnos`
-** Invocado por  : `FrmMisAtenciones` (Rol Personal Médico)
-** Estado        : `EN USO`
-** Retorno       : `Concepto`, `Tipo`, `CantidadCasos`, `Porcentaje`
-** Parámetros   :
-**                `@IdUsuario` (`INT`, IN) - ID del médico logueado.
-**                `@FechaDesde` (`DATE`, IN, OPT) - Fecha mínima.
-**                `@FechaHasta` (`DATE`, IN, OPT) - Fecha máxima.
-** ========================================================================= */
-CREATE OR ALTER PROCEDURE sp_ReporteMedico_RankingDiagnosticosYSintomas
-    @IdUsuario INT,
-    @FechaDesde DATE = NULL,
-    @FechaHasta DATE = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        DECLARE @TotalConsultas INT = 0;
-
-        SELECT @TotalConsultas = COUNT(DISTINCT hc.IdHistoria)
-        FROM HistoriasClinicas hc
-        WHERE hc.IdUsuario = @IdUsuario
-          AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
-          AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
-          AND hc.Activo = 1;
-
-        WITH ConceptosConsolidados AS (
-            SELECT 
-                LTRIM(RTRIM(hc.DiagRapido)) AS Concepto,
-                'Diagnóstico Clínico' AS Tipo,
-                COUNT(hc.IdHistoria) AS CantidadCasos
-            FROM HistoriasClinicas hc
-            WHERE hc.IdUsuario = @IdUsuario
-              AND (@FechaDesde IS NULL OR CAST(hc.Fecha AS DATE) >= @FechaDesde)
-              AND (@FechaHasta IS NULL OR CAST(hc.Fecha AS DATE) <= @FechaHasta)
-              AND hc.Activo = 1
-              AND ISNULL(LTRIM(RTRIM(hc.DiagRapido)), '') NOT IN ('', '-')
-            GROUP BY LTRIM(RTRIM(hc.DiagRapido))
-
-            UNION ALL
-
-            SELECT 
-                s.Descripcion AS Concepto,
-                'Síntoma Triage' AS Tipo,
-                COUNT(ts.IdTurnoSintoma) AS CantidadCasos
-            FROM TurnoSintomas ts
-            INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-            INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
-            WHERE t.IdUsuario = @IdUsuario
-              AND (@FechaDesde IS NULL OR CAST(t.Fecha AS DATE) >= @FechaDesde)
-              AND (@FechaHasta IS NULL OR CAST(t.Fecha AS DATE) <= @FechaHasta)
-              AND t.Activo = 1
-              AND ts.Activo = 1
-              AND s.Activo = 1
-            GROUP BY s.Descripcion
-        )
-        SELECT 
-            Concepto,
-            Tipo,
-            CantidadCasos,
-            CASE 
-                WHEN @TotalConsultas > 0 THEN CAST((CantidadCasos * 100.0 / @TotalConsultas) AS DECIMAL(5,2))
-                ELSE 0.00 
-            END AS Porcentaje
-        FROM ConceptosConsolidados
-        ORDER BY CantidadCasos DESC, Concepto ASC;
-
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-
-
-/* =========================================================================
 ** Módulo 8: Copias de Seguridad y Restauración de Base de Datos
 ** ========================================================================= */
 
@@ -5727,5 +5073,31 @@ END;
 
 CLOSE curTablas;
 DEALLOCATE curTablas;
+
+GO
+
+/* =========================================================================
+** Limpieza : procedimientos obsoletos que el sistema ya no usa. Se eliminan de la base al ejecutar este script.
+** ========================================================================= */
+DROP PROCEDURE IF EXISTS sp_ActualizarEstadoSala;
+DROP PROCEDURE IF EXISTS sp_FinalizarAtencion;
+DROP PROCEDURE IF EXISTS sp_HorariosDisponibles;
+DROP PROCEDURE IF EXISTS sp_InsertarPaciente;
+DROP PROCEDURE IF EXISTS sp_InsertarRol;
+DROP PROCEDURE IF EXISTS sp_InsertarTurno;
+DROP PROCEDURE IF EXISTS sp_ObtenerHorariosDisponibles;
+DROP PROCEDURE IF EXISTS sp_ObtenerTurnosEnEspera;
+DROP PROCEDURE IF EXISTS sp_ObtenerTurnosPantallaPublica;
+DROP PROCEDURE IF EXISTS sp_ReporteCierreCajaDiario;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialDemandaMedicos;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialIngresosPorMedico;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialObrasSocialesVsParticulares;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaDetalle;
+DROP PROCEDURE IF EXISTS sp_ReporteGerencialRecaudacionAuditoriaResumen;
+DROP PROCEDURE IF EXISTS sp_ReporteGuardiaTriage_Detalle;
+DROP PROCEDURE IF EXISTS sp_ReporteGuardiaTriage_RankingSintomas;
+DROP PROCEDURE IF EXISTS sp_ReporteGuardiaTriage_Resumen;
+DROP PROCEDURE IF EXISTS sp_ReporteMedico_RankingDiagnosticosYSintomas;
+DROP PROCEDURE IF EXISTS sp_SugerirHorariosLibres;
 
 GO

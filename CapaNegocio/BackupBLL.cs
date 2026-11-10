@@ -34,14 +34,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene la ruta por defecto del servidor SQL Server si estuviese disponible.
-        /// </summary>
-        public string ObtenerRutaServidorDefault()
-        {
-            return _backupDAL.ObtenerRutaBackupDefaultServidor();
-        }
-
-        /// <summary>
         /// Ejecuta la creación a demanda de la copia de seguridad en el directorio seleccionado por el Administrador.
         /// </summary>
         /// <param name="directorioDestino">Directorio o carpeta elegida por el usuario.</param>

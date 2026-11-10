@@ -13,37 +13,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
     /// </summary>
     public class CajaDAL
     {
-        /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ReporteCierreCajaDiario</c> para obtener
-        /// las métricas cuantitativas y montos consolidados recaudados en la fecha especificada.
-        /// </summary>
-        /// <param name="fecha">Fecha de la jornada a liquidar.</param>
-        /// <param name="soloEmitidosHoy">Si es true, consolida según la fecha de emisión/creación del turno.</param>
-        /// <returns>Objeto <see cref="ReporteCierreCajaResumenDTO"/> con los totales de caja.</returns>
-        public ReporteCierreCajaResumenDTO ObtenerResumenCierreCaja(DateTime fecha, bool soloEmitidosHoy = false)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pFecha = new SqlParameter("@Fecha", fecha.Date);
-                var pSoloEmitidos = new SqlParameter("@SoloEmitidosHoy", soloEmitidosHoy);
-
-                try
-                {
-                    return context.Database
-                        .SqlQueryRaw<ReporteCierreCajaResumenDTO>("EXEC sp_ReporteCierreCajaDiario @Fecha, @SoloEmitidosHoy", pFecha, pSoloEmitidos)
-                        .AsEnumerable()
-                        .FirstOrDefault() ?? new ReporteCierreCajaResumenDTO { FechaCaja = fecha.Date };
-                }
-                catch (SqlException)
-                {
-                    var pFecha2 = new SqlParameter("@Fecha", fecha.Date);
-                    return context.Database
-                        .SqlQueryRaw<ReporteCierreCajaResumenDTO>("EXEC sp_ReporteCierreCajaDiario @Fecha", pFecha2)
-                        .AsEnumerable()
-                        .FirstOrDefault() ?? new ReporteCierreCajaResumenDTO { FechaCaja = fecha.Date };
-                }
-            }
-        }
 
         /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ReporteCierreCajaDetalle</c> para recuperar

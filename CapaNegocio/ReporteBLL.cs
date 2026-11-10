@@ -68,24 +68,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Obtiene el ranking consolidado de diagnósticos clínicos y síntomas atendidos por el médico en su especialidad.
-        /// </summary>
-        public List<ReporteMedicoDiagnosticoFrecuenteDTO> ObtenerRankingDiagnosticosMedico(int idUsuario, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
-        {
-            if (idUsuario <= 0)
-            {
-                throw new ArgumentException("Debe indicar un identificador de usuario médico válido.");
-            }
-
-            if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde.Value.Date > fechaHasta.Value.Date)
-            {
-                throw new ArgumentException("La fecha inicial ('Desde') no puede ser posterior a la fecha final ('Hasta').");
-            }
-
-            return _reporteDAL.ObtenerRankingDiagnosticosMedico(idUsuario, fechaDesde, fechaHasta);
-        }
-
-        /// <summary>
         /// Obtiene los totales de recaudación del período (cobrado en caja, a cobrar a obras sociales, facturado, ticket promedio y ausentismo).
         /// </summary>
         public ReporteFinanzasResumenDTO ObtenerFinanzasResumen(DateTime fechaDesde, DateTime fechaHasta)

@@ -41,8 +41,6 @@ namespace Gestion_de_Turnos_Medicos
         private List<Turno> _todosLosTurnos = new List<Turno>();
         private List<Turno> _historialAtendidos = new List<Turno>();
 
-        private DateTime? _horaInicioAtencion;
-        private DateTime? _horaFinAtencion;
         private string _diagnosticoRapido = string.Empty;
         private string _medicoQueAtendio = string.Empty;
         private string _salaDeAtencion = string.Empty;
@@ -431,7 +429,6 @@ namespace Gestion_de_Turnos_Medicos
                     }
                     else
                     {
-                        _horaInicioAtencion = DateTime.Now;
                         CambiarEstadoPuesto(EstadoPuesto.EnConsulta);
                         tmrTiempoTranscurrido.Start();
                     }
@@ -666,7 +663,6 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
-            _horaInicioAtencion = DateTime.Now;
             _turnoActual.Estado = "En Consulta";
 
             try
@@ -864,7 +860,6 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
-            _horaFinAtencion = DateTime.Now;
             _turnoActual.Estado = "Atendido";
             _medicoQueAtendio = _nombreMedico;
             _salaDeAtencion = _salaAsignada;
@@ -959,7 +954,6 @@ namespace Gestion_de_Turnos_Medicos
                 {
                     tmrTiempoTranscurrido.Stop();
                     _turnoActual = null;
-                    _horaInicioAtencion = null;
                     LimpiarPanelAtencion();
                 }
 

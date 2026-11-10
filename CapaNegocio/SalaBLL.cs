@@ -181,23 +181,6 @@ namespace Gestion_de_Turnos_Medicos.Negocio
         }
 
         /// <summary>
-        /// Actualiza el estado operativo actual de una sala médica.
-        /// </summary>
-        /// <param name="idSala">Identificador de la sala.</param>
-        /// <param name="nuevoEstado">Nuevo estado operativo ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
-        /// <exception cref="ArgumentException">Se lanza si el ID es inválido o el estado está vacío.</exception>
-        public void ActualizarEstadoSala(int idSala, string nuevoEstado)
-        {
-            if (idSala <= 0)
-                throw new ArgumentException("El ID de la sala no es válido.");
-
-            if (string.IsNullOrWhiteSpace(nuevoEstado))
-                throw new ArgumentException("El nuevo estado de la sala es obligatorio.");
-
-            _salaDAL.ActualizarEstadoSala(idSala, nuevoEstado);
-        }
-
-        /// <summary>
         /// Modifica una sala existente actualizando su denominación física, estado y reasignando los médicos seleccionados.
         /// </summary>
         /// <param name="idSala">ID único de la sala a modificar.</param>

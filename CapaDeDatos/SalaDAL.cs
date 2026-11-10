@@ -166,22 +166,6 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
         }
 
         /// <summary>
-        /// Ejecuta el procedimiento almacenado <c>sp_ActualizarEstadoSala</c> para modificar el estado de disponibilidad del consultorio.
-        /// </summary>
-        /// <param name="idSala">Identificador de la sala.</param>
-        /// <param name="nuevoEstado">Nuevo estado ('Disponible', 'Ocupada', 'En Mantenimiento').</param>
-        public void ActualizarEstadoSala(int idSala, string nuevoEstado)
-        {
-            using (var context = new dbTurnosMedicos())
-            {
-                var pIdSala = new SqlParameter("@IdSala", idSala);
-                var pNuevoEstado = new SqlParameter("@NuevoEstado", nuevoEstado);
-
-                context.Database.ExecuteSqlRaw("EXEC sp_ActualizarEstadoSala @IdSala, @NuevoEstado", pIdSala, pNuevoEstado);
-            }
-        }
-
-        /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ModificarSala</c> para actualizar la denominación y estado operativo de un consultorio.
         /// Cuenta con mecanismo de fallback si el procedimiento en la base de datos solo admite 2 parámetros.
         /// </summary>

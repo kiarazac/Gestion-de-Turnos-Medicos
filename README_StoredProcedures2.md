@@ -140,7 +140,7 @@ GO
 - **Entidad:** Rol
 - **Operación:** Listado / Carga de Combo
 - **Tablas:** `Roles`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
 - **Acción:** Evento `Load` / `CargarRolesDesdeBD`
 - **Estado:** `PENDIENTE DE IMPLEMENTACIÓN`
 - **Parámetros:** Ninguno.
@@ -158,42 +158,6 @@ BEGIN
     FROM Roles
     WHERE Activo = 1
     ORDER BY IdRol ASC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
-### 1.3 `sp_InsertarRol`
-- **Descripción:** Da de alta un nuevo perfil de rol en el sistema.
-- **Entidad:** Rol
-- **Operación:** Alta
-- **Tablas:** `Roles`
-- **Forms que lo utilizan:** Ninguno actualmente (se inicializan por script de Seeds).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@Descripcion` | `NVARCHAR(50)` | IN | Nombre identificatorio del rol. |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_InsertarRol
-    @Descripcion NVARCHAR(50)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    INSERT INTO Roles (Descripcion, Activo, FechaCreacion)
-    VALUES (@Descripcion, 1, GETDATE());
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -287,7 +251,7 @@ GO
 - **Entidad:** Usuario
 - **Operación:** Alta
 - **Tablas:** `Usuarios`
-- **Forms que lo utilizan:** `FrmGestionUsuarios`
+- **Forms que lo utilizan:** `FrmGestionUsuarios2`
 - **Acción:** Botón `btnGuardar`
 - **Estado:** `EN USO`
 - **Parámetros:**
@@ -358,7 +322,7 @@ GO
 - **Entidad:** Usuario / DetalleSala / MedicoEspecialidad
 - **Operación:** Modificación / Reasignación de Salas y Especialidades
 - **Tablas:** `Usuarios`, `Roles`, `Pacientes`
-- **Forms que lo utilizan:** `FrmGestionUsuarios2` (versión oficial activa en el sistema de turnos; `FrmGestionUsuarios` mantenido como referencia/legado)
+- **Forms que lo utilizan:** `FrmGestionUsuarios2` (versión oficial activa en el sistema de turnos)
 - **Acción:** Botón `btnModificar` en `FrmGestionUsuarios2` y edición en grilla
 - **Estado:** `EN USO`
 - **Parámetros del SP en Base de Datos (dbGestionTurnos):**
@@ -1183,60 +1147,6 @@ BEGIN
             ROLLBACK TRANSACTION;
         THROW;
     END CATCH;
-END;
-GO
-```
-
----
-
-### 2.8 `sp_ActualizarEstadoSala`
-- **Descripción:** Actualiza de forma genérica el estado operativo de un consultorio o sala física (`Disponible`, `Libre`, `Ocupada`, `En Mantenimiento`, `Cerrada`) con control de transacciones y validaciones de integridad.
-- **Entidad:** Sala
-- **Operación:** Actualización de Estado
-- **Tablas:** `Salas`
-- **Forms que lo utilizan:** Utilizado por la capa DAL/BLL (`SalaDAL.ActualizarEstadoSala`, `SalaBLL.ActualizarEstadoSala`)
-- **Acción:** Mantenimiento de salas y soporte operativo
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdSala` | `INT` | IN | ID de la sala a modificar. |
-  | `@NuevoEstado` | `NVARCHAR(50)` | IN | Nuevo estado operativo a asignar. |
-- **Excepciones y Códigos de Error:**
-  | Código | Mensaje al Operador | Condición de Disparo |
-  | :--- | :--- | :--- |
-  | `50048` | *La sala a actualizar no existe o se encuentra inactiva.* | `@IdSala` no existe o tiene `Activo = 0`. |
-  | `50049` | *El estado operativo asignado a la sala no es válido.* | `@NuevoEstado` no pertenece al conjunto permitido ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada'). |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ActualizarEstadoSala
-    @IdSala INT,
-    @NuevoEstado NVARCHAR(50) 
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM Salas WHERE IdSala = @IdSala AND Activo = 1)
-        BEGIN
-            THROW 50048, 'La sala a actualizar no existe o se encuentra inactiva.', 1;
-        END
-
-        IF @NuevoEstado NOT IN ('Disponible', 'Libre', 'Ocupada', 'En Mantenimiento', 'Cerrada')
-        BEGIN
-            THROW 50049, 'El estado operativo asignado a la sala no es válido.', 1;
-        END
-
-        UPDATE Salas
-        SET EstadoSala = @NuevoEstado,
-            FechaModificacion = GETDATE()
-        WHERE IdSala = @IdSala AND Activo = 1;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
 END;
 GO
 ```
@@ -2203,51 +2113,6 @@ GO
 
 ---
 
-### 4.3 `sp_InsertarPaciente`
-- **Descripción:** Inserción simple y directa de un paciente sin validación de duplicidad por DNI ni verificación cruzada con la tabla de usuarios. Fue superado operativamente por `sp_GuardarPaciente`.
-- **Entidad:** Paciente
-- **Operación:** Alta simple
-- **Tablas:** `Pacientes`
-- **Forms que lo utilizan:** Ninguno actualmente (reemplazado por `sp_GuardarPaciente`).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO (SUPERADO POR sp_GuardarPaciente)`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@Nombre` | `NVARCHAR(100)` | IN | Nombre del paciente. |
-  | `@Apellido` | `NVARCHAR(100)` | IN | Apellido del paciente. |
-  | `@Dni` | `NVARCHAR(20)` | IN | Documento de identidad. |
-  | `@ObraSocial` | `NVARCHAR(100)` | IN | Cobertura médica. |
-- **Devuelve:** `IdNuevoPaciente` (`SCOPE_IDENTITY()`).
-
-```sql
-CREATE OR ALTER PROCEDURE sp_InsertarPaciente
-    @Nombre NVARCHAR(100),
-    @Apellido NVARCHAR(100),
-    @Dni NVARCHAR(20),
-    @ObraSocial NVARCHAR(100)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    INSERT INTO Pacientes (Nombre, Apellido, Dni, ObraSocial, FechaCreacion, Activo)
-    VALUES (@Nombre, @Apellido, @Dni, @ObraSocial, GETDATE(), 1);
-
-    SELECT SCOPE_IDENTITY() AS IdNuevoPaciente;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
 ## Módulo 5: Turnos y Triage de Guardia
 
 ### 5.1 `sp_ObtenerSintomas`
@@ -3075,91 +2940,7 @@ GO
 
 ---
 
-### 5.10 `sp_InsertarTurno`
-- **Descripción:** Inserción simple de turno estándar sin prefijos personalizados de especialidad ni triage automático de emergencias. Superado por `sp_CrearTurnoEspecialidad` y `sp_CrearTurnoEmergencia`.
-- **Entidad:** Turno
-- **Operación:** Alta simple
-- **Tablas:** `Turnos`
-- **Forms que lo utilizan:** Ninguno actualmente (superado).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO (SUPERADO POR sp_CrearTurnoEspecialidad y sp_CrearTurnoEmergencia)`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@NroOrden` | `NVARCHAR(50)` | IN | Código de orden. |
-  | `@TipoTurno` | `NVARCHAR(50)` | IN | Tipo de turno. |
-  | `@IdPrioridad` | `INT` | IN | Nivel de prioridad. |
-  | `@IdPaciente` | `INT` | IN | ID del paciente. |
-  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_InsertarTurno
-    @NroOrden NVARCHAR(50),
-    @TipoTurno NVARCHAR(50),
-    @IdPrioridad INT,
-    @IdPaciente INT,
-    @IdEspecialidad INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    INSERT INTO Turnos (NroOrden, Estado, Fecha, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, Activo, FechaCreacion)
-    VALUES (@NroOrden, 'En Espera', GETDATE(), @TipoTurno, @IdPrioridad, @IdPaciente, @IdEspecialidad, 1, GETDATE());
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
 ## Módulo 6: Atención Médica, Pantalla e Historia Clínica
-
-### 6.1 `sp_ObtenerTurnosEnEspera`
-- **Descripción:** Lista los turnos en espera para una especialidad específica, ordenados por triage (`IdPrioridad ASC`) y orden de llegada (`FechaCreacion ASC`).
-- **Entidad:** Turno
-- **Operación:** Consulta / Cola Médica
-- **Tablas:** `Turnos`
-- **Forms que lo utilizan:** `FrmListaTurnosAtencion`
-- **Acción:** `RefrescarListado`
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdEspecialidad` | `INT` | IN | ID de la especialidad. |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ObtenerTurnosEnEspera
-    @IdEspecialidad INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    SELECT * 
-    FROM Turnos
-    WHERE Activo = 1 
-      AND Estado = 'En Espera'
-      AND IdEspecialidad = @IdEspecialidad
-    ORDER BY IdPrioridad ASC, FechaCreacion ASC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
 
 ### 6.2 `sp_ObtenerListaTurnos`
 - **Descripción:** Consulta dinámica para la grilla general de turnos. Si `@IdEspecialidad` o `@Estado` se envían como `NULL`, se omite dicho filtro.
@@ -3658,92 +3439,6 @@ GO
 
 ---
 
-### 6.8 `sp_ObtenerTurnosPantallaPublica`
-- **Descripción:** Alimenta los monitores públicos de sala de espera con los turnos recién llamados (sin exponer diagnósticos privados).
-- **Entidad:** Turno / Sala / Usuario
-- **Operación:** Consulta Pública
-- **Tablas:** `Turnos`, `Salas`, `Usuarios`
-- **Forms que lo utilizan:** Pantalla pública de sala de espera.
-- **Acción:** Consulta periódica (Timer)
-- **Estado:** `SIN FORM ASOCIADO / PENDIENTE`
-- **Devuelve:** `NroOrden`, `NombreSala`, `MedicoApellido`.
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ObtenerTurnosPantallaPublica
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-    SELECT 
-        t.NroOrden,
-        s.NombreSala,
-        u.Apellido AS MedicoApellido
-    FROM Turnos t
-    INNER JOIN Salas s ON t.IdSala = s.IdSala
-    INNER JOIN Usuarios u ON t.IdUsuario = u.IdUsuario
-    WHERE t.Estado = 'Llamado' 
-      AND t.Activo = 1
-    ORDER BY t.FechaModificacion DESC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
-### 6.9 `sp_FinalizarAtencion`
-- **Descripción:** Versión previa para la finalización de atención de turnos y liberación de salas. Superado por `sp_FinalizarAtencionTurno` (que incorpora validación con THROW 50084, registro de evolución diagnóstica y control transaccional).
-- **Entidad:** Turno / Sala
-- **Operación:** Cierre Consulta (Legado)
-- **Tablas:** `Turnos`, `Salas`
-- **Forms que lo utilizan:** Ninguno actualmente (superado por `sp_FinalizarAtencionTurno`).
-- **Acción:** N/A
-- **Estado:** `NO UTILIZADO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdTurno` | `INT` | IN | ID del turno a finalizar. |
-  | `@IdSala` | `INT` | IN | ID de la sala a liberar. |
-
-```sql
-CREATE OR ALTER PROCEDURE sp_FinalizarAtencion
-    @IdTurno INT,
-    @IdSala INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        -- 1. Marcar el turno como Atendido
-        UPDATE Turnos
-        SET Estado = 'Atendido',
-            FechaModificacion = GETDATE()
-        WHERE IdTurno = @IdTurno;
-
-        -- 2. Volver a poner la sala en estado 'Libre' para recibir otro paciente
-        UPDATE Salas
-        SET EstadoSala = 'Libre',
-            FechaModificacion = GETDATE()
-        WHERE IdSala = @IdSala;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
 ### 6.10 `sp_ObtenerHistoriaClinicaPaciente`
 - **Descripción:** Permite consultar los antecedentes clínicos completos del paciente ordenados cronológicamente.
 - **Entidad:** HistoriaClinica / Usuario
@@ -4019,227 +3714,6 @@ GO
 
 ---
 
-### 6.14 `sp_ReporteGuardiaTriage_Resumen`
-- **Descripción:** Genera métricas e indicadores clave de guardia médica (KPIs): volumen de ingresos clasificados por nivel de triage/severidad (`Alta`, `Media`, `Baja`), turnos atendidos, en espera y cancelados, junto con la tasa porcentual de resolución de guardia.
-- **Entidad:** Turno / Prioridad
-- **Operación:** Reportería Gerencial / Monitoreo Operativo de Guardia
-- **Tablas:** `Turnos`, `Prioridades`
-- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
-- **Acción:** Carga de tarjetas e indicadores superiores de flujo de guardia y triage.
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de ingreso/turno a la guardia. |
-  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de ingreso/turno a la guardia. |
-  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico (1=Alta, 2=Media, 3=Baja). |
-- **Devuelve:** `TotalEmergencias`, `TotalAlta`, `TotalMedia`, `TotalBaja`, `TotalAtendidos`, `TotalEnEspera`, `TotalCancelados`, `TasaResolucion`.
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Resumen
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    -- Suprime los mensajes informativos de conteo de filas afectadas para optimizar rendimiento de red
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        SELECT 
-            -- 1. Total general de turnos de guardia registrados en el intervalo seleccionado
-            COUNT(t.IdTurno) AS TotalEmergencias,
-
-            -- 2. Conteo por nivel de Triage Manchester:
-            -- Se utiliza ISNULL(SUM(...), 0) para que, en caso de que no existan turnos en el rango de fechas,
-            -- la función agregada SUM retorne 0 en lugar de NULL, evitando la excepción 'Data is Null' en EF Core.
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 1 THEN 1 ELSE 0 END), 0) AS TotalAlta,
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 2 THEN 1 ELSE 0 END), 0) AS TotalMedia,
-            ISNULL(SUM(CASE WHEN t.IdPrioridad = 3 THEN 1 ELSE 0 END), 0) AS TotalBaja,
-
-            -- 3. Conteo según el estado de la atención médica del paciente en guardia:
-            -- Atendidos: Turnos cuya consulta médica fue completada o se encuentra actualmente en curso
-            ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS TotalAtendidos,
-            -- En Espera: Pacientes aguardando en sala de espera o con llamado activo a consultorio
-            ISNULL(SUM(CASE WHEN t.Estado IN ('En Espera', 'Llamado') THEN 1 ELSE 0 END), 0) AS TotalEnEspera,
-            -- Cancelados: Turnos cancelados por el paciente o bajas administrativas
-            ISNULL(SUM(CASE WHEN t.Estado IN ('Cancelado', 'Baja') THEN 1 ELSE 0 END), 0) AS TotalCancelados,
-
-            -- 4. Tasa de resolución médica (% de turnos resueltos respecto al total de ingresos de guardia):
-            -- Se calcula sólo si existen ingresos (> 0) para prevenir división por cero; de lo contrario devuelve 0.00
-            ISNULL(CAST(
-                CASE 
-                    WHEN COUNT(t.IdTurno) > 0 
-                    THEN (CAST(ISNULL(SUM(CASE WHEN t.Estado IN ('Atendido', 'En Consulta', 'Finalizado') THEN 1 ELSE 0 END), 0) AS DECIMAL(10,2)) / COUNT(t.IdTurno)) * 100.0
-                    ELSE 0.0 
-                END AS DECIMAL(5,2)
-            ), 0.0) AS TasaResolucion
-        FROM Turnos t
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          -- Normalización de fechas a tipo DATE para comparar únicamente día/mes/año sin sesgo por la hora
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          -- Filtro opcional por nivel de prioridad (1=Alta, 2=Media, 3=Baja)
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
-    END TRY
-    BEGIN CATCH
-        -- Manejo seguro de errores con reversión transaccional si hubiere transacciones abiertas
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
-### 6.15 `sp_ReporteGuardiaTriage_RankingSintomas`
-- **Descripción:** Genera el ranking de motivos de consulta y síntomas más frecuentes manifestados por los pacientes durante el triage de guardia, computando la cantidad de casos y la participación porcentual sobre el total de síntomas registrados.
-- **Entidad:** TurnoSintoma / Sintoma / Turno
-- **Operación:** Reportería Gerencial / Epidemiología de Guardia
-- **Tablas:** `TurnoSintomas`, `Sintomas`, `Turnos`
-- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
-- **Acción:** Carga de tabla de patologías y síntomas predominantes.
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de consulta. |
-  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de consulta. |
-  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico. |
-- **Devuelve:** `IdSintoma`, `Sintoma`, `Gravedad`, `CantidadCasos`, `Porcentaje`.
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_RankingSintomas
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        DECLARE @TotalSintomas INT = 0;
-
-        SELECT @TotalSintomas = COUNT(ts.IdTurnoSintoma)
-        FROM TurnoSintomas ts
-        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          AND ts.Activo = 1
-          AND s.Activo = 1
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad);
-
-        SELECT 
-            s.IdSintoma,
-            s.Descripcion AS Sintoma,
-            s.Gravedad,
-            COUNT(ts.IdTurnoSintoma) AS CantidadCasos,
-            CAST(
-                CASE 
-                    WHEN @TotalSintomas > 0 
-                    THEN (CAST(COUNT(ts.IdTurnoSintoma) AS DECIMAL(10,2)) / @TotalSintomas) * 100.0
-                    ELSE 0.0 
-                END AS DECIMAL(5,2)
-            ) AS Porcentaje
-        FROM TurnoSintomas ts
-        INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-        INNER JOIN Turnos t ON ts.IdTurno = t.IdTurno
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          AND ts.Activo = 1
-          AND s.Activo = 1
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
-        GROUP BY s.IdSintoma, s.Descripcion, s.Gravedad
-        ORDER BY CantidadCasos DESC, s.Descripcion ASC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
-### 6.16 `sp_ReporteGuardiaTriage_Detalle`
-- **Descripción:** Consulta detallada de turnos de guardia médica: código de turno, fecha/hora, datos del paciente, obra social, nivel de triage, síntomas asociados concatenados, estado de la atención y consultorio/sala asignada.
-- **Entidad:** Turno / Paciente / Prioridad / Sala / TurnoSintoma / Sintoma
-- **Operación:** Reportería Operativa / Auditoría de Triage
-- **Tablas:** `Turnos`, `Pacientes`, `Prioridades`, `Salas`, `TurnoSintomas`, `Sintomas`
-- **Forms que lo utilizan:** `FrmReporteGuardiaAdmin` (Panel Operativo de Guardia: Triage y Distribución de Urgencias)
-- **Acción:** Carga de grilla interactiva de turnos de guardia con codificación por colores de triage.
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@FechaDesde` | `DATETIME` | IN (Opcional) | Fecha mínima de consulta. |
-  | `@FechaHasta` | `DATETIME` | IN (Opcional) | Fecha máxima de consulta. |
-  | `@IdPrioridad` | `INT` | IN (Opcional) | Filtrar por nivel de prioridad específico. |
-- **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `NombrePaciente`, `ApellidoPaciente`, `DniPaciente`, `ObraSocial`, `Prioridad`, `IdPrioridad`, `Sintomas`, `Estado`, `NombreSala`.
-
-```sql
-CREATE OR ALTER PROCEDURE sp_ReporteGuardiaTriage_Detalle
-    @FechaDesde DATETIME = NULL,
-    @FechaHasta DATETIME = NULL,
-    @IdPrioridad INT = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-        SELECT 
-            t.IdTurno,
-            t.NroOrden,
-            COALESCE(t.FechaCreacion, t.Fecha) AS Fecha,
-            p.Nombre AS NombrePaciente,
-            p.Apellido AS ApellidoPaciente,
-            p.Dni AS DniPaciente,
-            ISNULL(p.ObraSocial, 'Particular') AS ObraSocial,
-            ISNULL(pr.Descripcion, 'Baja') AS Prioridad,
-            ISNULL(t.IdPrioridad, 3) AS IdPrioridad,
-            ISNULL(
-                (
-                    SELECT STRING_AGG(s.Descripcion, ', ')
-                    FROM TurnoSintomas ts
-                    INNER JOIN Sintomas s ON ts.IdSintoma = s.IdSintoma
-                    WHERE ts.IdTurno = t.IdTurno AND ts.Activo = 1 AND s.Activo = 1
-                ),
-                'Sin síntomas registrados'
-            ) AS Sintomas,
-            t.Estado,
-            ISNULL(sa.NombreSala, 'Guardia') AS NombreSala
-        FROM Turnos t
-        INNER JOIN Pacientes p ON t.IdPaciente = p.IdPaciente
-        LEFT JOIN Prioridades pr ON t.IdPrioridad = pr.IdPrioridad
-        LEFT JOIN Salas sa ON t.IdSala = sa.IdSala
-        WHERE t.TipoTurno = 'Emergencia'
-          AND t.Activo = 1
-          AND (@FechaDesde IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) >= CAST(@FechaDesde AS DATE))
-          AND (@FechaHasta IS NULL OR CAST(COALESCE(t.Fecha, t.FechaCreacion) AS DATE) <= CAST(@FechaHasta AS DATE))
-          AND (@IdPrioridad IS NULL OR t.IdPrioridad = @IdPrioridad)
-        ORDER BY t.IdPrioridad ASC, COALESCE(t.FechaCreacion, t.Fecha) DESC;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-```
-
----
-
 ## 7. Scripts de Datos Iniciales (Seeds)
 
 ```sql
@@ -4312,7 +3786,6 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | :- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | `sp_ValidarLogin` | Usuario / Rol | Autenticación | `FrmLogin` | Botón `button1` (Iniciar sesión) | `EN USO` |
 | 2 | `sp_ListarRoles` | Rol | Listado | `FrmGestionUsuarios2` | Cargar selector desplegable de roles | `EN USO` |
-| 3 | `sp_InsertarRol` | Rol | Alta | Ninguno | Script de datos iniciales (`Seeds`) | `NO UTILIZADO` |
 | 4 | `sp_ListarUsuarios` | Usuario | Listado / Grilla | `FrmGestionUsuarios2` | Cargar grilla general de usuarios (activos e inactivos opcional) | `EN USO` |
 | 5 | `sp_InsertarUsuario` | Usuario | Alta | `FrmGestionUsuarios2` | Botón `btnGuardar` (Registrar nuevo) | `EN USO` |
 | 6 | `sp_ModificarUsuario` | Usuario | Modificación | `FrmGestionUsuarios2` | Botón `btnModificar` (Actualizar datos) | `EN USO` |
@@ -4328,7 +3801,6 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 15 | `sp_AsignarSalaMedico` | DetalleSala | Asignación | `FrmGestionUsuarios2`, `FrmSalasGerente` | Botón `btnGuardar` y `btnModificar` | `EN USO` |
 | 16 | `sp_AbrirSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnAbrirSala` (Pasa a Disponible) | `EN USO` |
 | 17 | `sp_CerrarSala` | Sala | Cambio de Estado | `MisSalas_PM` | Botón `btnCerrarSala` (Pasa a Cerrada) | `EN USO` |
-| 18 | `sp_ActualizarEstadoSala`| Sala | Actualización | Capa DAL (`SalaDAL`), Capa BLL (`SalaBLL`) | Mantenimiento y actualización genérica de salas | `EN USO` |
 | 19 | `sp_ListarEspecialidades`| Especialidad | Listado | `FrmGestionEspecialidades`, `FrmGestionUsuarios2`, `FrmTurnoEspecialidad`, `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de combos y grillas (con soporte de inactivas) | `EN USO` |
 | 20 | `sp_InsertarEspecialidad`| Especialidad | Alta / Reactivación | `FrmGestionEspecialidades` | Botón `btnGuardar` | `EN USO` |
 | 21 | `sp_ModificarEspecialidad`| Especialidad | Modificación | `FrmGestionEspecialidades` | Botón `btnModificar` (Actualizar denominación) | `EN USO` |
@@ -4343,7 +3815,6 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 25f | `sp_ReactivarObraSocial` | ObraSocial | Reactivación | `FrmGestionObrasSociales` | Botón `btnReactivar` | `EN USO` |
 | 26 | `sp_BuscarPacientePorDNI`| Paciente | Búsqueda | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Búsqueda y autocompletado por DNI | `EN USO` |
 | 27 | `sp_GuardarPaciente` | Paciente | Upsert por DNI | `FrmTurnoEmergencia`, `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Upsert con validación) | `EN USO` |
-| 28 | `sp_InsertarPaciente` | Paciente | Alta directa | Ninguno | Sustituido por `sp_GuardarPaciente` | `NO UTILIZADO` |
 | 29 | `sp_ObtenerSintomas` | Sintoma | Catálogo | `FrmTurnoEmergencia` | Carga dinámica de triage de guardia | `EN USO` |
 | 30 | `sp_ObtenerGravedadSintoma`| Sintoma | Consulta Triage | `FrmTurnoEmergencia` | Cálculo del nivel de prioridad según síntoma | `EN USO` |
 | 31 | `sp_GuardarTurnoSintoma`| TurnoSintoma | Relación | `FrmTurnoEmergencia` | Botón `BtnGenerarTurno` (Vínculo turno-síntoma) | `EN USO` |
@@ -4351,27 +3822,20 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 | 33 | `sp_ObtenerHorariosDisponibles`| Turno | Disponibilidad | `FrmTurnoEspecialidad` | Cambio de fecha en calendario | `EN USO` |
 | 34 | `sp_CrearTurnoEspecialidad`| Turno | Alta programada | `FrmTurnoEspecialidad` | Botón `BtnGenerarTurno` (Ticket `[Letra]-xxx`) | `EN USO` |
 | 35 | `sp_ExisteTurnoEspecialidad`| Turno | Control unicidad | `FrmTurnoEspecialidad` | Verificación de fecha, horario y especialidad | `EN USO` |
-| 36 | `sp_InsertarTurno` | Turno | Alta simple | Ninguno | Sustituido por `sp_CrearTurnoEspecialidad`/`Emergencia` | `NO UTILIZADO` |
 | 36 | `sp_ListarTurnosEmergencia`| Turno | Monitor guardia / Pantalla | `FrmListaTurnos`, `FrmUsuarioVentana` | Grilla de emergencias y contadores | `EN USO` |
 | 37 | `sp_ListarTurnosGeneralesPantalla`| Turno / Sala | Monitor público general | `FrmUsuarioVentana` | Pantalla pública TV de sala de espera | `EN USO` |
 | 38 | `sp_ListarTurnosEspecialidad`| Turno | Consulta filtro | `FrmListaTurnos` | Selección de especialidad | `EN USO` |
-| 39 | `sp_ObtenerTurnosEnEspera`| Turno | Cola médica | `FrmListaTurnosAtencion` | Refrescar listado de espera en consultorio | `EN USO` |
 | 40 | `sp_ObtenerListaTurnos` | Turno | Listado dinámico | `FrmListaTurnos`, `FrmListaTurnosAtencion` | Carga de grillas de turnos filtradas | `EN USO` |
 | 41 | `sp_ListarTurnosAtencion`| Turno / Paciente | Cola atención | `FrmListaTurnosAtencion` | Cargar turnos con ficha del paciente | `EN USO` |
 | 42 | `sp_LlamarSiguienteTurno`| Turno / Sala | Llamado médico | `FrmListaTurnosAtencion` | Botón `btnSiguientePaciente` (Valida médico clínico en emergencias) | `EN USO` |
 | 43 | `sp_PuedeAtenderEmergencias`| Usuario / Especialidad | Habilitación | `FrmListaTurnosAtencion` | Comprueba si el médico posee la especialidad Clínico para guardia | `EN USO` |
 | 44 | `sp_IniciarAtencionTurno`| Turno / Sala | Inicio Consulta | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Sala a Ocupada) | `EN USO` |
 | 45 | `sp_FinalizarAtencionTurno`| Turno / Sala | Cierre Consulta | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Libera sala) | `EN USO` |
-| 46 | `sp_FinalizarAtencion` | Turno / Sala | Cierre Consulta | Ninguno | Versión previa; superada por `sp_FinalizarAtencionTurno` | `NO UTILIZADO` |
 | 47 | `sp_InsertarHistoriaClinica`| HistoriaClinica | Alta médica | `FrmListaTurnosAtencion` | Botón `btnTerminarAtencion` (Guardar evolución) | `EN USO` |
-| 48 | `sp_ObtenerTurnosPantallaPublica`| Turno / Sala | Monitor público | `FrmUsuarioVentana` | Refresco alternativo de llamados públicos | `EN USO` |
 | 49 | `sp_ObtenerHistoriaClinicaPaciente`| HistoriaClinica | Historial | `FrmListaTurnosAtencion` | Botón `btnIniciarAtencion` (Carga antecedentes médicos) | `EN USO` |
 | 50 | `sp_ObtenerAtencionesPorMedico` | HistoriaClinica / Turno | Reporte / Historial | `FrmMisAtenciones` | Carga y filtrado de consultas del médico (incluye triage y síntomas para emergencias) | `EN USO` |
 | 51 | `sp_ReporteMedico_RankingGravedadTriage` | HistoriasClinicas / Turnos | Reporte / Triage Clínico | `FrmMisAtenciones` | Distribución de turnos de emergencia atendidos por severidad para médicos clínicos | `EN USO` |
 | 52 | `sp_ReporteMedico_RankingSintomasAtendidos` | Sintomas / TurnoSintomas | Reporte / Epidemiología | `FrmMisAtenciones` | Ranking de síntomas de pacientes de emergencia atendidos por el médico clínico | `EN USO` |
-| 53 | `sp_ReporteGuardiaTriage_Resumen` | Turno / Prioridad | Reporte / Triage KPIs | `FrmReporteGuardiaAdmin` | Carga de KPIs y resumen operativo de guardia | `EN USO` |
-| 54 | `sp_ReporteGuardiaTriage_RankingSintomas` | TurnoSintoma / Sintoma | Reporte / Epidemiología | `FrmReporteGuardiaAdmin` | Ranking de síntomas predominantes en triage | `EN USO` |
-| 55 | `sp_ReporteGuardiaTriage_Detalle` | Turno / Paciente / Triage | Reporte / Detalle Guardia | `FrmReporteGuardiaAdmin` | Grilla interactiva de turnos de guardia | `EN USO` |
 | 56 | `sp_RealizarBackupBaseDatos` | dbGestionTurnos | Backup | `FrmBackupRestore` | Botón btnGenerarBackup | `EN USO` |
 | 57 | `sp_ListarGerentes` | Usuario / Rol | Seguridad | `FrmBackupRestore` | Carga desplegable de autorización de Gerente | `EN USO` |
 | 58 | `sp_RestaurarBaseDatos` | dbGestionTurnos | Restore | `FrmBackupRestore` | Botón btnRestaurarBackup (Doble autorización) | `EN USO` |
@@ -4458,7 +3922,7 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 ### `FrmListaTurnosAtencion`
 - `sp_ObtenerEspecialidadesPorMedico` / `sp_ListarEspecialidades` → Carga del selector de servicios del médico (`CargarServiciosDelMedico`).
 - `sp_PuedeAtenderEmergencias` → Validación de habilitación para atención de emergencias/guardia en `CargarServiciosDelMedico` y llamadas de pacientes.
-- `sp_ListarTurnosAtencion` / `sp_ObtenerTurnosEnEspera` → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
+- `sp_ListarTurnosAtencion` → Carga de la cola de pacientes en espera (`CargarTurnosDesdeBD`).
 - `sp_LlamarSiguienteTurno` → Botón "Siguiente Paciente". Pasa el turno a estado 'Llamado' (valida especialidad clínica si es guardia).
 - `sp_IniciarAtencionTurno` → Botón "Iniciar Atención". Pasa el turno a 'En Consulta' y marca el consultorio como 'Ocupada'.
 - `sp_ObtenerHistoriaClinicaPaciente` → Botón "Iniciar Atención". Consulta antecedentes cronológicos del paciente para el panel superior de lectura de antecedentes clínicos.
@@ -4487,7 +3951,6 @@ A continuación se detalla el universo completo de los **47 Stored Procedures** 
 ### `FrmUsuarioVentana`
 - `sp_ListarTurnosEmergencia` → Carga inicial y auto-refresco periódico de la grilla de emergencias/triage (`dgvEmergencias`).
 - `sp_ListarTurnosGeneralesPantalla` → Carga inicial y auto-refresco periódico de la grilla de consultorios externos (`dgvGeneral`).
-- `sp_ObtenerTurnosPantallaPublica` → Alternativa de consulta para monitor público de llamados activos.
 - Rol asignado: `Usuario Ventana` (`IdRol = 4`).
 
 ---
@@ -4521,54 +3984,7 @@ A partir de la revisión técnica del flujo de modificación de entidades se det
 
 ---
 
-## 10. Procedimientos Almacenados No Utilizados en el Proyecto
-
-A continuación se detallan exhaustivamente los **4 procedimientos almacenados** que se encuentran creados en la base de datos `dbGestionTurnos` pero que **NO son utilizados hasta el momento por el código del proyecto** (ni en la capa de interfaz WinForms ni en la lógica de negocio):
-
-### 1. `sp_FinalizarAtencion`
-- **Firma en Base de Datos:** `@IdTurno INT, @IdSala INT`
-- **Motivo de no uso:** Es una implementación temprana y elemental que únicamente modificaba el estado del turno y requería el identificador numérico de la sala. 
-- **Procedimiento que lo sustituye:** Fue completamente reemplazado en la aplicación por **`sp_FinalizarAtencionTurno`** (`@IdTurno, @Diagnostico, @NombreMedico, @SalaAsignada`), el cual interactúa directamente con el flujo de cierre clínico, libera atómicamente el consultorio por nombre textual y valida la existencia del turno con código de error `50084`.
-
-### 2. `sp_InsertarPaciente`
-- **Firma en Base de Datos:** `@Nombre NVARCHAR(100), @Apellido NVARCHAR(100), @Dni NVARCHAR(20), @ObraSocial NVARCHAR(100)`
-- **Motivo de no uso:** Realiza una inserción simple y ciega (`INSERT INTO Pacientes...`) sin verificar si el DNI ya pertenecía a un paciente existente, lo que generaba registros duplicados con historias clínicas fragmentadas ante visitas sucesivas.
-- **Procedimiento que lo sustituye:** Fue reemplazado por **`sp_GuardarPaciente`**, el cual implementa una lógica de *upsert* inteligente: busca por DNI, actualiza la cobertura si ya existe, valida que el DNI no pertenezca a un usuario del sistema (código `50010`), o inserta si es un paciente nuevo.
-
-### 3. `sp_InsertarRol`
-- **Firma en Base de Datos:** `@Descripcion NVARCHAR(50)`
-- **Motivo de no uso:** Es un procedimiento utilitario de catálogo. El sistema no provee una interfaz gráfica de usuario para el alta o modificación dinámica de roles, ya que los cuatro roles de la clínica (`Administrador`, `Personal médico`, `Recepcionista`, `Usuario Ventana`) son estructuras estáticas predeterminadas del negocio.
-- **Procedimiento que lo sustituye:** Se inicializan mediante el script de datos iniciales (`Seeds`) en la sección 7.
-
-### 4. `sp_InsertarTurno`
-- **Firma en Base de Datos:** `@NroOrden NVARCHAR(50), @TipoTurno NVARCHAR(50), @IdPrioridad INT, @IdPaciente INT, @IdEspecialidad INT`
-- **Motivo de no uso:** Procedimiento genérico temprano que requería que el código de orden fuera calculado o provisto externamente y no contemplaba el flujo diferenciado de guardia vs. consultorio programado.
-- **Procedimiento que lo sustituye:** Fue reemplazado por dos procedimientos especializados:
-  - **`sp_CrearTurnoEspecialidad`**: Genera automáticamente el código con la inicial de la especialidad (ej. `C-001`, `P-001`), asocia fecha y franja horaria y valida paciente y especialidad (códigos `50001` y `50003`).
-  - **`sp_CrearTurnoEmergencia`**: Genera automáticamente el código de guardia `E-001`, asigna el nivel de triage y vincula el servicio de emergencias (códigos `50001` y `50002`).
-
-*(Nota complementaria: el procedimiento `sp_ObtenerHistoriaClinicaPaciente` se encuentra plenamente integrado en el formulario de atención médica `FrmListaTurnosAtencion`, consumido por el botón "Iniciar Atención" para la consulta de antecedentes del paciente).*
-
-
-
-
----
-
 ## Módulo 7: Cierre de Caja y Facturación Gerencial (Rol Recepcionista y Gerente)
-
-### 7.1 `sp_ReporteCierreCajaDiario`
-- **Descripción:** Calcula y consolida el resumen cuantitativo y monetario de la jornada de atención para el cierre de caja diario (total turnos, total recaudado, particular vs. obra social y especialidad vs. emergencia).
-- **Entidad:** `Turnos` / `Caja`
-- **Operación:** Consulta / Reporte Financiero
-- **Tablas:** `Turnos`, `Pacientes`
-- **Forms que lo utilizan:** `FrmCierreCaja` (Rol Recepcionista)
-- **Acción:** Carga inicial del formulario y cambio de fecha de caja (`dtpFechaCaja_ValueChanged`)
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@Fecha` | `DATE` | IN (OPT) | Fecha consultada para el cierre de caja (por defecto fecha actual). |
-- **Devuelve:** `FechaCaja`, `TotalTurnos`, `TotalRecaudado`, `TurnosParticulares`, `MontoParticulares`, `TurnosObraSocial`, `MontoObraSocial`, `TurnosEmergencia`, `MontoEmergencia`, `TurnosEspecialidad`, `MontoEspecialidad`.
 
 ### 7.2 `sp_ReporteCierreCajaDetalle`
 - **Descripción:** Devuelve la nómina completa y detallada de turnos emitidos/atendidos durante el día con identificación de paciente, cobertura, arancel cobrado en caja y profesional asignado.
@@ -4619,7 +4035,7 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
   | `@FechaHasta` | `DATE` | IN (OPT) | Fecha final de emisión (por defecto `@FechaDesde`). |
   | `@ArancelEspecialidad` | `DECIMAL(18,2)` | IN | Arancel base de especialidad. |
   | `@ArancelEmergencia` | `DECIMAL(18,2)` | IN | Arancel base de emergencia. |
-- **Devuelve:** `TotalTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`, `TicketPromedio`, `TurnosAtendidos`, `TurnosPendientes`, `TurnosAusentes`, `FacturadoAusentes`.
+- **Devuelve:** `TotalTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`, `TicketPromedio`, `TurnosAtendidos`, `TurnosPendientes`, `TurnosAusentes`, `FacturadoAusentes`. `TurnosAtendidos` se cuenta por fecha de atención; el resto, por fecha de emisión.
 
 ### 7.5 `sp_ReporteGerencialRecaudacionDiaria`
 - **Descripción:** Evolución de la recaudación por día (o por mes si el rango supera los 62 días), separando caja y obras sociales.
@@ -4633,7 +4049,7 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
 - **Devuelve:** `Fecha`, `AgrupadoPorMes`, `CantidadTurnos`, `CobradoCaja`, `ACobrarObraSocial`, `TotalFacturado`.
 
 ### 7.6 `sp_ReporteGerencialRankingMedicos`
-- **Descripción:** Ranking de médicos por facturación (caja + obra social) de las atenciones realizadas (`Atendido` / `Finalizado`). Incluye a los médicos activos sin facturación para detectar profesionales sin actividad.
+- **Descripción:** Ranking de médicos por facturación (caja + obra social) de las atenciones realizadas (`Atendido` / `Finalizado`) en el período, filtradas por fecha de atención (no de emisión). Incluye a los médicos activos sin facturación para detectar profesionales sin actividad.
 - **Entidad:** `Usuarios` / `Turnos` / `Finanzas`
 - **Operación:** Consulta / Ranking
 - **Tablas:** `Usuarios`, `Roles`, `MedicosEspecialidades`, `Especialidades`, `fn_ReporteGerencialTurnosFacturados`
@@ -4678,25 +4094,6 @@ A continuación se detallan exhaustivamente los **4 procedimientos almacenados**
 - **Estado:** `EN USO`
 - **Parámetros:** mismos que 7.4.
 - **Devuelve:** mismas columnas que 7.6 (`Detalle` = `Modalidad` o `Cobertura`).
-
-### 7.10 `sp_ReporteMedico_RankingDiagnosticosYSintomas`
-- **Descripción:** Determina los diagnósticos clínicos más recurrentes y los síntomas de triage atendidos por el profesional de la salud autenticado dentro de su especialidad, con cantidades y porcentajes relativos.
-- **Entidad:** `HistoriasClinicas` / `TurnoSintomas` / `Sintomas`
-- **Operación:** Consulta / Analítica Clínica
-- **Tablas:** `HistoriasClinicas`, `TurnoSintomas`, `Sintomas`, `Turnos`
-- **Forms que lo utilizan:** `FrmMisAtenciones` (Rol Personal Médico)
-- **Acción:** Pestaña "Ranking de Diagnósticos y Síntomas"
-- **Estado:** `EN USO`
-- **Parámetros:**
-  | Parámetro | Tipo | Dirección | Descripción |
-  | :--- | :--- | :--- | :--- |
-  | `@IdUsuario` | `INT` | IN | Identificador único del médico en sesión. |
-  | `@FechaDesde` | `DATE` | IN (OPT) | Fecha mínima. |
-  | `@FechaHasta` | `DATE` | IN (OPT) | Fecha máxima. |
-- **Devuelve:** `Concepto`, `Tipo`, `CantidadCasos`, `Porcentaje`.
-
-
----
 
 ## Módulo 8: Copias de Seguridad y Restauración de Base de Datos
 
