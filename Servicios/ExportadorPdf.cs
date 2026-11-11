@@ -109,7 +109,7 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                         // Tarjetas de Resumen Financiero (KPIs)
                         decimal montoCoberturaOS = CajaBLL.CalcularCoberturaObraSocial(detalles);
                         decimal facturacionTotalBruta = resumen.MontoParticulares + (resumen.TurnosObraSocial > 0 ? (resumen.MontoObraSocial + montoCoberturaOS) : 0m);
-                        decimal promedioPorTurno = resumen.TotalTurnos > 0 ? Math.Round(resumen.TotalRecaudado / resumen.TotalTurnos, 2) : 0m;
+                        decimal promedioPorTurno = resumen.TotalTurnos > 0 ? Math.Round(resumen.TotalCobrado / resumen.TotalTurnos, 2) : 0m;
 
                         col.Item().Border(1).BorderColor(ColorBorde).Padding(8).Background(ColorKpiFondo).Row(row =>
                         {
@@ -123,8 +123,10 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().Text("RECAUDACIÓN CAJA (PACIENTES)").FontSize(8).Bold().FontColor(ColorGrisTexto);
-                                c.Item().Text($"$ {resumen.TotalRecaudado:N2}").FontSize(14).Bold().FontColor(ColorExito);
-                                c.Item().Text("Abonado en ventanilla").FontSize(7);
+                                c.Item().Text($"$ {resumen.TotalCobrado:N2}").FontSize(14).Bold().FontColor(ColorExito);
+                                c.Item().Text(resumen.CantidadDevoluciones > 0
+                                    ? $"Devuelto: $ {resumen.TotalDevuelto:N2} | Neto: $ {resumen.TotalRecaudado:N2}"
+                                    : "Abonado en ventanilla").FontSize(7);
                             });
 
                             row.RelativeItem().Column(c =>
@@ -199,8 +201,14 @@ namespace Gestion_de_Turnos_Medicos.Servicios
                             }
                         });
 
-                        // Fila de Total Final
-                        col.Item().PaddingTop(6).AlignRight().Text($"TOTAL RECAUDADO EN CAJA: $ {resumen.TotalRecaudado:N2}")
+                        // Totales finales: lo cobrado y lo devuelto por separado, y el neto que queda en la caja
+                        if (resumen.CantidadDevoluciones > 0)
+                        {
+                            col.Item().PaddingTop(6).AlignRight().Text($"COBRADO: $ {resumen.TotalCobrado:N2}").FontSize(9).Bold();
+                            col.Item().AlignRight().Text($"DEVUELTO ({resumen.CantidadDevoluciones}): $ {resumen.TotalDevuelto:N2}").FontSize(9).Bold();
+                        }
+
+                        col.Item().PaddingTop(resumen.CantidadDevoluciones > 0 ? 2 : 6).AlignRight().Text($"NETO EN CAJA: $ {resumen.TotalRecaudado:N2}")
                             .FontSize(11).Bold().FontColor(ColorExito);
                     });
 

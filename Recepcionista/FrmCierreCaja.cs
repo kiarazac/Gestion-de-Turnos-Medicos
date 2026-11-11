@@ -246,23 +246,33 @@ namespace Gestion_de_Turnos_Medicos
             }
         }
 
+        /// <summary>
+        /// Debajo de lo cobrado: si hubo devoluciones, lo devuelto y el neto de la caja; si no, el desglose particular / obra social.
+        /// </summary>
+        private static string TextoSubRecaudacion(ReporteCierreCajaResumenDTO resumen)
+        {
+            return resumen.CantidadDevoluciones > 0
+                ? $"Devuelto: $ {resumen.TotalDevuelto:N2} | Neto: $ {resumen.TotalRecaudado:N2}"
+                : $"Part: $ {resumen.MontoParticulares:N2} | O.S.: $ {resumen.MontoObraSocial:N2}";
+        }
+
         private void ActualizarKpisHoy()
         {
-            decimal totalRecaudadoCaja = _resumenHoy.TotalRecaudado;
+            decimal totalCobradoCaja = _resumenHoy.TotalCobrado;
             decimal coberturaOS = CajaBLL.CalcularCoberturaObraSocial(_detallesHoy);
             decimal facturacionTotal = _resumenHoy.MontoParticulares + (_resumenHoy.TurnosObraSocial > 0 ? (_resumenHoy.MontoObraSocial + coberturaOS) : 0m);
 
             lblKpiTurnosHoy.Text = _resumenHoy.TotalTurnos.ToString();
             lblSubKpiTurnosHoy.Text = $"Esp: {_resumenHoy.TurnosEspecialidad} | Urg: {_resumenHoy.TurnosEmergencia}";
 
-            lblKpiRecaudacionHoy.Text = $"$ {totalRecaudadoCaja:N2}";
-            lblSubKpiRecaudacionHoy.Text = $"Part: $ {_resumenHoy.MontoParticulares:N2} | O.S.: $ {_resumenHoy.MontoObraSocial:N2}";
+            lblKpiRecaudacionHoy.Text = $"$ {totalCobradoCaja:N2}";
+            lblSubKpiRecaudacionHoy.Text = TextoSubRecaudacion(_resumenHoy);
 
             lblKpiCoberturaHoy.Text = $"$ {coberturaOS:N2}";
             lblSubKpiCoberturaHoy.Text = $"Cubierto por {_resumenHoy.TurnosObraSocial} pacientes O.S.";
 
             lblKpiFacturacionHoy.Text = $"$ {facturacionTotal:N2}";
-            decimal promedio = _resumenHoy.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenHoy.TotalTurnos, 2) : 0m;
+            decimal promedio = _resumenHoy.TotalTurnos > 0 ? Math.Round(totalCobradoCaja / _resumenHoy.TotalTurnos, 2) : 0m;
             lblSubKpiFacturacionHoy.Text = $"Promedio Caja: $ {promedio:N2} / turno";
         }
 
@@ -344,7 +354,8 @@ namespace Gestion_de_Turnos_Medicos
             {
                 Cursor = Cursors.WaitCursor;
 
-                _detallesFiltro = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada, espSeleccionada);
+                // Turnos emitidos en la fecha elegida (sin importar para qué día están programados) y devoluciones de ese día, igual que la caja de hoy
+                _detallesFiltro = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada, espSeleccionada, soloEmitidosHoy: true);
                 _resumenFiltro = _cajaBLL.CalcularResumenDeDetalles(fechaSeleccionada, _detallesFiltro);
 
                 dgvTurnosFiltro.DataSource = null;
@@ -365,21 +376,21 @@ namespace Gestion_de_Turnos_Medicos
 
         private void ActualizarKpisFiltro()
         {
-            decimal totalRecaudadoCaja = _resumenFiltro.TotalRecaudado;
+            decimal totalCobradoCaja = _resumenFiltro.TotalCobrado;
             decimal coberturaOS = CajaBLL.CalcularCoberturaObraSocial(_detallesFiltro);
             decimal facturacionTotal = _resumenFiltro.MontoParticulares + (_resumenFiltro.TurnosObraSocial > 0 ? (_resumenFiltro.MontoObraSocial + coberturaOS) : 0m);
 
             lblKpiTurnosFiltro.Text = _resumenFiltro.TotalTurnos.ToString();
             lblSubKpiTurnosFiltro.Text = $"Esp: {_resumenFiltro.TurnosEspecialidad} | Urg: {_resumenFiltro.TurnosEmergencia}";
 
-            lblKpiRecaudacionFiltro.Text = $"$ {totalRecaudadoCaja:N2}";
-            lblSubKpiRecaudacionFiltro.Text = $"Part: $ {_resumenFiltro.MontoParticulares:N2} | O.S.: $ {_resumenFiltro.MontoObraSocial:N2}";
+            lblKpiRecaudacionFiltro.Text = $"$ {totalCobradoCaja:N2}";
+            lblSubKpiRecaudacionFiltro.Text = TextoSubRecaudacion(_resumenFiltro);
 
             lblKpiCoberturaFiltro.Text = $"$ {coberturaOS:N2}";
             lblSubKpiCoberturaFiltro.Text = $"Cubierto por {_resumenFiltro.TurnosObraSocial} pacientes O.S.";
 
             lblKpiFacturacionFiltro.Text = $"$ {facturacionTotal:N2}";
-            decimal promedio = _resumenFiltro.TotalTurnos > 0 ? Math.Round(totalRecaudadoCaja / _resumenFiltro.TotalTurnos, 2) : 0m;
+            decimal promedio = _resumenFiltro.TotalTurnos > 0 ? Math.Round(totalCobradoCaja / _resumenFiltro.TotalTurnos, 2) : 0m;
             lblSubKpiFacturacionFiltro.Text = $"Promedio: $ {promedio:N2} / turno";
         }
 
@@ -415,8 +426,8 @@ namespace Gestion_de_Turnos_Medicos
                         Cursor = Cursors.WaitCursor;
 
                         string titulo = !string.IsNullOrWhiteSpace(esp)
-                            ? $"REPORTE OFICIAL DE TURNOS Y FACTURACIÓN — {esp.ToUpperInvariant()}"
-                            : "REPORTE OFICIAL DE TURNOS Y FACTURACIÓN POR FECHA";
+                            ? $"REPORTE OFICIAL DE TURNOS EMITIDOS — {esp.ToUpperInvariant()}"
+                            : "REPORTE OFICIAL DE TURNOS EMITIDOS POR FECHA";
 
                         ExportadorPdf.ExportarCierreCaja(
                             sfd.FileName,

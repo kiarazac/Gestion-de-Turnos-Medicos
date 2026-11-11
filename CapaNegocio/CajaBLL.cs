@@ -63,22 +63,29 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
                 return new ReporteCierreCajaResumenDTO { FechaCaja = fecha.Date };
             }
 
-            // Las devoluciones (montos negativos) restan de los importes pero no cuentan como turnos
+            // Lo cobrado y lo devuelto se informan por separado: una devolución del día puede ser de un turno cobrado otro día,
+            // así que restarla de los desgloses los dejaría en negativo. Las devoluciones solo afectan el neto.
             var turnos = detalles.Where(d => !d.EsDevolucion).ToList();
+            var devoluciones = detalles.Where(d => d.EsDevolucion).ToList();
+            decimal cobrado = turnos.Sum(d => d.MontoCobrado);
+            decimal devuelto = -devoluciones.Sum(d => d.MontoCobrado);
 
             return new ReporteCierreCajaResumenDTO
             {
                 FechaCaja = fecha.Date,
                 TotalTurnos = turnos.Count,
-                TotalRecaudado = detalles.Sum(d => d.MontoCobrado),
+                TotalCobrado = cobrado,
+                TotalDevuelto = devuelto,
+                CantidadDevoluciones = devoluciones.Count,
+                TotalRecaudado = cobrado - devuelto,
                 TurnosParticulares = turnos.Count(d => d.EsParticular),
-                MontoParticulares = detalles.Where(d => d.EsParticular).Sum(d => d.MontoCobrado),
+                MontoParticulares = turnos.Where(d => d.EsParticular).Sum(d => d.MontoCobrado),
                 TurnosObraSocial = turnos.Count(d => !d.EsParticular),
-                MontoObraSocial = detalles.Where(d => !d.EsParticular).Sum(d => d.MontoCobrado),
+                MontoObraSocial = turnos.Where(d => !d.EsParticular).Sum(d => d.MontoCobrado),
                 TurnosEmergencia = turnos.Count(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
-                MontoEmergencia = detalles.Where(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado),
+                MontoEmergencia = turnos.Where(d => d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado),
                 TurnosEspecialidad = turnos.Count(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)),
-                MontoEspecialidad = detalles.Where(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado)
+                MontoEspecialidad = turnos.Where(d => !d.TipoTurno.Equals("Emergencia", StringComparison.OrdinalIgnoreCase)).Sum(d => d.MontoCobrado)
             };
         }
 
@@ -92,14 +99,10 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         public static decimal CalcularCoberturaObraSocial(List<ReporteCierreCajaDetalleDTO> detalles)
         {
             // Arancel registrado en el turno; el vigente solo para turnos sin snapshot.
-            // Una devolución (importes negativos) revierte la cobertura del turno devuelto.
+            // A la obra social no se le factura un turno cancelado, y las filas de devolución no suman ni restan cobertura.
             return detalles
-                .Where(d => !d.EsParticular)
-                .Sum(d =>
-                {
-                    decimal cobertura = Math.Max(0m, Math.Abs(d.ArancelBase ?? TurnoBLL.ObtenerArancelBase(d.TipoTurno)) - Math.Abs(d.MontoCobrado));
-                    return d.EsDevolucion ? -cobertura : cobertura;
-                });
+                .Where(d => !d.EsParticular && !d.EsDevolucion && !string.Equals(d.Estado, "Cancelado", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => Math.Max(0m, (d.ArancelBase ?? TurnoBLL.ObtenerArancelBase(d.TipoTurno)) - d.MontoCobrado));
         }
     }
 }
