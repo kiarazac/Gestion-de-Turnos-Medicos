@@ -16,48 +16,38 @@ namespace Gestion_de_Turnos_Medicos.CapaDeDatos
 
         /// <summary>
         /// Ejecuta el procedimiento almacenado <c>sp_ReporteCierreCajaDetalle</c> para recuperar
-        /// la nómina completa y discriminada de turnos y montos cobrados,
-        /// con soporte para filtrar por fecha de emisión o fecha programada y por especialidad.
+        /// la caja de una fecha: turnos emitidos ese día (sin importar para qué día están programados)
+        /// y devoluciones registradas ese día, con filtro opcional por especialidad.
         /// </summary>
-        /// <param name="fecha">Fecha de la jornada a auditar.</param>
+        /// <param name="fecha">Fecha de emisión a auditar.</param>
         /// <param name="especialidad">Nombre de la especialidad o 'Emergencia' (opcional, null para todas).</param>
-        /// <param name="soloEmitidosHoy">Si es true, filtra por fecha en que el turno fue emitido (FechaCreacion).</param>
         /// <returns>Lista de <see cref="ReporteCierreCajaDetalleDTO"/> con cada turno emitido/cobrado.</returns>
-        public List<ReporteCierreCajaDetalleDTO> ObtenerDetalleCierreCaja(DateTime fecha, string? especialidad = null, bool soloEmitidosHoy = false)
+        public List<ReporteCierreCajaDetalleDTO> ObtenerDetalleCierreCaja(DateTime fecha, string? especialidad = null)
         {
             using (var context = new dbTurnosMedicos())
             {
                 var pFecha = new SqlParameter("@Fecha", fecha.Date);
                 var pEsp = new SqlParameter("@Especialidad", (object?)especialidad ?? DBNull.Value);
-                var pSoloEmitidos = new SqlParameter("@SoloEmitidosHoy", soloEmitidosHoy);
 
                 try
                 {
                     return context.Database
                         .SqlQueryRaw<ReporteCierreCajaDetalleDTO>(
-                            "EXEC sp_ReporteCierreCajaDetalle @Fecha, @Especialidad, @SoloEmitidosHoy",
-                            pFecha, pEsp, pSoloEmitidos)
+                            "EXEC sp_ReporteCierreCajaDetalle @Fecha, @Especialidad",
+                            pFecha, pEsp)
                         .ToList();
                 }
                 catch (SqlException)
                 {
-                    // Fallback directo a través de EF Core LINQ para garantizar que si el SP no está actualizado en SQL Server,
-                    // la consulta filtre correctamente por fecha de creación o fecha programada.
+                    // Fallback directo a través de EF Core LINQ por si el SP no está actualizado en SQL Server:
+                    // turnos emitidos en la fecha (sin las filas de devolución, que solo arma el SP).
                     var query = context.Turnos
                         .Include(t => t.Paciente)
                             .ThenInclude(p => p.ObraSocial)
                         .Include(t => t.Especialidad)
                         .Include(t => t.Usuario)
-                        .Where(t => t.Activo && t.Estado != "Cancelado");
-
-                    if (soloEmitidosHoy)
-                    {
-                        query = query.Where(t => t.FechaCreacion.Date == fecha.Date);
-                    }
-                    else
-                    {
-                        query = query.Where(t => t.Fecha.Date == fecha.Date);
-                    }
+                        .Where(t => t.Activo && t.Estado != "Cancelado")
+                        .Where(t => t.FechaCreacion.Date == fecha.Date);
 
                     if (!string.IsNullOrWhiteSpace(especialidad) &&
                         !especialidad.Equals("Todas", StringComparison.OrdinalIgnoreCase) &&

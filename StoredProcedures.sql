@@ -2152,6 +2152,7 @@ GO
 ** Procedimiento : sp_CrearTurnoEmergencia
 ** Sección       : 5.4
 ** Propósito     : Genera un nuevo turno de guardia de urgencias/emergencias, asociándolo al servicio de Emergencia, asignando la prioridad de triage correspondiente y generando el ticket correlativo `E-001`. Cuenta con validaciones de negocio previas.
+**                 Emisión concurrente: verificación, numeración e INSERT en una transacción con sp_getapplock por prefijo.
 ** Entidad/Tablas: `Turnos`, `Pacientes`, `Especialidades`
 ** Invocado por  : `FrmTurnoEmergencia` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
@@ -2213,6 +2214,15 @@ BEGIN
         DECLARE @Prefijo NVARCHAR(10) = 'E';
         DECLARE @Secuencia INT;
 
+        -- Mismo bloqueo por prefijo que sp_CrearTurnoEspecialidad: dos emisiones simultáneas no toman el mismo número
+        BEGIN TRANSACTION;
+
+        DECLARE @Bloqueo INT;
+        DECLARE @RecursoBloqueo NVARCHAR(255) = CONCAT(N'EmisionTurno_', @Prefijo);
+        EXEC @Bloqueo = sp_getapplock @Resource = @RecursoBloqueo, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000;
+        IF @Bloqueo < 0
+            THROW 50120, 'El sistema está emitiendo otro turno en este momento. Intente nuevamente.', 1;
+
         SELECT @Secuencia = ISNULL(MAX(
             TRY_CAST(SUBSTRING(NroOrden, CHARINDEX('-', NroOrden) + 1, LEN(NroOrden)) AS INT)
         ), 0) + 1
@@ -2240,11 +2250,16 @@ BEGIN
 
         SET @IdTurno = SCOPE_IDENTITY();
 
+        COMMIT TRANSACTION;
+
         -- Devolvemos las columnas requeridas por el DTO
         SELECT CAST(@IdTurno AS INT) AS IdNuevoTurno, @NroOrden AS NroOrden, @CodigoCancelacion AS CodigoCancelacion;
 
     END TRY
     BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
         -- Capturamos el error de SQL y lo propagamos limpiamente al código C#
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
@@ -2444,6 +2459,7 @@ GO
 ** Procedimiento : sp_CrearTurnoEspecialidad
 ** Sección       : 5.6
 ** Propósito     : Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha, horario asignado y la palabra clave / código 2FA de cancelación. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001`, `P-001`) y devuelve el ID recién creado.
+**                 Emisión concurrente: verificación, numeración e INSERT en una transacción con sp_getapplock por prefijo.
 ** Entidad/Tablas: `Turnos`, `Especialidades`, `Pacientes`, `AusenciasMedicas` (vía `fn_EspecialidadSinCobertura`)
 ** Invocado por  : `FrmTurnoEspecialidad` (Botón `BtnGenerarTurno`)
 ** Estado        : `EN USO`
@@ -2504,9 +2520,25 @@ BEGIN
             THROW 50100, 'No hay profesionales disponibles para la especialidad seleccionada en esa fecha. Elija otra fecha.', 1;
         END
 
+        DECLARE @IdTurno INT;
+        DECLARE @NroOrden NVARCHAR(20);
+        DECLARE @Prefijo NVARCHAR(10) = UPPER(LEFT(@NombreEspecialidad, 1));
+        DECLARE @Secuencia INT;
+
+        -- Dos recepcionistas emitiendo a la vez: la verificación del horario, el número y el INSERT van en una transacción
+        -- con un bloqueo por prefijo de numeración (cubre la especialidad, que siempre usa el mismo prefijo). La segunda
+        -- espera a que la primera confirme y recién entonces ve el horario ocupado y el número ya usado.
+        BEGIN TRANSACTION;
+
+        DECLARE @Bloqueo INT;
+        DECLARE @RecursoBloqueo NVARCHAR(255) = CONCAT(N'EmisionTurno_', @Prefijo);
+        EXEC @Bloqueo = sp_getapplock @Resource = @RecursoBloqueo, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000;
+        IF @Bloqueo < 0
+            THROW 50120, 'El sistema está emitiendo otro turno en este momento. Intente nuevamente.', 1;
+
         -- Validamos que no exista ya un turno activo para la misma fecha, horario y especialidad
         IF EXISTS (
-            SELECT 1 
+            SELECT 1
             FROM Turnos t
             WHERE t.IdEspecialidad = @IdEspecialidad
               AND CAST(t.Fecha AS DATE) = @Fecha
@@ -2517,11 +2549,6 @@ BEGIN
         BEGIN
             THROW 50004, 'Ya existe un turno reservado para la misma fecha, horario y especialidad médica.', 1;
         END
-
-        DECLARE @IdTurno INT;
-        DECLARE @NroOrden NVARCHAR(20);
-        DECLARE @Prefijo NVARCHAR(10) = UPPER(LEFT(@NombreEspecialidad, 1));
-        DECLARE @Secuencia INT;
 
         -- 1. Obtenemos el máximo correlativo emitido en el día para este prefijo
         SELECT @Secuencia = ISNULL(MAX(
@@ -2570,8 +2597,6 @@ BEGIN
             IF EXISTS (SELECT 1 FROM Devoluciones WHERE IdTurno = @IdTurnoOrigen AND Activo = 1 AND Revisada = 1)
                 THROW 50112, 'La devolución del turno original ya fue revisada por gerencia. Emita un turno nuevo con su cobro.', 1;
         END
-
-        BEGIN TRANSACTION;
 
         -- Insertamos directamente con el NroOrden definitivo
         INSERT INTO Turnos (NroOrden, Estado, Fecha, Horario, TipoTurno, IdPrioridad, IdPaciente, IdEspecialidad, CodigoCancelacion, Monto, ArancelBase, IdObraSocial, Activo, FechaCreacion, IdTurnoOrigen)
@@ -4322,20 +4347,18 @@ GO
 /* =========================================================================
 ** Procedimiento : sp_ReporteCierreCajaDetalle
 ** Sección       : 7.2
-** Propósito     : Devuelve el listado detallado de turnos emitidos/atendidos en la fecha con paciente, DNI, cobertura, monto y profesional.
-** Entidad/Tablas: `Turnos`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
-** Invocado por  : `FrmCierreCaja` (Rol Recepcionista)
+** Propósito     : Caja de una fecha: turnos emitidos ese día (sin importar para qué día están programados) y devoluciones registradas ese día, con paciente, DNI, cobertura, monto y profesional.
+** Entidad/Tablas: `Turnos`, `Devoluciones`, `Pacientes`, `ObrasSociales`, `Especialidades`, `Usuarios`
+** Invocado por  : `FrmCierreCaja` (Rol Recepcionista: pestaña del día y búsqueda por fecha y especialidad)
 ** Estado        : `EN USO`
-** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `ArancelBase`, `Estado`, `MedicoAsignado`, `EsDevolucion` (filas de devolución con monto negativo, solo con `@SoloEmitidosHoy = 1`)
+** Retorno       : `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `FechaEmision`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `ArancelBase`, `Estado`, `MedicoAsignado`, `EsDevolucion` (filas de devolución con monto negativo)
 ** Parámetros   :
-**                `@Fecha` (`DATE`, IN, OPT) - Fecha consultada para el detalle de caja.
+**                `@Fecha` (`DATE`, IN, OPT) - Fecha de emisión consultada (por defecto hoy).
 **                `@Especialidad` (`NVARCHAR(100)`, IN, OPT) - Especialidad a filtrar.
-**                `@SoloEmitidosHoy` (`BIT`, IN, OPT) - Si es 1, filtra por FechaCreacion = @Fecha.
 ** ========================================================================= */
 CREATE OR ALTER PROCEDURE sp_ReporteCierreCajaDetalle
     @Fecha DATE = NULL,
-    @Especialidad NVARCHAR(100) = NULL,
-    @SoloEmitidosHoy BIT = 0
+    @Especialidad NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -4346,7 +4369,7 @@ BEGIN
     BEGIN TRY
         IF @Fecha IS NULL SET @Fecha = CAST(GETDATE() AS DATE);
 
-        -- Caja por fecha de emisión (@SoloEmitidosHoy = 1): flujo de dinero del día.
+        -- Caja por fecha de emisión: flujo de dinero del día.
         --   * Un turno cancelado con devolución sigue sumando el día en que se cobró (ese día ingresó el dinero).
         --   * Cada devolución resta (fila negativa, EsDevolucion = 1) el día en que se registró.
         SELECT
@@ -4372,17 +4395,15 @@ BEGIN
         FROM (
             SELECT t.IdTurno, CAST(0 AS BIT) AS EsDevolucion, CAST(NULL AS DECIMAL(18,2)) AS Monto
             FROM Turnos t
-            WHERE ((@SoloEmitidosHoy = 1 AND CAST(t.FechaCreacion AS DATE) = @Fecha)
-                   OR (@SoloEmitidosHoy = 0 AND CAST(t.Fecha AS DATE) = @Fecha))
+            WHERE CAST(t.FechaCreacion AS DATE) = @Fecha
               AND ((t.Activo = 1 AND t.Estado <> 'Cancelado')
-                   OR (@SoloEmitidosHoy = 1 AND EXISTS (SELECT 1 FROM Devoluciones d WHERE d.IdTurno = t.IdTurno AND d.Activo = 1)))
+                   OR EXISTS (SELECT 1 FROM Devoluciones d WHERE d.IdTurno = t.IdTurno AND d.Activo = 1))
 
             UNION ALL
 
             SELECT d.IdTurno, CAST(1 AS BIT), d.Monto
             FROM Devoluciones d
-            WHERE @SoloEmitidosHoy = 1
-              AND d.Activo = 1
+            WHERE d.Activo = 1
               AND CAST(d.FechaDevolucion AS DATE) = @Fecha
         ) mov
         INNER JOIN Turnos t ON t.IdTurno = mov.IdTurno

@@ -227,7 +227,7 @@ namespace Gestion_de_Turnos_Medicos
                 Cursor = Cursors.WaitCursor;
 
                 // Carga todos los turnos emitidos en la fecha actual (independientemente del día para el que fueron programados o modalidad)
-                _detallesHoy = _cajaBLL.ObtenerDetalleCierreCaja(fechaHoy, especialidad: null, soloEmitidosHoy: true);
+                _detallesHoy = _cajaBLL.ObtenerDetalleCierreCaja(fechaHoy);
                 _resumenHoy = _cajaBLL.CalcularResumenDeDetalles(fechaHoy, _detallesHoy);
 
                 dgvTurnosHoy.DataSource = null;
@@ -355,7 +355,7 @@ namespace Gestion_de_Turnos_Medicos
                 Cursor = Cursors.WaitCursor;
 
                 // Turnos emitidos en la fecha elegida (sin importar para qué día están programados) y devoluciones de ese día, igual que la caja de hoy
-                _detallesFiltro = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada, espSeleccionada, soloEmitidosHoy: true);
+                _detallesFiltro = _cajaBLL.ObtenerDetalleCierreCaja(fechaSeleccionada, espSeleccionada);
                 _resumenFiltro = _cajaBLL.CalcularResumenDeDetalles(fechaSeleccionada, _detallesFiltro);
 
                 dgvTurnosFiltro.DataSource = null;

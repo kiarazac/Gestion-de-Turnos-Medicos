@@ -2264,7 +2264,7 @@ GO
 ---
 
 ### 5.4 `sp_CrearTurnoEmergencia`
-- **Descripción:** Genera un nuevo turno de guardia de urgencias/emergencias, asociándolo al servicio de Emergencia, asignando la prioridad de triage correspondiente y generando el ticket correlativo `E-001`. Cuenta con validaciones de negocio previas.
+- **Descripción:** Genera un nuevo turno de guardia de urgencias/emergencias, asociándolo al servicio de Emergencia, asignando la prioridad de triage correspondiente y generando el ticket correlativo `E-001`. Cuenta con validaciones de negocio previas. Emisiones simultáneas: la verificación del horario, la numeración y el alta van en una transacción con bloqueo por prefijo (`sp_getapplock`), así dos recepcionistas no obtienen el mismo horario ni el mismo número.
 - **Entidad:** Turno / Paciente / Especialidad
 - **Operación:** Alta con Triage y Numeración Correlativa
 - **Tablas:** `Turnos`, `Pacientes`, `Especialidades`
@@ -2448,7 +2448,7 @@ GO
 ---
 
 ### 5.6 `sp_CrearTurnoEspecialidad`
-- **Descripción:** Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha, horario asignado y palabra clave alfanumérica (2FA) para cancelación. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001` para Cardiología, `P-001` para Pediatría) y devuelve el ID recién creado.
+- **Descripción:** Registra un turno programado de consultorio externo vinculando paciente, especialidad, fecha, horario asignado y palabra clave alfanumérica (2FA) para cancelación. Genera el código correlativo prefijado con la inicial de la especialidad (ej. `C-001` para Cardiología, `P-001` para Pediatría) y devuelve el ID recién creado. Emisiones simultáneas: la verificación del horario, la numeración y el alta van en una transacción con bloqueo por prefijo (`sp_getapplock`), así dos recepcionistas no obtienen el mismo horario ni el mismo número.
 - **Entidad:** Turno / Especialidad / Paciente
 - **Operación:** Alta Programada con Validación de Negocio y Generación 2FA
 - **Tablas:** `Turnos`, `Especialidades`, `Pacientes`
@@ -4195,17 +4195,18 @@ A partir de la revisión técnica del flujo de modificación de entidades se det
 ## Módulo 7: Cierre de Caja y Facturación Gerencial (Rol Recepcionista y Gerente)
 
 ### 7.2 `sp_ReporteCierreCajaDetalle`
-- **Descripción:** Devuelve la nómina completa y detallada de turnos emitidos/atendidos durante el día con identificación de paciente, cobertura, arancel cobrado en caja y profesional asignado.
+- **Descripción:** Caja de una fecha: turnos emitidos ese día (sin importar para qué día están programados) y devoluciones registradas ese día (filas negativas), con identificación de paciente, cobertura, arancel cobrado en caja y profesional asignado.
 - **Entidad:** `Turnos` / `Caja`
 - **Operación:** Consulta / Reporte Detallado
-- **Tablas:** `Turnos`, `Pacientes`, `Especialidades`, `Usuarios`
+- **Tablas:** `Turnos`, `Devoluciones`, `Pacientes`, `Especialidades`, `Usuarios`
 - **Forms que lo utilizan:** `FrmCierreCaja` (Rol Recepcionista)
 - **Acción:** Población de la grilla de turnos y generación del Acta Oficial de Cierre en PDF
 - **Estado:** `EN USO`
 - **Parámetros:**
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
-  | `@Fecha` | `DATE` | IN (OPT) | Fecha de la jornada analizada. |
+  | `@Fecha` | `DATE` | IN (OPT) | Fecha de emisión consultada (por defecto hoy). |
+  | `@Especialidad` | `NVARCHAR(100)` | IN (OPT) | Especialidad a filtrar (`Emergencia` para guardia; vacío o `Todas` para todas). |
 - **Devuelve:** `IdTurno`, `NroOrden`, `Fecha`, `Horario`, `PacienteCompleto`, `DniPaciente`, `ObraSocial`, `EsParticular`, `TipoTurno`, `Especialidad`, `MontoCobrado`, `Estado`, `MedicoAsignado`.
 
 > **Reemplazados:** `sp_ReporteGerencialIngresosPorMedico`, `sp_ReporteGerencialObrasSocialesVsParticulares`, `sp_ReporteGerencialDemandaMedicos`, `sp_ReporteGerencialRecaudacionAuditoriaResumen` y `sp_ReporteGerencialRecaudacionAuditoriaDetalle` se eliminaron (`DROP PROCEDURE IF EXISTS`). El panel del Gerente ya no muestra el detalle de turnos; se enfoca en el control de la recaudación.

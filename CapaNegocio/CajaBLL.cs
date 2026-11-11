@@ -15,16 +15,15 @@ namespace Gestion_de_Turnos_Medicos.CapaNegocio
         private readonly CajaDAL _cajaDAL = new CajaDAL();
 
         /// <summary>
-        /// Obtiene el detalle nominal de todos los turnos emitidos/atendidos durante la jornada de caja,
-        /// con filtro opcional por especialidad y por fecha de emisión.
+        /// Obtiene la caja de una fecha: turnos emitidos ese día (sin importar para qué día están programados)
+        /// y devoluciones registradas ese día, con filtro opcional por especialidad.
         /// </summary>
-        /// <param name="fecha">Fecha a auditar.</param>
+        /// <param name="fecha">Fecha de emisión a auditar.</param>
         /// <param name="especialidad">Especialidad médica o 'Emergencia' (opcional).</param>
-        /// <param name="soloEmitidosHoy">Si es true, filtra por turnos emitidos/creados en la fecha dada.</param>
         /// <returns>Lista de <see cref="ReporteCierreCajaDetalleDTO"/> con los registros de cobro.</returns>
-        public List<ReporteCierreCajaDetalleDTO> ObtenerDetalleCierreCaja(DateTime fecha, string? especialidad = null, bool soloEmitidosHoy = false)
+        public List<ReporteCierreCajaDetalleDTO> ObtenerDetalleCierreCaja(DateTime fecha, string? especialidad = null)
         {
-            return _cajaDAL.ObtenerDetalleCierreCaja(fecha.Date, especialidad, soloEmitidosHoy);
+            return _cajaDAL.ObtenerDetalleCierreCaja(fecha.Date, especialidad);
         }
 
         /// <summary>
