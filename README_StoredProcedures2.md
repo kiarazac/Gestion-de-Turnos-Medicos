@@ -2652,10 +2652,10 @@ GO
 ---
 
 ### 5.6.0.2 `sp_CancelarTurnoEmergencia`
-- **Descripción:** Cancela lógicamente un turno activo de guardia médica (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la lista de espera tras validar estrictamente la coincidencia de la palabra clave de seguridad 2FA (`CAN-XXXX`) emitida en el ticket.
+- **Descripción:** Cancela lógicamente un turno activo de guardia médica (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la lista de espera tras validar estrictamente la coincidencia de la palabra clave de seguridad 2FA (`CAN-XXXX`) emitida en el ticket. Si el turno tenía monto cobrado, registra la devolución en `Devoluciones` (motivo "Cancelación manual (guardia)"). Los turnos de guardia no se cancelan automáticamente.
 - **Entidad:** Turno
 - **Operación:** Cancelación de Turno de Guardia con Validación 2FA
-- **Tablas:** `Turnos`
+- **Tablas:** `Turnos`, `Devoluciones`
 - **Forms que lo utilizan:** `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
 - **Acción:** Botón `btnConfirmarCancelacionEmergencia`
 - **Estado:** `EN USO`

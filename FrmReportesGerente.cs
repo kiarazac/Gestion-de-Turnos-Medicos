@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Gestion_de_Turnos_Medicos.CapaNegocio;
 using Gestion_de_Turnos_Medicos.Negocio;
@@ -412,26 +413,21 @@ namespace Gestion_de_Turnos_Medicos
             CargarDatos();
         }
 
+        // El ranking depende del resto del período (participación, filtros): se recarga todo, igual en segundo plano
         private void CmbEspecialidad_SelectedIndexChanged(object? sender, EventArgs e)
         {
-            try
-            {
-                Cursor = Cursors.WaitCursor;
-                _rankingMedicos = _reporteBLL.ObtenerRankingMedicos(_desde, _hasta, IdEspecialidadSeleccionada);
-                Enlazar(dgvRankingMedicos, _rankingMedicos);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ocurrió un error al filtrar el ranking de médicos:\n" + ex.Message,
-                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                Cursor = Cursors.Default;
-            }
+            CargarDatos();
         }
 
-        private void CargarDatos()
+        // Una sola carga a la vez: los avisos o clics que llegan mientras tanto se resuelven con una única recarga al terminar
+        private bool _cargando;
+        private bool _recargaPendiente;
+
+        /// <summary>
+        /// Consulta todos los reportes en segundo plano para que la ventana siga respondiendo aunque SQL Server tarde
+        /// (por ejemplo, esperando memoria) y recién al final los muestra.
+        /// </summary>
+        private async void CargarDatos()
         {
             DateTime desde = dtpDesde.Value.Date;
             DateTime hasta = dtpHasta.Value.Date;
@@ -443,18 +439,41 @@ namespace Gestion_de_Turnos_Medicos
                 return;
             }
 
+            if (_cargando)
+            {
+                _recargaPendiente = true;
+                return;
+            }
+
+            _cargando = true;
+            UseWaitCursor = true;
+            btnFiltrar.Enabled = false;
+            btnExportar.Enabled = false;
+
             try
             {
-                Cursor = Cursors.WaitCursor;
-
+                int? idEspecialidad = IdEspecialidadSeleccionada;
                 var anterior = ReporteBLL.ObtenerPeriodoAnterior(desde, hasta);
-                _resumen = _reporteBLL.ObtenerFinanzasResumen(desde, hasta);
-                _resumenAnterior = _reporteBLL.ObtenerFinanzasResumen(anterior.Desde, anterior.Hasta);
-                _evolucion = _reporteBLL.ObtenerRecaudacionDiaria(desde, hasta);
-                _rankingMedicos = _reporteBLL.ObtenerRankingMedicos(desde, hasta, IdEspecialidadSeleccionada);
-                _rankingEspecialidades = _reporteBLL.ObtenerRankingEspecialidades(desde, hasta);
-                _rankingObrasSociales = _reporteBLL.ObtenerRankingObrasSociales(desde, hasta);
-                _segmentos = _reporteBLL.ObtenerFacturacionPorSegmento(desde, hasta);
+
+                var datos = await Task.Run(() => (
+                    Resumen: _reporteBLL.ObtenerFinanzasResumen(desde, hasta),
+                    ResumenAnterior: _reporteBLL.ObtenerFinanzasResumen(anterior.Desde, anterior.Hasta),
+                    Evolucion: _reporteBLL.ObtenerRecaudacionDiaria(desde, hasta),
+                    RankingMedicos: _reporteBLL.ObtenerRankingMedicos(desde, hasta, idEspecialidad),
+                    RankingEspecialidades: _reporteBLL.ObtenerRankingEspecialidades(desde, hasta),
+                    RankingObrasSociales: _reporteBLL.ObtenerRankingObrasSociales(desde, hasta),
+                    Segmentos: _reporteBLL.ObtenerFacturacionPorSegmento(desde, hasta)));
+
+                if (IsDisposed)
+                    return; // Se cerró la pantalla mientras se consultaba
+
+                _resumen = datos.Resumen;
+                _resumenAnterior = datos.ResumenAnterior;
+                _evolucion = datos.Evolucion;
+                _rankingMedicos = datos.RankingMedicos;
+                _rankingEspecialidades = datos.RankingEspecialidades;
+                _rankingObrasSociales = datos.RankingObrasSociales;
+                _segmentos = datos.Segmentos;
                 _desde = desde;
                 _hasta = hasta;
 
@@ -470,16 +489,30 @@ namespace Gestion_de_Turnos_Medicos
 
                 lblLeyendaCobertura.Visible = _rankingObrasSociales.Any(o => o.CoberturaConDiferencia);
                 ActualizarKpis();
-                CargarDevoluciones();
+                await CargarDevoluciones();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al cargar la información de recaudación:\n" + ex.Message,
-                    "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!IsDisposed)
+                    MessageBox.Show("Ocurrió un error al cargar la información de recaudación:\n" + ex.Message,
+                        "Error de Carga", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                Cursor = Cursors.Default;
+                _cargando = false;
+
+                if (!IsDisposed)
+                {
+                    UseWaitCursor = false;
+                    btnFiltrar.Enabled = true;
+                    btnExportar.Enabled = true;
+
+                    if (_recargaPendiente)
+                    {
+                        _recargaPendiente = false;
+                        CargarDatos();
+                    }
+                }
             }
         }
 
@@ -533,11 +566,15 @@ namespace Gestion_de_Turnos_Medicos
         /// <summary>
         /// Carga las devoluciones del período elegido. Un fallo aquí no debe impedir ver el resto de los reportes.
         /// </summary>
-        private void CargarDevoluciones()
+        private async Task CargarDevoluciones()
         {
             try
             {
-                var devoluciones = _cajaBLL.ListarDevoluciones(_desde, _hasta);
+                DateTime desde = _desde, hasta = _hasta;
+                var devoluciones = await Task.Run(() => _cajaBLL.ListarDevoluciones(desde, hasta));
+                if (IsDisposed)
+                    return;
+
                 Enlazar(dgvDevoluciones, devoluciones);
 
                 int pendientes = devoluciones.Count(d => !d.Revisada);
@@ -548,12 +585,15 @@ namespace Gestion_de_Turnos_Medicos
             }
             catch (Exception ex)
             {
+                if (IsDisposed)
+                    return;
+
                 lblResumenDevoluciones.Text = "No se pudieron cargar las devoluciones: " + ex.Message;
                 btnMarcarRevisada.Enabled = false;
             }
         }
 
-        private void BtnMarcarRevisada_Click(object? sender, EventArgs e)
+        private async void BtnMarcarRevisada_Click(object? sender, EventArgs e)
         {
             if (dgvDevoluciones.CurrentRow?.DataBoundItem is not DevolucionDTO dev || !dgvDevoluciones.CurrentRow.Selected)
             {
@@ -576,7 +616,7 @@ namespace Gestion_de_Turnos_Medicos
             try
             {
                 _cajaBLL.MarcarDevolucionRevisada(dev.IdDevolucion, _usuarioActual?.IdUsuario);
-                CargarDevoluciones();
+                await CargarDevoluciones();
             }
             catch (Exception ex)
             {

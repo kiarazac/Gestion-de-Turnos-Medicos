@@ -58,7 +58,7 @@ El sistema implementa una separación rigurosa de responsabilidades:
   - **Cancelación Ágil con Doble Factor (2FA):**
     - Al emitir cada turno de guardia se autogenera una clave de seguridad (`CAN-XXXX`), persistida en `Turnos.CodigoCancelacion` y exhibida tanto en pantalla como en el comprobante `.txt`.
     - En el propio formulario se incorpora el panel de cancelación directa en 1 solo paso: búsqueda instantánea por N° de orden (`E-001`) o DNI del paciente (`sp_BuscarTurnoActivoEmergencia`).
-    - Al ingresar la clave 2FA y pulsar *"CANCELAR TURNO (2FA)"*, `sp_CancelarTurnoEmergencia` valida la autenticidad y pasa el turno a estado `Cancelado` (`Activo = 0`), retirándolo de la guardia y sala de espera.
+    - Al ingresar la clave 2FA y pulsar *"CANCELAR TURNO (2FA)"*, `sp_CancelarTurnoEmergencia` valida la autenticidad y pasa el turno a estado `Cancelado` (`Activo = 0`), retirándolo de la guardia y sala de espera, y registra la devolución de lo cobrado.
 - **`FrmTurnoEspecialidad`:** Programación y gestión integral de turnos por especialidad médica.
   - **Numeración Correlativa y Control de Unicidad:** Asignación secuencial (`[Prefijo]-001`, `[Prefijo]-002`...) por especialidad y fecha de atención, garantizando que no se repitan identificadores entre turnos activos no atendidos.
   - **Selector Desplegable de Obra Social:** Incorpora el mismo selector controlado (`cmbObraSocial`) con sincronización por DNI, garantizando consistencia relacional y eliminando errores de tipeo.

@@ -1545,7 +1545,7 @@ IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Turnos_IdTurnoOrigen')
 
 GO
 
--- Devoluciones de dinero por turnos programados cancelados (manual o automáticamente) sin reprogramar.
+-- Devoluciones de dinero por turnos cancelados: programados (manual o automáticamente, sin reprogramar) y guardias (solo manual).
 -- La caja descuenta cada devolución el día en que se registra; el gerente las revisa en FrmReportesGerente.
 IF OBJECT_ID('Devoluciones') IS NULL
 BEGIN
@@ -1561,6 +1561,18 @@ BEGIN
         Activo BIT NOT NULL DEFAULT 1
     );
 END;
+
+GO
+
+-- Guardias canceladas antes de que sp_CancelarTurnoEmergencia registrara la devolución: se cargan con la fecha de la cancelación.
+-- Idempotente: solo turnos sin ninguna devolución (activa o anulada).
+INSERT INTO Devoluciones (IdTurno, Monto, Motivo, FechaDevolucion)
+SELECT t.IdTurno, t.Monto, 'Cancelación manual (guardia)', COALESCE(t.FechaBaja, t.FechaModificacion, GETDATE())
+FROM Turnos t
+WHERE t.TipoTurno = 'Emergencia'
+  AND t.Estado = 'Cancelado'
+  AND ISNULL(t.Monto, 0) > 0
+  AND NOT EXISTS (SELECT 1 FROM Devoluciones d WHERE d.IdTurno = t.IdTurno);
 
 GO
 
@@ -2978,8 +2990,8 @@ GO
 ** Procedimiento : sp_CancelarTurnoEmergencia
 ** Sección       : 5.6.0.2
 ** Propósito     : Cancela un turno activo de guardia (Emergencia) validando de forma estricta
-**                 la palabra clave alfanumérica de seguridad (2FA) emitida en el ticket.
-** Entidad/Tablas: `Turnos`
+**                 la palabra clave alfanumérica de seguridad (2FA) emitida en el ticket, y registra la devolución de lo cobrado.
+** Entidad/Tablas: `Turnos`, `Devoluciones`
 ** Invocado por  : `FrmTurnoEmergencia` (Panel de Cancelación Rápida 2FA)
 ** Estado        : `EN USO`
 ** Retorno       : `IdTurnoCancelado`, `Mensaje`
@@ -3026,14 +3038,24 @@ BEGIN
             THROW 50054, 'La palabra clave o código 2FA ingresado es incorrecto. No se puede cancelar el turno.', 1;
         END
 
+        BEGIN TRANSACTION;
+
         -- Actualización lógica del estado del turno
         UPDATE Turnos
-        SET 
+        SET
             Estado = 'Cancelado',
             Activo = 0,
             FechaBaja = GETDATE(),
             FechaModificacion = GETDATE()
         WHERE IdTurno = @IdTurno;
+
+        -- Devolución de lo cobrado. La guardia solo se cancela a mano (sp_CancelarTurnosVencidos no la toca)
+        INSERT INTO Devoluciones (IdTurno, Monto, Motivo)
+        SELECT IdTurno, Monto, 'Cancelación manual (guardia)'
+        FROM Turnos
+        WHERE IdTurno = @IdTurno AND TipoTurno = 'Emergencia' AND ISNULL(Monto, 0) > 0;
+
+        COMMIT TRANSACTION;
 
         SELECT @IdTurno AS IdTurnoCancelado, 'Turno de guardia cancelado exitosamente' AS Mensaje;
     END TRY

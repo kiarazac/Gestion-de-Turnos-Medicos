@@ -76,8 +76,8 @@ Este documento centraliza la especificación de todos los Stored Procedures requ
 - **Devuelve**: `IdTurno`, `NroOrden`, `Apellido`, `Nombre`, `Dni`, `Prioridad`, `Hora`, `Estado`, `CodigoCancelacion`.
 
 ### 5. `sp_CancelarTurnoEmergencia`
-- **Descripción**: Realiza la baja lógica del turno de guardia (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la guardia tras validar de forma estricta la palabra clave alfanumérica 2FA (`CAN-XXXX`) emitida en el ticket.
-- **Tablas involucradas**: `Turnos`
+- **Descripción**: Realiza la baja lógica del turno de guardia (`Estado = 'Cancelado'`, `Activo = 0`), retirándolo de la guardia tras validar de forma estricta la palabra clave alfanumérica 2FA (`CAN-XXXX`) emitida en el ticket. Si el turno tenía monto cobrado, registra la devolución en `Devoluciones`; la guardia nunca se cancela automáticamente.
+- **Tablas involucradas**: `Turnos`, `Devoluciones`
 - **Parámetros**:
   | Parámetro | Tipo | Dirección | Descripción |
   | :--- | :--- | :--- | :--- |
